@@ -1,0 +1,1 @@
+#define SIZE_OF(x) (sizeof((x))/sizeof((x[0])))
