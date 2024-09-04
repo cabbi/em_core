@@ -9,7 +9,7 @@ enum class EmIterResult {
     removeStopFailed,
 };
 
-// Forward delcarations
+// Forward declarations
 template<class T> class EmList;
 template<class T> class _EmListItem {
     friend class EmList<T>;
@@ -32,7 +32,7 @@ private:
 };
 
 // Items matching callback prototype
-// NOTE: Arduino platrofm does not have std::functional definition! :()
+// NOTE: Arduino platform does not have std::functional definition! :()
 template<class T> using ItemsMatchCb = bool(*)(const T& item1, const T& item2);
 template<class T, class V> 
     using IterationCb = EmIterResult(*)(T& item, 

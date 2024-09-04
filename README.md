@@ -1,2 +1,2 @@
-# em_core
+# EmCore
 C++ core library for embedded programming

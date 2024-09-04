@@ -1,7 +1,6 @@
 #ifndef __COM_DEVICE__H_
 #define __COM_DEVICE__H_
 
-#include "Arduino.h"
 #include "Stream.h"
 //#include "Wire.h"
 
@@ -84,7 +83,7 @@ private:
     Stream& m_serial;
 };
 
-/*
+/* TODO
 class EmComI2C: public TwoWire, public EmComDevice
 {
 public:
