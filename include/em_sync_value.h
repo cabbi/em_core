@@ -20,9 +20,9 @@ enum EmSyncSource {
     fromProcess = toLocal|toRemote
 };
 
-class EmUpdateableValue {
+class EmUpdatableValue {
 public:
-    EmUpdateableValue(bool isHighSampling)
+    EmUpdatableValue(bool isHighSampling)
      : m_IsHighSampling(isHighSampling) {}
     
     virtual bool SetToTarget(EmSyncTarget syncTarget)=0;
@@ -65,11 +65,11 @@ protected:
 };
 
 // https://stackoverflow.com/questions/22847803/c-destructor-with-templates-t-could-be-a-pointer-or-not
-class EmSyncValueBase: public EmUpdateableValue {
+class EmSyncValueBase: public EmUpdatableValue {
 // This is the base class for handling values coming from different sources (i.e. local, remote, ...)
 public:
     EmSyncValueBase(bool isHighSampling)
-     : EmUpdateableValue(isHighSampling),
+     : EmUpdatableValue(isHighSampling),
        m_SyncTarget(none),
        m_Semaphore(xSemaphoreCreateBinary())
     {

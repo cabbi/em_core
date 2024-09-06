@@ -1,16 +1,27 @@
-#ifndef __INTERFACE__H_
-#define __INTERFACE__H_
+#ifndef __APP_INTERFACE__H_
+#define __APP_INTERFACE__H_
 
-#include "em_timeout.h"
+#include <string.h>
+
 #include "em_log.h"
-#include "em_sync_value.h"
+#include "em_list.h"
+#include "em_timeout.h"
 
-enum EmInterfaceStatus {
-    is_None        = 0x0000,
-    is_Initialized = 0x0001, // Correctly initialized
-    is_Running     = 0x0002, // Running or Blocked (whachdog)
-    is_Warning     = 0x0004, // Has any warning
-    is_Error       = 0x0008, // Has any error
+class EmAppInterface;
+
+enum class EmInterfaceStatus {
+    isNone        = 0x0000,
+    isInitialized = 0x0001, // Correctly initialized
+    isRunning     = 0x0002, // Running or Blocked (in case running timeout is elapsed!)
+    isWarning     = 0x0004, // Has any warning
+    isError       = 0x0008, // Has any error
+};
+
+enum class EmIntOperationResult {
+    canContinue = 0,
+    removeInterface = 1,
+    restartApp = 2,
+    exitApp = 3,
 };
 
 inline EmInterfaceStatus operator~ (EmInterfaceStatus a) { return static_cast<EmInterfaceStatus>(~static_cast<int>(a)); }
@@ -21,36 +32,47 @@ inline EmInterfaceStatus& operator&=(EmInterfaceStatus& a, EmInterfaceStatus b) 
 
 #define MAX_INTERFACE_MSG_LEN 60
 
+// TODO: add multithreading sync!
+
 // This is the base interface class.
-// Each interface should implement these methods
-class EmInterface: public EmLog {
+// Each interface should implement 'Name', 'Setup' & 'Loop' methods
+class EmAppInterface: public EmLog {
 public:
-    EmInterface(bool logEnabled=false)
+    EmAppInterface(uint32_t runningTimeoutMs = 60000, bool logEnabled=false)
      : EmLog(logEnabled),
-       m_InterfaceStatus(is_None),
-       m_RunningTimeout((uint32_t)60*1000)
+       m_InterfaceStatus(EmInterfaceStatus::isNone),
+       m_RunningTimeout(runningTimeoutMs)
     { 
         memset(m_WarningMsg, 0, sizeof(m_WarningMsg));
         memset(m_ErrorMsg, 0, sizeof(m_ErrorMsg));
     }
     
-    virtual void Setup(EmUpdateableValue* syncValues)=0;
-    virtual void Loop()=0;
+    virtual ~EmAppInterface() {}
+
+    static bool Match(const EmAppInterface& int1, const EmAppInterface& int2) {
+        return 0==strcmp(int1.Name(), int2.Name());
+    }
+
+    virtual const char* Name() const=0;
+    virtual EmIntOperationResult Setup()=0;
+    virtual EmIntOperationResult Loop()=0;
     
     // Status handling
-    virtual bool IsInitialized() const { return GetStatusFlag(is_Initialized); }
-    virtual bool IsRunning()     const { return GetStatusFlag(is_Running) && !m_RunningTimeout.IsElapsed(false); }
-    virtual bool HasWarning()    const { return GetStatusFlag(is_Warning); }
-    virtual bool HasError()      const { return GetStatusFlag(is_Error); }
+    virtual bool IsInitialized() const { return GetStatusFlag(EmInterfaceStatus::isInitialized); }
+    virtual bool IsRunning()     const { return GetStatusFlag(EmInterfaceStatus::isRunning) && !IsBlocked(); }
+    virtual bool HasWarning()    const { return GetStatusFlag(EmInterfaceStatus::isWarning); }
+    virtual bool HasError()      const { return GetStatusFlag(EmInterfaceStatus::isError); }
+    virtual bool IsBlocked()     const { return m_RunningTimeout.IsElapsed(false); }
+
     // Initialized, running and no errors
     virtual bool IsOk()          const { return IsInitialized() && IsRunning() && !HasError(); }
 
     virtual void SetInitialized(bool value)
-        { SetStatusFlag(is_Initialized, value); }
+        { SetStatusFlag(EmInterfaceStatus::isInitialized, value); }
     
     virtual void SetRunning(bool value)
         { if (value) m_RunningTimeout.Restart();
-          SetStatusFlag(is_Running, value); }
+          SetStatusFlag(EmInterfaceStatus::isRunning, value); }
     
     virtual void SetWarning(bool value, const char* msg="");
     virtual void SetError(bool value, const char* msg="");
@@ -73,6 +95,11 @@ private:
     mutable EmTimeout m_RunningTimeout;
     char m_WarningMsg[MAX_INTERFACE_MSG_LEN+1];
     char m_ErrorMsg[MAX_INTERFACE_MSG_LEN+1];
+};
+
+class EmAppInterfaces: public EmList<EmAppInterface> {
+public:
+    EmAppInterfaces() : EmList(EmAppInterface::Match) {}
 };
 
 #endif

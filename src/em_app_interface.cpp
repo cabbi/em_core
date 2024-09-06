@@ -1,15 +1,15 @@
 #include <string.h>
-#include "em_interface.h"
+#include "em_app_interface.h"
 
-void EmInterface::SetWarning(bool value, const char* msg)
+void EmAppInterface::SetWarning(bool value, const char* msg)
 {
     // Any change? (avoid log same stuff many times)
-    if (value == GetStatusFlag(is_Warning) &&
+    if (value == GetStatusFlag(EmInterfaceStatus::isWarning) &&
         ((msg == NULL && m_WarningMsg[0]==0) ||
           0==strcmp(msg, m_WarningMsg)))
         return;
     // Set new status
-    SetStatusFlag(is_Warning, value); 
+    SetStatusFlag(EmInterfaceStatus::isWarning, value); 
     memset(m_WarningMsg, 0, sizeof(m_WarningMsg));
     if (msg) 
     {
@@ -17,15 +17,15 @@ void EmInterface::SetWarning(bool value, const char* msg)
     }
 }
     
-void EmInterface::SetError(bool value, const char* msg) 
+void EmAppInterface::SetError(bool value, const char* msg) 
 {
     // Any change? (avoid log same stuff many times)
-    if (value == GetStatusFlag(is_Error) &&
+    if (value == GetStatusFlag(EmInterfaceStatus::isError) &&
         ((msg == NULL && m_ErrorMsg[0]==0) ||
           0==strcmp(msg, m_ErrorMsg)))
         return;
     // Set new status
-    SetStatusFlag(is_Error, value); 
+    SetStatusFlag(EmInterfaceStatus::isError, value); 
     memset(m_ErrorMsg, 0, sizeof(m_ErrorMsg));
     if (msg) 
     {

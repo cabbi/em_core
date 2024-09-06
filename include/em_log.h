@@ -1,6 +1,7 @@
 #ifndef __DEBUG_PRINT__H_
 #define __DEBUG_PRINT__H_
 
+#include <stdint.h>
 #include "em_sync_lock.h"
 
 #ifndef DebugLog

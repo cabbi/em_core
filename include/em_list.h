@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 enum class EmIterResult {
     moveNext = 0, // Default is continue iteration by moving to next list value
     stopSucceed,
@@ -14,19 +16,18 @@ template<class T> class EmList;
 template<class T> class _EmListItem {
     friend class EmList<T>;
 private:    
-    // NOTE: we cannot store a NULL pointer here!
-    _EmListItem(T* pItem, bool makeCopy)
-    : m_IsOwned(makeCopy), 
-      m_pItem(makeCopy ? new T(*pItem) : pItem), 
+    _EmListItem(T* pItem, bool shouldBeDeleted)
+    : m_ShouldBeDeleted(shouldBeDeleted), 
+      m_pItem(pItem), 
       m_pNext(NULL) {}
 
     virtual ~_EmListItem() {
-        if (m_IsOwned) {
+        if (NULL != m_pItem && m_ShouldBeDeleted) {
             delete m_pItem;
         }
     }
 
-    bool m_IsOwned;
+    bool m_ShouldBeDeleted;
     T* m_pItem;
     _EmListItem<T>* m_pNext;
 };
@@ -34,45 +35,61 @@ private:
 // Items matching callback prototype
 // NOTE: Arduino platform does not have std::functional definition! :()
 template<class T> using ItemsMatchCb = bool(*)(const T& item1, const T& item2);
+template<class T> using IterationCb = EmIterResult(*)(T& item); 
 template<class T, class V> 
-    using IterationCb = EmIterResult(*)(T& item, 
-                                        bool isFirst,
-                                        bool isLast,
-                                        V* pUserData);
+    using IterationExCb = EmIterResult(*)(T& item, 
+                                          bool isFirst,
+                                          bool isLast,
+                                          V* pUserData);
+
+// Default items matching callback function
+template<class T> inline bool DefItemsMatch(const T& item1, const T& item2) {
+    return item1 == item2;
+}
 
 /***
     An easy list implementation 
  ***/
 template<class T> class EmList {
 public:
-    EmList(ItemsMatchCb<T> itemsMatch = DefItemsMatch)
+    EmList(ItemsMatchCb<T> itemsMatch)
      : m_pFirst(NULL),
        m_ItemsMatch(itemsMatch) {}
+
+    EmList(const EmList<T>& list)
+     : EmList(list.m_ItemsMatch) {
+        Append(list);
+    }
 
     virtual ~EmList() {
         Clear();
     }
 
-    // Default items matching callback function
-    static bool DefItemsMatch(const T& item1, const T& item2) {
-        return item1 == item2;
-    }
-
     // Append an element at the end of the list.
-    void Append(T& item, bool makeCopy=false) {
-        _EmListItem<T>* last = _last();
-        if (NULL != last) {
-            last->m_pNext = new _EmListItem<T>(&item, makeCopy);
-        } else {
-            m_pFirst = new _EmListItem<T>(&item, makeCopy);
+    void Append(T& item) {
+        _append(item, false);
+    }
+
+    // Append an element pointer at the end of the list.
+    // If 'shouldBeDeleted' is true, then list will free 
+    // the item object once released from the list 
+    void Append(T* item, bool shouldBeDeleted) {
+        // NOTE: Cannot append NULLs to list!
+        if (NULL != item) {
+            _append(*item, shouldBeDeleted);
         }
     }
 
-    void Append(T* item, bool makeCopy=false) {
-        // NOTE: We do not append NULLs!
-        if (NULL != item) {
-            Append(*item, makeCopy);
-        }
+    // Append 'list' elements at the end of this list.
+    void Append(const EmList<T>& list) {
+        // 'list' object will not change, so it's safe to cast it as non-const
+        ((EmList<T>&)list).ForEach<EmList<T>>([](T& item, 
+                                              bool,
+                                              bool,
+                                              EmList<T>* pThis) -> EmIterResult {
+            pThis->_append(item, false);
+            return EmIterResult::moveNext;
+        }, this);
     }
 
     // Remove an element from list.
@@ -97,6 +114,21 @@ public:
             return NULL;
         }
         return Remove(*item);
+    }
+
+    // Returns false if at least one element in the reoval list is not found
+    bool Remove(const EmList<T>& list) {
+        bool res = true;
+        // 'list' object will not change, so it's safe to cast it as non-const
+        return ((EmList<T>&)list).ForEach<bool>([](T& item, 
+                                                   bool, 
+                                                   bool, 
+                                                   bool* pRes) -> EmIterResult {
+            if (!Remove(item)) {
+                *pRes = false;
+            }
+            return EmIterResult::moveNext; 
+        }, &res);
     }
 
     // Find the same element of the list. T should have right equalty operator.
@@ -153,14 +185,46 @@ public:
     }
 
     // Iterate the list elements. 
-    template<class V=void> bool ForEach(IterationCb<T, V> iter, V* pUserData=NULL) {
+    bool ForEach(IterationCb<T> iter) {
+        return _forEach<void>((void*)iter, false, NULL);
+    }
+
+    // Iterate the list elements with extended callback. 
+    template<class V=void> bool ForEach(IterationExCb<T, V> iter, V* pUserData=NULL) {
+        return _forEach<V>((void*)iter, true, pUserData);
+    }
+
+    // Return the first element in the list or NULL if list is empty
+    T* First() const {
+        return NULL == m_pFirst ? NULL : m_pFirst->m_pItem;
+    }
+
+    // Return the last element in the list or NULL if list is empty
+    T* Last() const  {
+        _EmListItem<T>* last = _last();
+        return NULL == last ? NULL : last->m_pItem;
+    }
+
+protected:
+    void _append(T& item, bool shouldBeDeleted) {
+        _EmListItem<T>* last = _last();
+        if (NULL != last) {
+            last->m_pNext = new _EmListItem<T>(&item, shouldBeDeleted);
+        } else {
+            m_pFirst = new _EmListItem<T>(&item, shouldBeDeleted);
+        }
+    }
+
+    template<class V> bool _forEach(void* iter, bool isExtendedCb, V* pUserData) {
         _EmListItem<T>* pPrev = NULL;
         _EmListItem<T>* pItem = _first();
         while (NULL != pItem) {
-            EmIterResult res = iter(*pItem->m_pItem, 
-                                  pItem == _first(),
-                                  pItem->m_pNext == NULL,
-                                  pUserData);
+            EmIterResult res = isExtendedCb ? 
+                               ((IterationExCb<T, V>)iter)(*pItem->m_pItem, 
+                                                       pItem == _first(),
+                                                       pItem->m_pNext == NULL,
+                                                       pUserData) :
+                               ((IterationCb<T>)iter)(*pItem->m_pItem);
             switch (res) {
                 case EmIterResult::stopSucceed:
                     return true;
@@ -183,18 +247,6 @@ public:
         return true;
     }
 
-    // Return the first element in the list or NULL if list is empty
-    T* First() const {
-        return NULL == m_pFirst ? NULL : m_pFirst->m_pItem;
-    }
-
-    // Return the last element in the list or NULL if list is empty
-    T* Last() const  {
-        _EmListItem<T>* last = _last();
-        return NULL == last ? NULL : last->m_pItem;
-    }
-
-protected:
     _EmListItem<T>* _first() const {
         return m_pFirst;
     }

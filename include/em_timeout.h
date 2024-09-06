@@ -10,40 +10,36 @@ class EmTimeout
 {
 public:
     EmTimeout(uint32_t timeoutMs)
-     : m_timeoutMs(timeoutMs)
-    {
+     : m_timeoutMs(timeoutMs) {
         Restart();
     }
 
-    void SetTimeout(uint32_t timeoutMs, bool restart) 
-    {
+    uint32_t GetTimeoutMs() const {
+        return m_timeoutMs;
+    } 
+
+    void SetTimeout(uint32_t timeoutMs, bool restart) {
         m_timeoutMs=timeoutMs; 
-        if (restart)
-        {
+        if (restart) {
             Restart();
         }
     }
     
-    void Restart() 
-    {
+    void Restart() {
         m_startMs = millis();
     }
     
-    bool IsElapsed(bool restartIfElapsed) 
-    {
+    bool IsElapsed(bool restartIfElapsed) {
         bool isElapsed = ((millis() - m_startMs) > m_timeoutMs);
-        if (restartIfElapsed && isElapsed)
-        {
+        if (restartIfElapsed && isElapsed) {
             Restart();
         }
         return isElapsed;
     }
 
-    uint32_t GetRemainingMs()
-    {
+    uint32_t GetRemainingMs() const {
         int32_t ret = m_timeoutMs-(millis()-m_startMs);
-        if (ret > 0)
-        { 
+        if (ret > 0) { 
             return (uint32_t)ret;
         }
         return 0;
