@@ -18,7 +18,7 @@ void EmApp::Run(uint32_t loopDelayMs) {
         bool iterResult = runningInterfaces.ForEach([](EmAppInterface& interface) -> EmIterResult {
             EmIntOperationResult res;
             if (interface.IsInitialized()) {
-                res = interface.Loop();
+                res = interface.CanCallLoop() ? interface.Loop() : EmIntOperationResult::canContinue;
             } else {
                 res = interface.Setup();
                 if (res == EmIntOperationResult::canContinue) {

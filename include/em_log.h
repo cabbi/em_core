@@ -2,7 +2,7 @@
 #define __DEBUG_PRINT__H_
 
 #include <stdint.h>
-#include "em_sync_lock.h"
+#include "em_thread_lock.h"
 
 #ifndef DebugLog
 
@@ -29,7 +29,8 @@ public:
     void SetLogEnabled(bool) {}
 };
 
-#elif
+#else
+
 class EmLog {
 public:    
     EmLog(bool enabled=false)

@@ -9,9 +9,13 @@ unsigned long millis(void);
 class EmTimeout
 {
 public:
-    EmTimeout(uint32_t timeoutMs)
+    EmTimeout(uint32_t timeoutMs, bool startAsElapsed=false)
      : m_timeoutMs(timeoutMs) {
-        Restart();
+        if (startAsElapsed) {
+            m_startMs = millis()-m_timeoutMs-1;
+        } else {
+            Restart();
+        }
     }
 
     uint32_t GetTimeoutMs() const {

@@ -67,7 +67,7 @@ public:
         return m_serial.peek();
     }
 
-    int write(byte b) {
+    int write(uint8_t b) {
         return m_serial.write(b);
     }
 

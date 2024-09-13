@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "em_sync_lock.h"
+#include "em_thread_lock.h"
 
 
 enum EmSyncTarget {
@@ -52,16 +52,16 @@ public:
 template <class T>
 class EmValueSource<T*> {
 public:
-    EmValueSource(const uint8_t len)
-        : m_Len(len) {};
+    EmValueSource(const uint8_t maxLen)
+        : m_MaxLen(maxLen) {};
 
     virtual bool GetSourceValue(T* value)=0;
     virtual bool SetSourceValue(const T* value)=0;
 
-    uint8_t GetLen() const { return m_Len; };
+    uint8_t GetMaxLen() const { return m_MaxLen; };
 
 protected:
-    const uint8_t m_Len;
+    const uint8_t m_MaxLen;
 };
 
 // https://stackoverflow.com/questions/22847803/c-destructor-with-templates-t-could-be-a-pointer-or-not
@@ -78,25 +78,25 @@ public:
 
     virtual bool IsSyncTarget(EmSyncTarget syncTarget) 
     {
-        EmSyncLock syncLock(m_Semaphore);
+        EmThreadLock syncLock(m_Semaphore);
         return m_SyncTarget & syncTarget;
     }
 
     virtual EmSyncTarget GetSyncTarget() 
     {
-        EmSyncLock syncLock(m_Semaphore);
+        EmThreadLock syncLock(m_Semaphore);
         return m_SyncTarget;
     }
 
     virtual void AddSource(EmSyncSource syncSource)
     { 
-        EmSyncLock syncLock(m_Semaphore);
+        EmThreadLock syncLock(m_Semaphore);
         m_SyncTarget = (EmSyncTarget)((int)m_SyncTarget|(int)syncSource);
     }
 
     virtual void RemoveTarget(EmSyncTarget syncTarget)
     { 
-        EmSyncLock syncLock(m_Semaphore);
+        EmThreadLock syncLock(m_Semaphore);
         m_SyncTarget = (EmSyncTarget)((int)m_SyncTarget&(int)~syncTarget);
     }
 
@@ -119,13 +119,13 @@ public:
 
     virtual bool IsEqual(const T val) const
     {
-        EmSyncLock syncLock(this->m_Semaphore);
+        EmThreadLock syncLock(this->m_Semaphore);
         return val == m_Value;
     }
 
     const T PeekValue()
     {
-        EmSyncLock syncLock(this->m_Semaphore);
+        EmThreadLock syncLock(this->m_Semaphore);
         return m_Value;
     }
 
@@ -209,7 +209,7 @@ protected:
 
     virtual void Copy(T& dest, const T source)
     {
-        EmSyncLock syncLock(this->m_Semaphore);
+        EmThreadLock syncLock(this->m_Semaphore);
         dest = source;
     }
 
@@ -222,9 +222,9 @@ template <class T>
 class EmSyncValue<T*>: public EmSyncValueBase {
 public:
     EmSyncValue(EmValueSource<T*>* localSource=NULL,
-              EmValueSource<T*>* remoteSource=NULL,
-              uint8_t len=0,
-              bool isHighSampling=false)
+                EmValueSource<T*>* remoteSource=NULL,
+                uint8_t len=0,
+                bool isHighSampling=false)
      : EmSyncValueBase(isHighSampling),
        m_LocalSource(localSource),
        m_RemoteSource(remoteSource),
@@ -240,13 +240,13 @@ public:
 
     virtual bool IsEqual(const T* val) const
     {
-        EmSyncLock syncLock(this->m_Semaphore);
+        EmThreadLock syncLock(this->m_Semaphore);
         return (0==memcmp(val, m_Value, m_Len));
     }
 
     const T* PeekValue()
     {
-        EmSyncLock syncLock(this->m_Semaphore);
+        EmThreadLock syncLock(this->m_Semaphore);
         return m_Value;
     }
 
@@ -332,7 +332,7 @@ protected:
 
     virtual void Copy(T* dest, const T* source)
     {
-        EmSyncLock syncLock(this->m_Semaphore);
+        EmThreadLock syncLock(this->m_Semaphore);
         memcpy(dest, source, m_Len);
     }
 

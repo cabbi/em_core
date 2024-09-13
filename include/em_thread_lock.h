@@ -1,6 +1,5 @@
-#ifndef __SYNCLOCK__H_
-#define __SYNCLOCK__H_
-
+#ifndef __THREAD_LOCK__H_
+#define __THREAD_LOCK__H_
 
 #ifndef MULTI_THREAD
 
@@ -14,17 +13,17 @@ inline void xSemaphoreGive(SemaphoreHandle_t) {}
 inline void xSemaphoreTake(SemaphoreHandle_t) {}
 
 
-class EmSyncLock {
+class EmThreadLock {
 public:
-    EmSyncLock(SemaphoreHandle_t) {}
+    EmThreadLock(SemaphoreHandle_t) {}
 };
 
-#elif 
+#else
 
-class EmSyncLock {
+class EmThreadLock {
 public:
-    EmSyncLock(SemaphoreHandle_t& semaphore)
-        : m_semaphore(semaphore)
+    EmThreadLock(SemaphoreHandle_t& semaphore)
+     : m_semaphore(semaphore)
     { 
         xSemaphoreTake(m_semaphore, 100); 
     }

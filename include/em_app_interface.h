@@ -56,6 +56,9 @@ public:
     virtual const char* Name() const=0;
     virtual EmIntOperationResult Setup()=0;
     virtual EmIntOperationResult Loop()=0;
+
+    // Override this in case app should not call interface 'Loop' method all the times
+    virtual bool CanCallLoop() { return true; }
     
     // Status handling
     virtual bool IsInitialized() const { return GetStatusFlag(EmInterfaceStatus::isInitialized); }
@@ -100,6 +103,22 @@ private:
 class EmAppInterfaces: public EmList<EmAppInterface> {
 public:
     EmAppInterfaces() : EmList(EmAppInterface::Match) {}
+};
+
+// This interface has a loop call timeout, app will call the 'Loop' method each time timeout elapses
+class EmAppTimeoutInterface: public EmAppInterface {
+public:
+    EmAppTimeoutInterface(uint32_t loopTimeoutMs, 
+                          bool startAsElapsed=true,
+                          uint32_t runningTimeoutMs = 60000, 
+                          bool logEnabled=false) 
+     : EmAppInterface(runningTimeoutMs, logEnabled), 
+       m_LoopTimeout(EmTimeout(loopTimeoutMs, startAsElapsed)) {}
+
+    virtual bool CanCallLoop() { return m_LoopTimeout.IsElapsed(true); }
+
+private:
+    mutable EmTimeout m_LoopTimeout;
 };
 
 #endif
