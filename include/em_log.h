@@ -29,14 +29,16 @@ public:
 class EmLog {
     friend const char* LevelToStr(EmLogLevel level);
 public:    
-    static void Init(EmLogTarget targets[], uint8_t targetsCount) {
+    static void Init(EmLogTarget targets[], uint8_t targetsCount, EmLogLevel level) {
         EmLog::g_Targets = targets;
         EmLog::g_TargetsCount = targetsCount;
+        EmLog::g_Level = level;
     }
 
     EmLog(const char* context = NULL, 
           EmLogLevel level = EmLogLevel::global)
-     : m_Level(level) { }
+     : m_Context(context),
+       m_Level(level) { }
 
     template<uint8_t max_len>
     void LogError(const char* format, ...) const;
