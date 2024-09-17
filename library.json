@@ -1,6 +1,6 @@
 {
   "name": "EmCore",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "The C++ embedded core library",
   "keywords": "",
   "repository":  {
@@ -12,6 +12,6 @@
     "maintainer": true
   },
   "license": "BSD-3-Clause",
-  "frameworks": ["espidf", "freertos", "arduino"],
+  "frameworks": ["arduino"],
   "platforms": "*"
 }

@@ -38,8 +38,8 @@ inline EmInterfaceStatus& operator&=(EmInterfaceStatus& a, EmInterfaceStatus b) 
 // Each interface should implement 'Name', 'Setup' & 'Loop' methods
 class EmAppInterface: public EmLog {
 public:
-    EmAppInterface(uint32_t runningTimeoutMs = 60000, bool logEnabled=false)
-     : EmLog(logEnabled),
+    EmAppInterface(uint32_t runningTimeoutMs = 60000, EmLogLevel logLevel=EmLogLevel::none)
+     : EmLog("AppInt", logLevel),
        m_InterfaceStatus(EmInterfaceStatus::isNone),
        m_RunningTimeout(runningTimeoutMs)
     { 
@@ -111,8 +111,8 @@ public:
     EmAppTimeoutInterface(uint32_t loopTimeoutMs, 
                           bool startAsElapsed=true,
                           uint32_t runningTimeoutMs = 60000, 
-                          bool logEnabled=false) 
-     : EmAppInterface(runningTimeoutMs, logEnabled), 
+                          EmLogLevel logLevel=EmLogLevel::none) 
+     : EmAppInterface(runningTimeoutMs, logLevel), 
        m_LoopTimeout(EmTimeout(loopTimeoutMs, startAsElapsed)) {}
 
     virtual bool CanCallLoop() { return m_LoopTimeout.IsElapsed(true); }

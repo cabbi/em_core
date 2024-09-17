@@ -1,56 +1,180 @@
-#ifndef __DEBUG_PRINT__H_
-#define __DEBUG_PRINT__H_
+#ifndef __LOG__H_
+#define __LOG__H_
 
+#include <stdio.h>
 #include <stdint.h>
-#include "em_thread_lock.h"
+#include <stdarg.h>
 
-#ifndef DebugLog
 
-class EmLog {
+// The logging enabled levels
+enum class EmLogLevel: int8_t {
+    global = -1, // Takes the EmLog::g_Level
+    none = 0,
+    error,
+    warning,
+    info,
+    debug
+};
+const char* LevelToStr(EmLogLevel level);
+
+// The abstract log target class. 
+class EmLogTarget {
 public:    
-    EmLog(bool) {}
-    
-    void LogInfo(const char*, bool) const {}
-    void LogInfo(int16_t, bool)     const {}
-    void LogInfo(int32_t, bool)     const {}
-    void LogInfo(float, bool)       const {}
-
-    void LogWarning(const char*, bool) const {}
-    void LogWarning(int16_t, bool)     const {}
-    void LogWarning(int32_t, bool)     const {}
-    void LogWarning(float, bool)       const {}
-
-    void LogError(const char*, bool) const {}
-    void LogError(int16_t, bool)     const {}
-    void LogError(int32_t, bool)     const {}
-    void LogError(float, bool)       const {}
-
-    bool IsLogEnabled() const    { return false; }
-    void SetLogEnabled(bool) {}
+    virtual void write(EmLogLevel /*level*/, 
+                       const char* /*context*/, 
+                       const char* /*msg*/) {}
 };
 
-#else
-
+// The log class can be inherited to allow easy logging
 class EmLog {
+    friend const char* LevelToStr(EmLogLevel level);
 public:    
-    EmLog(bool enabled=false)
-     : m_Enabled(enabled),
-       m_Lock(xSemaphoreCreateBinary())
-     { xSemaphoreGive(m_Lock); }
+    static void Init(EmLogTarget targets[], uint8_t targetsCount) {
+        EmLog::g_Targets = targets;
+        EmLog::g_TargetsCount = targetsCount;
+    }
 
-    void LogInfo(const char* val, bool newLine=true)   const { if (IsLogEnabled()) { Serial.print(val); if (newLine) Serial.print("\n"); } }
-    void LogInfo(const String& val, bool newLine=true) const { if (IsLogEnabled()) { Serial.print(val); if (newLine) Serial.print("\n");  } }
-    void LogInfo(int16_t val, bool newLine=true)       const { if (IsLogEnabled()) { Serial.print(val); if (newLine) Serial.print("\n");  } }
-    void LogInfo(int32_t val, bool newLine=true)       const { if (IsLogEnabled()) { Serial.print(val); if (newLine) Serial.print("\n");  } }
-    void LogInfo(float val, bool newLine=true)         const { if (IsLogEnabled()) { Serial.print(val); if (newLine) Serial.print("\n");  } }
+    EmLog(const char* context = NULL, 
+          EmLogLevel level = EmLogLevel::global)
+     : m_Level(level) { }
 
-    bool IsLogEnabled() const    { SyncLock lock(m_Lock); return m_Enabled; }
-    void SetLogEnabled(bool enabled) { SyncLock lock(m_Lock); m_Enabled = enabled; }
+    template<uint8_t max_len>
+    void LogError(const char* format, ...) const;
+    void LogError(const char* msg) const { 
+        Log(EmLogLevel::error, msg);
+    }
+
+    template<uint8_t max_len>
+    void LogWarning(const char* format, ...) const;
+    void LogWarning(const char* msg) const { 
+        Log(EmLogLevel::warning, msg);
+    }
+
+    template<uint8_t max_len>
+    void LogInfo(const char* format, ...) const;
+    void LogInfo(const char* msg) const { 
+        Log(EmLogLevel::info, msg);
+    }
+
+    template<uint8_t max_len>
+    void LogDebug(const char* format, ...) const;
+    void LogDebug(const char* msg) const { 
+        Log(EmLogLevel::debug, msg);
+    }
+
+    template<uint8_t max_len>
+    void Log(EmLogLevel level, const char* format, ...) const;
+    void Log(EmLogLevel level, const char* msg) const;
+    
+    template<uint8_t max_len>
+    static void Log(EmLogLevel level, const char* context, const char* msg, ...);
+    static void Log(EmLogLevel level, const char* context, const char* msg);
+    
+    bool CheckLevel(EmLogLevel level) const { 
+        return (m_Level == EmLogLevel::global ? g_Level : m_Level) >= level; 
+    }
+
+    void SetLevel(EmLogLevel level) { 
+        // Since we are running on an MPU this operation might be atomic 
+        // (i.e. no thread sync needed since we use 1 byte and we are running on a single CPU)
+        m_Level = level; 
+    }
+
+    static void SetGlobalLevel(EmLogLevel level) { 
+        // Since we are running on an MPU this operation might be atomic 
+        // (i.e. no thread sync needed since we use 1 byte and we are running on a single CPU)
+        g_Level = level; 
+    }
 
 protected:
-    bool m_Enabled;
-    mutable SemaphoreHandle_t m_Lock;
+    template<uint8_t max_len>
+    static void _writeToTargets(EmLogLevel level, 
+                                const char* context, 
+                                const char* format,
+                                va_list args); 
+    static void _writeToTargets(EmLogLevel level, 
+                                const char* context, 
+                                const char* msg); 
+
+    // Member vars
+    const char* m_Context;
+    EmLogLevel m_Level;
+    // Global vars
+    static EmLogLevel g_Level;
+    static EmLogTarget* g_Targets;
+    static uint8_t g_TargetsCount;
 };
 
-#endif
+template<uint8_t max_len>
+inline void EmLog::LogError(const char* format, ...) const { 
+    if (CheckLevel(EmLogLevel::error)) {
+        va_list args;
+        va_start(args, format);     
+        _writeToTargets<max_len>(EmLogLevel::error, m_Context, format, args);
+        va_end(args);
+    }
+}
+
+template<uint8_t max_len>
+inline void EmLog::LogWarning(const char* format, ...) const { 
+    if (CheckLevel(EmLogLevel::warning)) {
+        va_list args;
+        va_start(args, format);     
+        _writeToTargets<max_len>(EmLogLevel::warning, m_Context, format, args);
+        va_end(args);
+    }
+}
+
+template<uint8_t max_len>
+inline void EmLog::LogInfo(const char* format, ...) const { 
+    if (CheckLevel(EmLogLevel::info)) {
+        va_list args;
+        va_start(args, format);     
+        _writeToTargets<max_len>(EmLogLevel::info, m_Context, format, args);
+        va_end(args);
+    }
+}
+
+template<uint8_t max_len>
+inline void EmLog::LogDebug(const char* format, ...) const { 
+    if (CheckLevel(EmLogLevel::debug)) {
+        va_list args;
+        va_start(args, format);     
+        _writeToTargets<max_len>(EmLogLevel::debug, m_Context, format, args);
+        va_end(args);
+    }
+}
+
+template<uint8_t max_len>
+inline void EmLog::Log(EmLogLevel level, const char* format, ...) const {
+    if (CheckLevel(level)) {
+        va_list args;
+        va_start(args, format);     
+        _writeToTargets<max_len>(level, m_Context, format, args);
+        va_end(args);
+    }
+}
+
+template<uint8_t max_len>
+inline void EmLog::Log(EmLogLevel level, 
+                       const char* context, 
+                       const char* format, ...) {
+    if (g_Level >= level) {
+        va_list args;
+        va_start(args, format);     
+        _writeToTargets<max_len>(level, context, format, args);
+        va_end(args);
+    }
+}
+
+template<uint8_t max_len>
+void EmLog::_writeToTargets(EmLogLevel level, 
+                            const char* context, 
+                            const char* format,
+                            va_list args) { 
+    char msg[max_len+1];
+    vsnprintf(msg, max_len+1, format, args);
+    _writeToTargets(level, context, msg);
+}
+
 #endif
