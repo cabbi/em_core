@@ -9,7 +9,7 @@
 
 class EmAppInterface;
 
-enum class EmInterfaceStatus {
+enum class EmInterfaceStatus: int8_t {
     isNone        = 0x0000,
     isInitialized = 0x0001, // Correctly initialized
     isRunning     = 0x0002, // Running or Blocked (in case running timeout is elapsed!)
@@ -17,7 +17,7 @@ enum class EmInterfaceStatus {
     isError       = 0x0008, // Has any error
 };
 
-enum class EmIntOperationResult {
+enum class EmIntOperationResult: int8_t {
     canContinue = 0,
     removeInterface = 1,
     restartApp = 2,

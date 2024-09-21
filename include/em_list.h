@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 
-enum class EmIterResult {
+enum class EmIterResult: int8_t {
     moveNext = 0, // Default is continue iteration by moving to next list value
     stopSucceed,
     stopFailed,

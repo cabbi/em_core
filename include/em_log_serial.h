@@ -16,10 +16,10 @@ public:
                        const char* /*context*/, 
                        const __FlashStringHelper* /*msg*/);                       
 
-    virtual size_t print(const char[]) = 0;
-    virtual size_t println(const char[]) = 0;
-    virtual size_t print(const __FlashStringHelper*) = 0;
-    virtual size_t println(const __FlashStringHelper*) = 0;
+    virtual size_t print(const char[] /*msg*/) = 0;
+    virtual size_t println(const char[] /*msg*/) = 0;
+    virtual size_t print(const __FlashStringHelper* /*msg*/) = 0;
+    virtual size_t println(const __FlashStringHelper* /*msg*/) = 0;
 
 protected:
     virtual void _printLevel(EmLogLevel level);

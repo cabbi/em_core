@@ -5,8 +5,6 @@
 #include <stdint.h>
 #include <stdarg.h>
 
-class __FlashStringHelper;
-
 // The logging enabled levels
 enum class EmLogLevel: int8_t {
     global = -1, // Takes the EmLog::g_Level
@@ -16,6 +14,9 @@ enum class EmLogLevel: int8_t {
     info,
     debug
 };
+
+// Forward declarations
+class __FlashStringHelper;
 const char* LevelToStr(EmLogLevel level);
 
 // The base log target class each logging target should implement. 
@@ -30,6 +31,9 @@ public:
                        const __FlashStringHelper* /*msg*/) {}
 };
 
+
+// NOTE:
+//  Define 'EM_NO_LOG' to avoid extra Flash and RAM memory consumption.  
 #ifdef EM_NO_LOG
 
 inline const char* LevelToStr(EmLogLevel level) { return ""; }
