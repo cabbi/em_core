@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 
+class __FlashStringHelper;
 
 // The logging enabled levels
 enum class EmLogLevel: int8_t {
@@ -17,13 +18,67 @@ enum class EmLogLevel: int8_t {
 };
 const char* LevelToStr(EmLogLevel level);
 
-// The abstract log target class. 
+// The base log target class each logging target should implement. 
 class EmLogTarget {
 public:    
     virtual void write(EmLogLevel /*level*/, 
                        const char* /*context*/, 
                        const char* /*msg*/) {}
+
+    virtual void write(EmLogLevel /*level*/, 
+                       const char* /*context*/, 
+                       const __FlashStringHelper* /*msg*/) {}
 };
+
+#ifdef EM_NO_LOG
+
+inline const char* LevelToStr(EmLogLevel level) { return ""; }
+
+class EmLog {
+public:    
+    static void Init(EmLogTarget targets[], uint8_t targetsCount, EmLogLevel level) {}
+
+    EmLog(const char* context = NULL, 
+          EmLogLevel level = EmLogLevel::global) {}
+
+    template<uint8_t max_len>
+    void LogError(const char* format, ...) const {}
+    void LogError(const char* msg) const {}
+    void LogError(const __FlashStringHelper* msg) const {}
+
+    template<uint8_t max_len>
+    void LogWarning(const char* format, ...) const {}
+    void LogWarning(const char* msg) const {}
+    void LogWarning(const __FlashStringHelper* msg) const {}
+
+    template<uint8_t max_len>
+    void LogInfo(const char* format, ...) const {}
+    void LogInfo(const char* msg) const {}
+    void LogInfo(const __FlashStringHelper* msg) const {}
+
+    template<uint8_t max_len>
+    void LogDebug(const char* format, ...) const {} 
+    void LogDebug(const char* msg) const {}
+    void LogDebug(const __FlashStringHelper* msg) const {}
+
+    template<uint8_t max_len>
+    void Log(EmLogLevel level, const char* format, ...) const {} 
+    void Log(EmLogLevel level, const char* msg) const {} 
+    void Log(EmLogLevel level, const __FlashStringHelper* msg) const {} 
+    
+    template<uint8_t max_len>
+    static void Log(EmLogLevel level, const char* context, const char* msg, ...) {} 
+    static void Log(EmLogLevel level, const char* context, const char* msg) {} 
+    static void Log(EmLogLevel level, const char* context, const __FlashStringHelper* msg) {} 
+    
+    bool CheckLevel(EmLogLevel level) const { return false; }
+
+    void SetLevel(EmLogLevel level) {}
+
+    static void SetGlobalLevel(EmLogLevel level) {}
+};
+
+#else
 
 // The log class can be inherited to allow easy logging
 class EmLog {
@@ -45,10 +100,16 @@ public:
     void LogError(const char* msg) const { 
         Log(EmLogLevel::error, msg);
     }
+    void LogError(const __FlashStringHelper* msg) const { 
+        Log(EmLogLevel::error, msg);
+    }
 
     template<uint8_t max_len>
     void LogWarning(const char* format, ...) const;
     void LogWarning(const char* msg) const { 
+        Log(EmLogLevel::warning, msg);
+    }
+    void LogWarning(const __FlashStringHelper* msg) const { 
         Log(EmLogLevel::warning, msg);
     }
 
@@ -57,20 +118,28 @@ public:
     void LogInfo(const char* msg) const { 
         Log(EmLogLevel::info, msg);
     }
+    void LogInfo(const __FlashStringHelper* msg) const { 
+        Log(EmLogLevel::info, msg);
+    }
 
     template<uint8_t max_len>
     void LogDebug(const char* format, ...) const;
     void LogDebug(const char* msg) const { 
         Log(EmLogLevel::debug, msg);
     }
+    void LogDebug(const __FlashStringHelper* msg) const { 
+        Log(EmLogLevel::debug, msg);
+    }
 
     template<uint8_t max_len>
     void Log(EmLogLevel level, const char* format, ...) const;
     void Log(EmLogLevel level, const char* msg) const;
+    void Log(EmLogLevel level, const __FlashStringHelper* msg) const;
     
     template<uint8_t max_len>
     static void Log(EmLogLevel level, const char* context, const char* msg, ...);
     static void Log(EmLogLevel level, const char* context, const char* msg);
+    static void Log(EmLogLevel level, const char* context, const __FlashStringHelper* msg);
     
     bool CheckLevel(EmLogLevel level) const { 
         return (m_Level == EmLogLevel::global ? g_Level : m_Level) >= level; 
@@ -97,6 +166,9 @@ protected:
     static void _writeToTargets(EmLogLevel level, 
                                 const char* context, 
                                 const char* msg); 
+    static void _writeToTargets(EmLogLevel level, 
+                                const char* context, 
+                                const __FlashStringHelper* msg); 
 
     // Member vars
     const char* m_Context;
@@ -178,5 +250,5 @@ void EmLog::_writeToTargets(EmLogLevel level,
     vsnprintf(msg, max_len+1, format, args);
     _writeToTargets(level, context, msg);
 }
-
+#endif
 #endif

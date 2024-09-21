@@ -45,8 +45,8 @@ class EmValueSource {
 public:
     EmValueSource() {};
 
-    virtual bool GetSourceValue(T& value)=0;
-    virtual bool SetSourceValue(const T value)=0;
+    virtual bool GetValue(T& value)=0;
+    virtual bool SetValue(const T value)=0;
 };
 
 template <class T>
@@ -55,8 +55,8 @@ public:
     EmValueSource(const uint8_t maxLen)
         : m_MaxLen(maxLen) {};
 
-    virtual bool GetSourceValue(T* value)=0;
-    virtual bool SetSourceValue(const T* value)=0;
+    virtual bool GetValue(T* value)=0;
+    virtual bool SetValue(const T* value)=0;
 
     uint8_t GetMaxLen() const { return m_MaxLen; };
 
@@ -177,7 +177,7 @@ protected:
         {
             if (valueSource)
             {
-                if (!valueSource->SetSourceValue(m_Value))
+                if (!valueSource->SetValue(m_Value))
                 {
                     return false;
                 }
@@ -196,7 +196,7 @@ protected:
             {
                 // Get value from source
                 T value;
-                if (!valueSource->GetSourceValue(value))
+                if (!valueSource->GetValue(value))
                 {
                     return false;
                 }
@@ -298,7 +298,7 @@ protected:
         {
             if (valueSource)
             {
-                if (!valueSource->SetSourceValue(m_Value))
+                if (!valueSource->SetValue(m_Value))
                 {
                     return false;
                 }
@@ -317,7 +317,7 @@ protected:
             {
                 // Get value from source
                 T* value = new T[m_Len+1];
-                if (!valueSource->GetSourceValue(value))
+                if (!valueSource->GetValue(value))
                 {
                     delete[] value;
                     return false;
