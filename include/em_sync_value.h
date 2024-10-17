@@ -2,19 +2,43 @@
 #define __SYNCVALUE__H_
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
-#include "em_thread_lock.h"
+#include "em_defs.h"
+
+// The get methods result.
+enum class EmGetValueResult: uint8_t {    
+    // Operation failed
+    failed = 0, 
+    // Operation succeeded, the provided value equals the object value
+    succeedEqualValue = 1,
+    // Operation succeeded, the provided value is not equal as the object value
+    succeedNotEqualValue = 2
+};
 
 // The basic value interface to get and set a value.
-// Each class tha can be synched should implement this class
+// Each class that can be synched should implement this class
+//
+// IMPLEMENTATION NOTES:
+// ---------------------
+//   If 'GetValue' fails (i.e. returns EmGetValueResult::failed) 
+//   it SHOULD NOT change the provided 'value' content
+//
 template <class T>
 class EmValue {
 public:
-    virtual bool GetValue(T& /*value*/) const = 0;
+    virtual EmGetValueResult GetValue(T& /*value*/) const = 0;
     virtual bool SetValue(const T /*value*/) = 0;
-    virtual bool Equals(const T /*value*/) = 0;
+};
+
+template <class T>
+class EmValue<T*> {
+public:
+    virtual EmGetValueResult GetValue(T* /*value*/) const = 0;
+    virtual bool SetValue(const T* /*value*/) = 0;
 };
 
 // The flags assigned to each synchronized item
@@ -22,11 +46,12 @@ enum class EmSyncFlags: uint8_t {
     canRead  = 0x01, // The item can be read but read can fail and synching moves forward
     mustRead = 0x02, // The item must be read if not synching stops
     write    = 0x04, // Item can be written
+    // Combination flags
+    canReadAndWrite = 0x05,
+    mustReadAndWrite = 0x06,
     // Internal flags
-    _pendingWrite = 0x10,
-    // Flag masks
-    _userFlagsMask = 0x0F,
-    _internalFlagsMask = 0xF0,
+    _firstRead = 0x10,
+    _pendingWrite = 0x20,
 };
 
 inline EmSyncFlags operator~ (EmSyncFlags a) { return static_cast<EmSyncFlags>(~static_cast<int>(a)); }
@@ -43,120 +68,158 @@ enum class CheckNewValueResult: int8_t {
 };
 
 // The item which is used in any synched value class
-template <class T, class EmValueType> // Where EmValueType derives from EmValue<T>
-class EmSyncItem: public EmValueType {
+template <class EmValueOfT, class T>
+class EmSyncItem: public EmValueOfT {
 public:
     EmSyncItem(EmSyncFlags flags) 
-     : m_Flags(flags),
-       // TODO: handle pointer value type
-       m_CurrentValue(T()) {}
+     : m_Flags(flags|EmSyncFlags::_firstRead) {}
 
-    virtual CheckNewValueResult CheckNewValue(T& newVal) const {
-        // Item can be read?
+    virtual CheckNewValueResult CheckNewValue(T& currentValue) {
+        // Item to be read?
         if (WriteOnly()) {
             return CheckNewValueResult::noChange;
         }
-        // Get item value
-        if (GetValue(newVal)) {
-            if (!Equals(newVal) {
-                // TODO: handle pointer value type
-                m_CurrentValue = newVal;
-                return CheckNewValueResult::valueChanged;
-            }
-        } else {
-            // Failed getting value
+        // Pending write? 
+        if (IsPendingWrite()) { 
+            return CheckNewValueResult::pendingWrite; 
+        }
+        // Get the value and check the operation result
+        EmGetValueResult res = this->GetValue(currentValue);
+        if (EmGetValueResult::failed == res) {
+            // Get the value failed
             if (MustRead()) {
+                // Read cannot fail!
                 return CheckNewValueResult::mustReadFailed;
             }
+            // Read can fail (e.g. device is turned off or offline)
+            return CheckNewValueResult::noChange;
         }
-        // Device might be off or offline, lets see if a pending write 
-        return (m_Flags & EmSyncFlags::_pendingWrite) ? 
-               CheckNewValueResult::pendingWrite : 
+        // Get value succeeded
+        if (this->IsFirstRead()) {
+            SetFirstRead(false);
+            return CheckNewValueResult::valueChanged;
+        }
+        return EmGetValueResult::succeedNotEqualValue == res ?
+               CheckNewValueResult::valueChanged :
                CheckNewValueResult::noChange;
     }
 
-    virtual void DoPendingWrite() {
-        // TODO
-    }
-
-    virtual bool GetValue(T& value) const {
-        if (!EmValueType::GetValue(value)) {
-            return false;
+    virtual void DoPendingWrite(T& currentValue) {
+        if (this->SetValue(currentValue)) {
+            SetFirstRead(false);
+            SetPendingWrite(false);
         }
-        m_CurrentValue = value;
+    }
+
+    bool CanRead() const {
+        return 0 != static_cast<int>(m_Flags & EmSyncFlags::canRead);
+    }
+
+    bool MustRead() const {
+        return 0 != static_cast<int>(m_Flags & EmSyncFlags::mustRead);
+    }
+
+    bool ReadOnly() const {
+        return 0 == static_cast<int>(m_Flags & EmSyncFlags::write);
+    }
+
+    bool WriteOnly() const {
+        return 0 == static_cast<int>(m_Flags & (EmSyncFlags::canRead | EmSyncFlags::mustRead));
+    }
+
+    bool IsPendingWrite() const {
+        return 0 != static_cast<int>(m_Flags & EmSyncFlags::_pendingWrite);
+    }
+
+    void SetPendingWrite(bool pendingWrite) {
+        if (pendingWrite) {
+            m_Flags |= EmSyncFlags::_pendingWrite;
+        } else {
+            m_Flags &= ~EmSyncFlags::_pendingWrite;
+        }
+    }
+
+    bool IsFirstRead() const {
+        return 0 != static_cast<int>(m_Flags & EmSyncFlags::_firstRead);
+    }
+
+    void SetFirstRead(bool firstRead) {
+        if (firstRead) {
+            m_Flags |= EmSyncFlags::_firstRead;
+        } else {
+            m_Flags &= ~EmSyncFlags::_firstRead;
+        }
+    }
+
+    virtual bool _setCurrentValue(const T& currentValue) {
+        // Read only item?
+        if (!ReadOnly()) {
+            if (!this->SetValue(currentValue)) {
+                SetPendingWrite(true);
+                return false;
+            }
+        }
         return true;
-    }
-
-    bool ReadOnly() {
-        // TODO: is this correct???
-        return EmSyncFlags::_userFlagsMask & (~m_Flags & (EmSyncFlags::canRead | EmSyncFlags::mustRead));
-    }
-
-    bool CanRead() {
-        return m_Flags & EmSyncFlags::canRead;
-    }
-
-    bool MustRead() {
-        return m_Flags & EmSyncFlags::mustRead;
-    }
-
-    bool WriteOnly() {
-        // TODO: is this correct???
-        return EmSyncFlags::_userFlagsMask & (~m_Flags & EmSyncFlags::write);
     }
 
 protected:
     EmSyncFlags m_Flags;
-    T m_CurrentValue;
 };
+
 
 // This is tha base abstract class that keeps different 
 // instances of EmSyncItem synchronized.
-template <class T, class EmValueType>
+template <class T>
 class EmSyncValue {
-    bool Sync() = 0;
+public:
+    virtual bool Sync() = 0;
+
+    virtual void GetValue(T& value) {
+        value = m_CurrentValue;
+    }
+
+protected:
+    T m_CurrentValue;
 };
 
 // The simple priority based values synchronization class.
 // The values order is set as the priority, the first that
 // changes sets other values.
-template <class T, class EmValueType>
-class EmSimpleSyncValue: public EmSyncValue<T, EmValueType> {
-    EmSimpleSyncValue(EmSyncItem<T, 
-                      EmValueType> items[], 
-                      uint8_t count)
-     : m_Items(items),
-       m_Count(count) {
+template <class EmSyncItemOfT, class T, uint8_t size>
+class EmSimpleSyncValue: public EmSyncValue<T> {
+public:
+    EmSimpleSyncValue(EmSyncItemOfT* items[]) {
+        for(uint8_t i=0; i < size; i++) {
+            m_Items[i] = items[i];
+        }
     }
 
-    bool Sync() {
-        T newVal;
-        for(uint8_t i=0; i < m_Count; i++) {
-            switch (m_Items[i].CheckNewValue(newValue)) {
+    bool Sync() override {
+        for(uint8_t i=0; i < size; i++) {
+            switch (m_Items[i]->CheckNewValue(this->m_CurrentValue)) {
                 case CheckNewValueResult::valueChanged:
-                    return _updateToNewValue(newVal, i);
+                    // First changed value found: lets write all the others! 
+                    return _updateToNewValue(i);
                 case CheckNewValueResult::mustReadFailed:
+                    // A "must read" value failed to read, cannot proceed with synch!
                     return false;
                 case CheckNewValueResult::pendingWrite:
-                    m_Items[i].doPendingWrite();
+                    // An "old" pending write
+                    m_Items[i]->DoPendingWrite(this->m_CurrentValue);
+                case CheckNewValueResult::noChange:
+                   break;
             }
         }
         return true;
     }
 
 protected:
-    bool _updateToNewValue(T newVal, uint8_t valIndex) {
+    bool _updateToNewValue(uint8_t valIndex) {
         bool res = true;
-        for(uint8_t i=0; i < m_Count; i++) {
+        for(uint8_t i=0; i < size; i++) {
             // Value item that gave this new value?
-            if (i == valIndex) {
-                continue;
-            }
-            // Writable item?
-            if (!m_Items[i].ReadOnly()) {
-                if (!m_Items[i].SetValue(newVal)) {
-                    // One failed but we move forward writing othe items
-                    m_Items[i].SetPendingWrite(true);
+            if (i != valIndex) {
+                if (!m_Items[i]->_setCurrentValue(this->m_CurrentValue)) {
                     res = false;
                 }
             }
@@ -164,8 +227,7 @@ protected:
         return res;
     }
 
-    EmSyncItem<T, EmValueType>* m_Items;
-    uint8_t m_Count;
+    EmSyncItemOfT* m_Items[size];
 };
 
 #endif

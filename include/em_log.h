@@ -141,7 +141,7 @@ public:
     void Log(EmLogLevel level, const __FlashStringHelper* msg) const;
     
     template<uint8_t max_len>
-    static void Log(EmLogLevel level, const char* context, const char* msg, ...);
+    static void Log(EmLogLevel level, const char* context, const char* format, ...);
     static void Log(EmLogLevel level, const char* context, const char* msg);
     static void Log(EmLogLevel level, const char* context, const __FlashStringHelper* msg);
     
@@ -150,13 +150,13 @@ public:
     }
 
     void SetLevel(EmLogLevel level) { 
-        // Since we are running on an MPU this operation might be atomic 
+        // Since we are running on a 1 Core CPU this operation might be atomic 
         // (i.e. no thread sync needed since we use 1 byte and we are running on a single CPU)
         m_Level = level; 
     }
 
     static void SetGlobalLevel(EmLogLevel level) { 
-        // Since we are running on an MPU this operation might be atomic 
+        // Since we are running on a 1 Core CPU this operation might be atomic 
         // (i.e. no thread sync needed since we use 1 byte and we are running on a single CPU)
         g_Level = level; 
     }
