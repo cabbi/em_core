@@ -3,7 +3,8 @@
 
 #include <stdint.h>
 
-unsigned long millis(void);
+#include <Arduino.h>
+//unsigned long millis(void);
 
 
 class EmTimeout
@@ -42,7 +43,7 @@ public:
     }
 
     uint32_t GetRemainingMs() const {
-        int32_t ret = m_timeoutMs-(millis()-m_startMs);
+        int32_t ret = (int32_t)(m_timeoutMs-(millis()-m_startMs));
         if (ret > 0) { 
             return (uint32_t)ret;
         }

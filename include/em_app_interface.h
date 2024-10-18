@@ -9,7 +9,7 @@
 
 class EmAppInterface;
 
-enum class EmInterfaceStatus {
+enum class EmInterfaceStatus: int8_t {
     isNone        = 0x0000,
     isInitialized = 0x0001, // Correctly initialized
     isRunning     = 0x0002, // Running or Blocked (in case running timeout is elapsed!)
@@ -17,7 +17,7 @@ enum class EmInterfaceStatus {
     isError       = 0x0008, // Has any error
 };
 
-enum class EmIntOperationResult {
+enum class EmIntOperationResult: int8_t {
     canContinue = 0,
     removeInterface = 1,
     restartApp = 2,
@@ -38,8 +38,8 @@ inline EmInterfaceStatus& operator&=(EmInterfaceStatus& a, EmInterfaceStatus b) 
 // Each interface should implement 'Name', 'Setup' & 'Loop' methods
 class EmAppInterface: public EmLog {
 public:
-    EmAppInterface(uint32_t runningTimeoutMs = 60000, bool logEnabled=false)
-     : EmLog(logEnabled),
+    EmAppInterface(uint32_t runningTimeoutMs = 60000, EmLogLevel logLevel=EmLogLevel::none)
+     : EmLog("AppInt", logLevel),
        m_InterfaceStatus(EmInterfaceStatus::isNone),
        m_RunningTimeout(runningTimeoutMs)
     { 
@@ -111,8 +111,8 @@ public:
     EmAppTimeoutInterface(uint32_t loopTimeoutMs, 
                           bool startAsElapsed=true,
                           uint32_t runningTimeoutMs = 60000, 
-                          bool logEnabled=false) 
-     : EmAppInterface(runningTimeoutMs, logEnabled), 
+                          EmLogLevel logLevel=EmLogLevel::none) 
+     : EmAppInterface(runningTimeoutMs, logLevel), 
        m_LoopTimeout(EmTimeout(loopTimeoutMs, startAsElapsed)) {}
 
     virtual bool CanCallLoop() { return m_LoopTimeout.IsElapsed(true); }

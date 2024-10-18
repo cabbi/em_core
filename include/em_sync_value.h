@@ -2,344 +2,232 @@
 #define __SYNCVALUE__H_
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
-#include "em_thread_lock.h"
+#include "em_defs.h"
 
-
-enum EmSyncTarget {
-    none     = 0x00,
-    toLocal  = 0x01,
-    toRemote = 0x02
+// The get methods result.
+enum class EmGetValueResult: uint8_t {    
+    // Operation failed
+    failed = 0, 
+    // Operation succeeded, the provided value equals the object value
+    succeedEqualValue = 1,
+    // Operation succeeded, the provided value is not equal as the object value
+    succeedNotEqualValue = 2
 };
 
-enum EmSyncSource {
-    fromRemote = toLocal,
-    fromLocal  = toRemote,
-    fromProcess = toLocal|toRemote
-};
-
-class EmUpdatableValue {
+// The basic value interface to get and set a value.
+// Each class that can be synched should implement this class
+//
+// IMPLEMENTATION NOTES:
+// ---------------------
+//   If 'GetValue' fails (i.e. returns EmGetValueResult::failed) 
+//   it SHOULD NOT change the provided 'value' content
+//
+template <class T>
+class EmValue {
 public:
-    EmUpdatableValue(bool isHighSampling)
-     : m_IsHighSampling(isHighSampling) {}
-    
-    virtual bool SetToTarget(EmSyncTarget syncTarget)=0;
-    virtual bool GetFromSource(EmSyncSource syncSource)=0;
-    
-    virtual void Update()
-        { SetToTarget(toLocal);
-          SetToTarget(toRemote);
-          GetFromSource(fromLocal);
-          GetFromSource(fromRemote); }
-
-    virtual bool IsHighSampling() const { return m_IsHighSampling; }
-
-protected:
-    bool m_IsHighSampling;
+    virtual EmGetValueResult GetValue(T& /*value*/) const = 0;
+    virtual bool SetValue(const T /*value*/) = 0;
 };
 
 template <class T>
-class EmValueSource {
+class EmValue<T*> {
 public:
-    EmValueSource() {};
-
-    virtual bool GetSourceValue(T& value)=0;
-    virtual bool SetSourceValue(const T value)=0;
+    virtual EmGetValueResult GetValue(T* /*value*/) const = 0;
+    virtual bool SetValue(const T* /*value*/) = 0;
 };
 
-template <class T>
-class EmValueSource<T*> {
-public:
-    EmValueSource(const uint8_t maxLen)
-        : m_MaxLen(maxLen) {};
-
-    virtual bool GetSourceValue(T* value)=0;
-    virtual bool SetSourceValue(const T* value)=0;
-
-    uint8_t GetMaxLen() const { return m_MaxLen; };
-
-protected:
-    const uint8_t m_MaxLen;
+// The flags assigned to each synchronized item
+enum class EmSyncFlags: uint8_t {
+    canRead  = 0x01, // The item can be read but read can fail and synching moves forward
+    mustRead = 0x02, // The item must be read if not synching stops
+    write    = 0x04, // Item can be written
+    // Combination flags
+    canReadAndWrite = 0x05,
+    mustReadAndWrite = 0x06,
+    // Internal flags
+    _firstRead = 0x10,
+    _pendingWrite = 0x20,
 };
 
-// https://stackoverflow.com/questions/22847803/c-destructor-with-templates-t-could-be-a-pointer-or-not
-class EmSyncValueBase: public EmUpdatableValue {
-// This is the base class for handling values coming from different sources (i.e. local, remote, ...)
-public:
-    EmSyncValueBase(bool isHighSampling)
-     : EmUpdatableValue(isHighSampling),
-       m_SyncTarget(none),
-       m_Semaphore(xSemaphoreCreateBinary())
-    {
-        xSemaphoreGive(m_Semaphore);
-    }
+inline EmSyncFlags operator~ (EmSyncFlags a) { return static_cast<EmSyncFlags>(~static_cast<int>(a)); }
+inline EmSyncFlags operator|(EmSyncFlags a, EmSyncFlags b) { return static_cast<EmSyncFlags>(static_cast<int>(a) | static_cast<int>(b)); }
+inline EmSyncFlags operator&(EmSyncFlags a, EmSyncFlags b) { return static_cast<EmSyncFlags>(static_cast<int>(a) & static_cast<int>(b)); }
+inline EmSyncFlags& operator|=(EmSyncFlags& a, EmSyncFlags b) { return (EmSyncFlags&)((int&)(a) |= static_cast<int>(b)); }
+inline EmSyncFlags& operator&=(EmSyncFlags& a, EmSyncFlags b) { return (EmSyncFlags&)((int&)(a) &= static_cast<int>(b)); }
 
-    virtual bool IsSyncTarget(EmSyncTarget syncTarget) 
-    {
-        EmThreadLock syncLock(m_Semaphore);
-        return m_SyncTarget & syncTarget;
-    }
-
-    virtual EmSyncTarget GetSyncTarget() 
-    {
-        EmThreadLock syncLock(m_Semaphore);
-        return m_SyncTarget;
-    }
-
-    virtual void AddSource(EmSyncSource syncSource)
-    { 
-        EmThreadLock syncLock(m_Semaphore);
-        m_SyncTarget = (EmSyncTarget)((int)m_SyncTarget|(int)syncSource);
-    }
-
-    virtual void RemoveTarget(EmSyncTarget syncTarget)
-    { 
-        EmThreadLock syncLock(m_Semaphore);
-        m_SyncTarget = (EmSyncTarget)((int)m_SyncTarget&(int)~syncTarget);
-    }
-
-protected:
-    EmSyncTarget m_SyncTarget;
-    SemaphoreHandle_t m_Semaphore;
+enum class CheckNewValueResult: int8_t {
+    noChange = 0,
+    valueChanged,
+    mustReadFailed,
+    pendingWrite
 };
 
-template <class T>
-class EmSyncValue: public EmSyncValueBase {
+// The item which is used in any synched value class
+template <class EmValueOfT, class T>
+class EmSyncItem: public EmValueOfT {
 public:
-    EmSyncValue(EmValueSource<T>* localSource=NULL,
-                EmValueSource<T>* remoteSource=NULL,
-                bool isHighSampling=false)
-        : EmSyncValueBase(isHighSampling),
-        m_LocalSource(localSource),
-        m_RemoteSource(remoteSource)
-    {
+    EmSyncItem(EmSyncFlags flags) 
+     : m_Flags(flags|EmSyncFlags::_firstRead) {}
+
+    virtual CheckNewValueResult CheckNewValue(T& currentValue) {
+        // Item to be read?
+        if (WriteOnly()) {
+            return CheckNewValueResult::noChange;
+        }
+        // Pending write? 
+        if (IsPendingWrite()) { 
+            return CheckNewValueResult::pendingWrite; 
+        }
+        // Get the value and check the operation result
+        EmGetValueResult res = this->GetValue(currentValue);
+        if (EmGetValueResult::failed == res) {
+            // Get the value failed
+            if (MustRead()) {
+                // Read cannot fail!
+                return CheckNewValueResult::mustReadFailed;
+            }
+            // Read can fail (e.g. device is turned off or offline)
+            return CheckNewValueResult::noChange;
+        }
+        // Get value succeeded
+        if (this->IsFirstRead()) {
+            SetFirstRead(false);
+            return CheckNewValueResult::valueChanged;
+        }
+        return EmGetValueResult::succeedNotEqualValue == res ?
+               CheckNewValueResult::valueChanged :
+               CheckNewValueResult::noChange;
     }
 
-    virtual bool IsEqual(const T val) const
-    {
-        EmThreadLock syncLock(this->m_Semaphore);
-        return val == m_Value;
-    }
-
-    const T PeekValue()
-    {
-        EmThreadLock syncLock(this->m_Semaphore);
-        return m_Value;
-    }
-
-    virtual void GetValue(T& value)
-    {
-        Copy(value, m_Value);
-    }
-
-    virtual void SetValue(const T value, EmSyncSource syncSource)
-    {
-        if (!IsEqual(value))
-        {
-            Copy(m_Value, value);
-            this->AddSource(syncSource);
+    virtual void DoPendingWrite(T& currentValue) {
+        if (this->SetValue(currentValue)) {
+            SetFirstRead(false);
+            SetPendingWrite(false);
         }
     }
 
-    virtual bool SetToTarget(EmSyncTarget syncTarget)
-    {
-        if (syncTarget == toLocal)
-        {
-            return _set(m_LocalSource, toLocal);
-        }
-        if (syncTarget == toRemote)
-        {
-            return _set(m_RemoteSource, toLocal);
-        }
-        return false;
+    bool CanRead() const {
+        return 0 != static_cast<int>(m_Flags & EmSyncFlags::canRead);
     }
 
-    virtual bool GetFromSource(EmSyncSource syncSource)
-    {
-        if (syncSource == fromLocal)
-        {
-            return _get(m_LocalSource, fromLocal);
-        }
-        if (syncSource == fromRemote)
-        {
-            return _get(m_RemoteSource, fromRemote);
-        }
-        return false;
+    bool MustRead() const {
+        return 0 != static_cast<int>(m_Flags & EmSyncFlags::mustRead);
     }
 
-protected:
-    virtual bool _set(EmValueSource<T>* valueSource, EmSyncTarget target)
-    {
-        // Need to set source?
-        if (this->IsSyncTarget(target))
-        {
-            if (valueSource)
-            {
-                if (!valueSource->SetSourceValue(m_Value))
-                {
-                    return false;
-                }
-                this->RemoveTarget(target);
+    bool ReadOnly() const {
+        return 0 == static_cast<int>(m_Flags & EmSyncFlags::write);
+    }
+
+    bool WriteOnly() const {
+        return 0 == static_cast<int>(m_Flags & (EmSyncFlags::canRead | EmSyncFlags::mustRead));
+    }
+
+    bool IsPendingWrite() const {
+        return 0 != static_cast<int>(m_Flags & EmSyncFlags::_pendingWrite);
+    }
+
+    void SetPendingWrite(bool pendingWrite) {
+        if (pendingWrite) {
+            m_Flags |= EmSyncFlags::_pendingWrite;
+        } else {
+            m_Flags &= ~EmSyncFlags::_pendingWrite;
+        }
+    }
+
+    bool IsFirstRead() const {
+        return 0 != static_cast<int>(m_Flags & EmSyncFlags::_firstRead);
+    }
+
+    void SetFirstRead(bool firstRead) {
+        if (firstRead) {
+            m_Flags |= EmSyncFlags::_firstRead;
+        } else {
+            m_Flags &= ~EmSyncFlags::_firstRead;
+        }
+    }
+
+    virtual bool _setCurrentValue(const T& currentValue) {
+        // Read only item?
+        if (!ReadOnly()) {
+            if (!this->SetValue(currentValue)) {
+                SetPendingWrite(true);
+                return false;
             }
         }
         return true;
     }
 
-    virtual bool _get(EmValueSource<T>* valueSource, EmSyncSource source)
-    {
-        // Need to set source?
-        if (!this->IsSyncTarget((EmSyncTarget)source))
-        {
-            if (valueSource)
-            {
-                // Get value from source
-                T value;
-                if (!valueSource->GetSourceValue(value))
-                {
-                    return false;
-                }
-                // Set new value we got
-                this->SetValue(value, source);
-            }
-        }
-        return true;
-    }
-
-    virtual void Copy(T& dest, const T source)
-    {
-        EmThreadLock syncLock(this->m_Semaphore);
-        dest = source;
-    }
-
-    EmValueSource<T>* m_LocalSource;
-    EmValueSource<T>* m_RemoteSource;
-    T m_Value;
+protected:
+    EmSyncFlags m_Flags;
 };
 
+
+// This is tha base abstract class that keeps different 
+// instances of EmSyncItem synchronized.
 template <class T>
-class EmSyncValue<T*>: public EmSyncValueBase {
+class EmSyncValue {
 public:
-    EmSyncValue(EmValueSource<T*>* localSource=NULL,
-                EmValueSource<T*>* remoteSource=NULL,
-                uint8_t len=0,
-                bool isHighSampling=false)
-     : EmSyncValueBase(isHighSampling),
-       m_LocalSource(localSource),
-       m_RemoteSource(remoteSource),
-       m_Len(len > 0 ? len : (localSource!=NULL ? localSource->GetLen() : (remoteSource!=NULL ? remoteSource->GetLen() : 0)))           
-    { 
-        m_Value = new T[len+1]; 
-    };
+    virtual bool Sync() = 0;
 
-    virtual ~EmSyncValue()
-    {
-        delete[] m_Value;
-    } 
-
-    virtual bool IsEqual(const T* val) const
-    {
-        EmThreadLock syncLock(this->m_Semaphore);
-        return (0==memcmp(val, m_Value, m_Len));
-    }
-
-    const T* PeekValue()
-    {
-        EmThreadLock syncLock(this->m_Semaphore);
-        return m_Value;
-    }
-
-    virtual void GetValue(T* value)
-    {
-        Copy(value, m_Value);
-    }
-
-    virtual void SetValue(const T* value, EmSyncSource syncSource)
-    {
-        if (!IsEqual(value))
-        {
-            Copy(m_Value, value);
-            this->AddSource(syncSource);
-        }
-    }
-
-    virtual bool SetToTarget(EmSyncTarget syncTarget)
-    {
-        if (syncTarget == toLocal)
-        {
-            return _set(m_LocalSource, toLocal);
-        }
-        if (syncTarget == toRemote)
-        {
-            return _set(m_RemoteSource, toLocal);
-        }
-        return false;
-    }
-
-    virtual bool GetFromSource(EmSyncSource syncSource)
-    {
-        if (syncSource == fromLocal)
-        {
-            return _get(m_LocalSource, fromLocal);
-        }
-        if (syncSource == fromRemote)
-        {
-            return _get(m_RemoteSource, fromRemote);
-        }
-        return false;
+    virtual void GetValue(T& value) {
+        value = m_CurrentValue;
     }
 
 protected:
-    virtual bool _set(EmValueSource<T*>* valueSource, EmSyncTarget target)
-    {
-        // Need to set source?
-        if (this->IsSyncTarget(target))
-        {
-            if (valueSource)
-            {
-                if (!valueSource->SetSourceValue(m_Value))
-                {
+    T m_CurrentValue;
+};
+
+// The simple priority based values synchronization class.
+// The values order is set as the priority, the first that
+// changes sets other values.
+template <class EmSyncItemOfT, class T, uint8_t size>
+class EmSimpleSyncValue: public EmSyncValue<T> {
+public:
+    EmSimpleSyncValue(EmSyncItemOfT* items[]) {
+        for(uint8_t i=0; i < size; i++) {
+            m_Items[i] = items[i];
+        }
+    }
+
+    bool Sync() override {
+        for(uint8_t i=0; i < size; i++) {
+            switch (m_Items[i]->CheckNewValue(this->m_CurrentValue)) {
+                case CheckNewValueResult::valueChanged:
+                    // First changed value found: lets write all the others! 
+                    return _updateToNewValue(i);
+                case CheckNewValueResult::mustReadFailed:
+                    // A "must read" value failed to read, cannot proceed with synch!
                     return false;
-                }
-                this->RemoveTarget(target);
+                case CheckNewValueResult::pendingWrite:
+                    // An "old" pending write
+                    m_Items[i]->DoPendingWrite(this->m_CurrentValue);
+                case CheckNewValueResult::noChange:
+                   break;
             }
         }
         return true;
     }
 
-    virtual bool _get(EmValueSource<T*>* valueSource, EmSyncSource source)
-    {
-        // Need to set source?
-        if (!this->IsSyncTarget((EmSyncTarget)source))
-        {
-            if (valueSource)
-            {
-                // Get value from source
-                T* value = new T[m_Len+1];
-                if (!valueSource->GetSourceValue(value))
-                {
-                    delete[] value;
-                    return false;
+protected:
+    bool _updateToNewValue(uint8_t valIndex) {
+        bool res = true;
+        for(uint8_t i=0; i < size; i++) {
+            // Value item that gave this new value?
+            if (i != valIndex) {
+                if (!m_Items[i]->_setCurrentValue(this->m_CurrentValue)) {
+                    res = false;
                 }
-                // Set new value we got
-                SetValue(value, source);
-                delete[] value;
             }
         }
-        return true;
+        return res;
     }
 
-    virtual void Copy(T* dest, const T* source)
-    {
-        EmThreadLock syncLock(this->m_Semaphore);
-        memcpy(dest, source, m_Len);
-    }
-
-    EmValueSource<T*>* m_LocalSource;
-    EmValueSource<T*>* m_RemoteSource;
-    const uint8_t m_Len;
-    T* m_Value;
+    EmSyncItemOfT* m_Items[size];
 };
 
 #endif
