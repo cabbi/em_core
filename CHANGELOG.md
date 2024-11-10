@@ -5,4 +5,4 @@
 - first releases with several adjustments and fixes
 
 # 1.0.5
-- templated 'iMolt', 'iDiv' and 'iRound' to have both float and double operations  
+- templated 'iMolt', 'iDiv' and 'iRound' to have both float and double operations
