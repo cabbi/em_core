@@ -18,18 +18,21 @@ inline int32_t iPow10(size_t exp) {
 }
 
 // Returns the integer rounded number
-inline int32_t iRound(double num) {
+template <class real_type>
+inline int32_t iRound(real_type num) {
     return num >= 0 ? static_cast<int32_t>(num+.5) : 
                       static_cast<int32_t>(num-0.5);
 }
 
 // Returns the integer multiplied number: num1 * num2
-inline int32_t iMolt(double num1, double num2) {
+template <class real_type>
+inline int32_t iMolt(real_type num1, real_type num2) {
     return static_cast<int32_t>(num1 * num2);
 }
 
 // Returns the integer division number: num1 / num2
-inline int32_t iDiv(double num1, double num2) {
+template <class real_type>
+inline int32_t iDiv(real_type num1, real_type num2) {
     return static_cast<int32_t>(num1 / num2);
 }
 
