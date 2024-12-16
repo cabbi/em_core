@@ -1,6 +1,6 @@
 {
   "name": "EmCore",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "The C++ embedded core library",
   "keywords": "",
   "repository":  {
@@ -10,6 +10,9 @@
   "authors":  {
     "name": "Fabio Cabella",
     "maintainer": true
+  },
+    "dependencies": {
+    "SoftwareSerial": ""
   },
   "license": "BSD-3-Clause",
   "frameworks": ["arduino"],

@@ -6,6 +6,7 @@
 #include "em_log.h"
 #include "em_list.h"
 #include "em_timeout.h"
+#include "em_defs.h"
 
 class EmAppInterface;
 
@@ -120,5 +121,29 @@ public:
 private:
     mutable EmTimeout m_LoopTimeout;
 };
+
+// This interface will update each 'EmUpdatable' object at each 'Loop'.
+template <EmUpdatable* updatableObjects[], uint8_t size>
+class EmAppUpdaterInterface: public EmAppInterface, 
+                             public EmUpdater<updatableObjects, size> {
+public:
+    EmAppUpdaterInterface(uint32_t runningTimeoutMs = 60000, 
+                          EmLogLevel logLevel=EmLogLevel::none) 
+     : EmAppInterface(runningTimeoutMs, logLevel) {}
+
+    virtual const char* Name() const override {
+        return "EmUpdater";
+    }
+
+    virtual EmIntOperationResult Setup() {
+        return EmIntOperationResult::canContinue;
+    }
+
+    virtual EmIntOperationResult Loop() {
+        EmUpdater<updatableObjects, size>::Update();
+        return EmIntOperationResult::canContinue;    
+    }
+};
+
 
 #endif

@@ -36,6 +36,23 @@ inline int32_t iDiv(real_type num1, real_type num2) {
     return static_cast<int32_t>(num1 / num2);
 }
 
+// The abstract 'updatable' object class
+class EmUpdatable {
+public:
+    virtual void Update() = 0;
+};
+
+// Simple updater object
+template <EmUpdatable* updatableObjects[], uint8_t size>
+class EmUpdater {
+public:
+    void Update() {
+        for (uint8_t i=0; i < size; i++) {
+            updatableObjects[i]->Update();
+        }
+    }
+};
+
 // to_ptr function can be used in template classes that need both reference
 // and pointer types implementation
 template<typename T>
@@ -72,7 +89,7 @@ inline const char* to_str(char* buf, size_t bufLen, int32_t n) {
 }
 
 inline const char* to_str(char* buf, size_t bufLen, float n) {
-    snprintf(buf, bufLen, "%g", n);
+    snprintf(buf, bufLen, "%g", static_cast<double>(n));
     return buf;
 }
 

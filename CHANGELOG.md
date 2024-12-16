@@ -6,3 +6,8 @@
 
 # 1.0.5
 - templated 'iMolt', 'iDiv' and 'iRound' to have both float and double operations
+
+# 1.0.6
+- Added abstract 'EmUpdatable' class for all objects that have an 'Update' method
+- Added 'EmUpdater' and 'EmAppUpdaterInterface' classes used to update all 'EmUpdatable' objects in a single call
+- Added 'SoftwareSerial' as dependency to avoid compilation errors.
