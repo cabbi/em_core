@@ -2,7 +2,6 @@
 #define __LOG_SERIAL__H_
 
 #include <Arduino.h>
-#include <SoftwareSerial.h>
 #include "em_log.h"
 
 // The Abstract Serial log target class
@@ -54,12 +53,15 @@ protected:
     HardwareSerial& m_Serial;
 };
 
+#ifdef EM_SOFTWARE_SERIAL
+#include <SoftwareSerial.h>
+
 // The Software Serial log target
 class EmLogSwSerial: public EmLogSerialBase, public SoftwareSerial {
 public:    
     // Inherit base class constructors
     using SoftwareSerial::SoftwareSerial;
 };
-
+#endif
 
 #endif

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include "em_iterator.h"
 
 
 enum class EmIterResult: int8_t {
@@ -18,15 +19,13 @@ template<class T> class EmList;
 
 
 // List iterator
-template<class T> class EmListIterator {
-    friend class EmList<T>;
+template<class T> 
+class EmListIterator: public EmIterator<T> {
 public:
-    EmListIterator()
+    EmListIterator(EmList<T>& list)
      : m_pItem(NULL),
+       m_pFirst(list.m_pFirst),
        m_pNext(NULL) {}
-
-    // NOTE: keep destructor and class without virtual functions to avoid extra RAM consumption
-    ~EmListIterator() {}
 
     operator T*() const { 
         return m_pItem; 
@@ -37,16 +36,26 @@ public:
     }
 
     // Reset the iterator
-    void Reset() {
+    virtual void Reset() override {
         m_pItem = NULL;
         m_pNext = NULL;
     }
 
-protected:    
-    EmListIterator(T* pItem, EmListIterator<T>* pNext = NULL)
-    : m_pItem(pItem), 
-      m_pNext(pNext) {}
+    // Returns true if next item is available or false if iterable is empty or end of iteration is reached
+    virtual bool Next(T*& pItem) override {
+        if (_isBegin()) {
+            _copyFrom(m_pFirst);
+        } else {
+            _copyFrom(m_pNext);
+        }
+        if (NULL == m_pItem) {
+            pItem = NULL;
+            return false;
+        }
+        return true;
+    }
 
+protected:    
     bool _isBegin() {
         return NULL == m_pItem && NULL == m_pNext;
     }
@@ -57,6 +66,7 @@ protected:
     }
 
     T* m_pItem;
+    EmListIterator<T>* m_pFirst;
     EmListIterator<T>* m_pNext;
 };
 
@@ -69,7 +79,7 @@ private:
     : EmListIterator<T>(pItem),
       m_ShouldBeDeleted(shouldBeDeleted) {}
 
-    // NOTE: keep destructor and class without virtual functions to avoid extra RAM consumption
+    // NOTE: keep destructor and class without virtual functions to limit RAM footprint
     ~_EmListElement() {
         if (NULL != this->m_pItem && m_ShouldBeDeleted) {
             delete this->m_pItem;
@@ -101,9 +111,10 @@ template<class T> inline bool DefItemsMatch(const T& item1, const T& item2) {
 
 
 /***
-    An easy list implementation 
+  An easy list implementation 
  ***/
 template<class T> class EmList {
+    friend class EmListIterator<T>;
 public:
     EmList(ItemsMatchCb<T> itemsMatch)
      : m_pFirst(NULL),
@@ -114,7 +125,7 @@ public:
         Append(list);
     }
 
-    // NOTE: keep destructor and class without virtual functions to avoid extra RAM consumption
+    // NOTE: keep destructor and class without virtual functions to limit RAM footprint
     ~EmList() {
         Clear();
     }
@@ -257,17 +268,6 @@ public:
     T* Last() const  {
         _EmListElement<T>* last = _last();
         return NULL == last ? NULL : last->m_pItem;
-    }
-
-    // Iterate list items. 
-    // Return false once end of list is reached.
-    bool Iterate(EmListIterator<T>& iterator) const {
-        if (iterator._isBegin()) {
-            iterator._copyFrom(m_pFirst);
-        } else {
-            iterator._copyFrom(iterator.m_pNext);
-        }
-        return NULL != iterator.m_pItem;
     }
 
 protected:
