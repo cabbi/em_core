@@ -15,3 +15,6 @@
 # 1.0.7
 - Added 'EmIterator' class to support array and EmList iteration  
 - Moved 'EmLogSwSerial' within #ifdef block for ESP32 compatibility. Define 'EM_SOFTWARE_SERIAL' to use 'EmLogSwSerial'
+
+# 1.0.8
+- Fixed 'EmList' compilation issues

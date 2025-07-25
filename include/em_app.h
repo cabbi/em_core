@@ -6,7 +6,7 @@
 class EmApp
 {
 public:
-    EmApp() : m_Interfaces(EmAppInterfaces()) {};
+    EmApp() : m_Interfaces() {};
     
     virtual ~EmApp() {
         m_Interfaces.Clear();

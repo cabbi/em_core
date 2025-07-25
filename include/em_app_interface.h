@@ -103,7 +103,7 @@ private:
 
 class EmAppInterfaces: public EmList<EmAppInterface> {
 public:
-    EmAppInterfaces() : EmList(EmAppInterface::Match) {}
+    EmAppInterfaces() : EmList<EmAppInterface>(&EmAppInterface::Match) {}
 };
 
 // This interface has a loop call timeout, app will call the 'Loop' method each time timeout elapses
