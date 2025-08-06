@@ -18,3 +18,8 @@
 
 # 1.0.8
 - Fixed 'EmList' compilation issues
+
+# 1.0.9
+- 'EmSyncValue' is now also 'EmUpdatable'
+- Added 'EmTime" and "EmDuration" time handling classes
+- Removed the 'EmLogSerialBase' in favour of the simpler 'EmLogPrintTarget'

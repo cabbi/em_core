@@ -170,9 +170,13 @@ protected:
 // This is tha base abstract class that keeps different 
 // instances of EmSyncItem synchronized.
 template <class T>
-class EmSyncValue {
+class EmSyncValue: public EmUpdatable {
 public:
     virtual bool Sync() = 0;
+
+    virtual void Update() override {
+        Sync();
+    }
 
     virtual void GetValue(T& value) {
         value = m_CurrentValue;

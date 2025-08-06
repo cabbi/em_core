@@ -2,6 +2,7 @@
 #define __TIMEOUT__H_
 
 #include <stdint.h>
+#include "em_duration.h"
 
 #include <Arduino.h>
 //unsigned long millis(void);
@@ -10,13 +11,21 @@
 class EmTimeout
 {
 public:
+    EmTimeout(const EmDuration timeout, bool startAsElapsed=false)
+     : EmTimeout(timeout.milliseconds(),
+                 startAsElapsed) {}
+
     EmTimeout(uint32_t timeoutMs, bool startAsElapsed=false)
      : m_timeoutMs(timeoutMs) {
         if (startAsElapsed) {
-            m_startMs = millis()-m_timeoutMs-1;
+            SetElapsed();
         } else {
             Restart();
         }
+    }
+
+    void SetElapsed() {
+        m_startMs = millis() - m_timeoutMs - 1;
     }
 
     uint32_t GetTimeoutMs() const {

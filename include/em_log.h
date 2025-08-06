@@ -88,6 +88,12 @@ public:
 class EmLog {
     friend const char* LevelToStr(EmLogLevel level);
 public:    
+    static void Init(EmLogTarget& target, EmLogLevel level) {
+        EmLog::g_Targets = &target;
+        EmLog::g_TargetsCount = 1;
+        EmLog::g_Level = level;
+    }
+
     static void Init(EmLogTarget targets[], uint8_t targetsCount, EmLogLevel level) {
         EmLog::g_Targets = targets;
         EmLog::g_TargetsCount = targetsCount;
