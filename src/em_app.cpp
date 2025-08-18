@@ -1,28 +1,25 @@
 #include "em_app.h"
 
-void delay(uint32_t);
+void EmApp::run(uint32_t loopDelayMillis) {
+    bool running = true;
+    bool restart = false;
+    EmAppInterfaces runningInterfaces;  
 
-// NOTE: We only handle one application object!
-bool running = true;
-bool restart = false;
-EmAppInterfaces runningInterfaces;      
-
-void EmApp::Run(uint32_t loopDelayMs) {
     // Create a copy of the running interfaces list just in case some interfaces and
     // removed and then app is asked to restart -> need all original interfaces list!
-    runningInterfaces.Append(m_Interfaces);
+    runningInterfaces.append(m_interfaces);
 
     // The app running loop 
     while (running) {
         // Iteration of each interface
-        bool iterResult = runningInterfaces.ForEach([](EmAppInterface& interface) -> EmIterResult {
+        bool iterResult = runningInterfaces.forEach([&restart, &running, &runningInterfaces](EmAppInterface& interface) -> EmIterResult {
             EmIntOperationResult res;
-            if (interface.IsInitialized()) {
-                res = interface.CanCallLoop() ? interface.Loop() : EmIntOperationResult::canContinue;
+            if (interface.isInitialized()) {
+                res = interface.canCallLoop() ? interface.loop() : EmIntOperationResult::canContinue;
             } else {
-                res = interface.Setup();
+                res = interface.setup();
                 if (res == EmIntOperationResult::canContinue) {
-                    interface.SetInitialized(true);
+                    interface.setInitialized(true);
                 }
             }
             switch (res) {
@@ -43,16 +40,16 @@ void EmApp::Run(uint32_t loopDelayMs) {
         if (restart) {
             // Restore all application interfaces and set them as "uninitialized"
             restart = false;
-            runningInterfaces.Clear();
-            m_Interfaces.ForEach([](EmAppInterface& interface) -> EmIterResult {
-                interface.SetInitialized(false);
+            runningInterfaces.clear();
+            m_interfaces.forEach([](EmAppInterface& interface) -> EmIterResult {
+                interface.setInitialized(false);
                 runningInterfaces.Append(interface);
                 return EmIterResult::moveNext;
             });
         } 
         // We do wait next iteration in case of iteration success
-        else if (loopDelayMs && iterResult) {      
-            delay(loopDelayMs);
+        else if (loopDelayMillis && iterResult) {      
+            delay(loopDelayMillis);
         }
     }
 }

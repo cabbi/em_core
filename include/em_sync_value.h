@@ -30,15 +30,19 @@ enum class EmGetValueResult: uint8_t {
 template <class T>
 class EmValue {
 public:
-    virtual EmGetValueResult GetValue(T& /*value*/) const = 0;
-    virtual bool SetValue(const T /*value*/) = 0;
+    virtual ~EmValue() = default;
+
+    virtual EmGetValueResult getValue(T& /*value*/) const = 0;
+    virtual bool setValue(const T /*value*/) = 0;
 };
 
 template <class T>
 class EmValue<T*> {
 public:
-    virtual EmGetValueResult GetValue(T* /*value*/) const = 0;
-    virtual bool SetValue(const T* /*value*/) = 0;
+    virtual ~EmValue() = default;
+
+    virtual EmGetValueResult getValue(T* /*value*/) const = 0;
+    virtual bool setValue(const T* /*value*/) = 0;
 };
 
 // The flags assigned to each synchronized item
@@ -72,22 +76,24 @@ template <class EmValueOfT, class T>
 class EmSyncItem: public EmValueOfT {
 public:
     EmSyncItem(EmSyncFlags flags) 
-     : m_Flags(flags|EmSyncFlags::_firstRead) {}
+     : m_flags(flags|EmSyncFlags::_firstRead) {}
 
-    virtual CheckNewValueResult CheckNewValue(T& currentValue) {
+    virtual ~EmSyncItem() = default;
+
+    virtual CheckNewValueResult checkNewValue(T& currentValue) {
         // Item to be read?
-        if (WriteOnly()) {
+        if (writeOnly()) {
             return CheckNewValueResult::noChange;
         }
         // Pending write? 
-        if (IsPendingWrite()) { 
+        if (isPendingWrite()) { 
             return CheckNewValueResult::pendingWrite; 
         }
         // Get the value and check the operation result
-        EmGetValueResult res = this->GetValue(currentValue);
+        EmGetValueResult res = this->getValue(currentValue);
         if (EmGetValueResult::failed == res) {
             // Get the value failed
-            if (MustRead()) {
+            if (mustRead()) {
                 // Read cannot fail!
                 return CheckNewValueResult::mustReadFailed;
             }
@@ -95,8 +101,8 @@ public:
             return CheckNewValueResult::noChange;
         }
         // Get value succeeded
-        if (this->IsFirstRead()) {
-            SetFirstRead(false);
+        if (this->isFirstRead()) {
+            setFirstRead(false);
             return CheckNewValueResult::valueChanged;
         }
         return EmGetValueResult::succeedNotEqualValue == res ?
@@ -104,58 +110,58 @@ public:
                CheckNewValueResult::noChange;
     }
 
-    virtual void DoPendingWrite(T& currentValue) {
-        if (this->SetValue(currentValue)) {
-            SetFirstRead(false);
-            SetPendingWrite(false);
+    virtual void doPendingWrite(T& currentValue) {
+        if (this->setValue(currentValue)) {
+            setFirstRead(false);
+            setPendingWrite(false);
         }
     }
 
-    bool CanRead() const {
-        return 0 != static_cast<int>(m_Flags & EmSyncFlags::canRead);
+    bool canRead() const {
+        return 0 != static_cast<int>(m_flags & EmSyncFlags::canRead);
     }
 
-    bool MustRead() const {
-        return 0 != static_cast<int>(m_Flags & EmSyncFlags::mustRead);
+    bool mustRead() const {
+        return 0 != static_cast<int>(m_flags & EmSyncFlags::mustRead);
     }
 
-    bool ReadOnly() const {
-        return 0 == static_cast<int>(m_Flags & EmSyncFlags::write);
+    bool readOnly() const {
+        return 0 == static_cast<int>(m_flags & EmSyncFlags::write);
     }
 
-    bool WriteOnly() const {
-        return 0 == static_cast<int>(m_Flags & (EmSyncFlags::canRead | EmSyncFlags::mustRead));
+    bool writeOnly() const {
+        return 0 == static_cast<int>(m_flags & (EmSyncFlags::canRead | EmSyncFlags::mustRead));
     }
 
-    bool IsPendingWrite() const {
-        return 0 != static_cast<int>(m_Flags & EmSyncFlags::_pendingWrite);
+    bool isPendingWrite() const {
+        return 0 != static_cast<int>(m_flags & EmSyncFlags::_pendingWrite);
     }
 
-    void SetPendingWrite(bool pendingWrite) {
+    void setPendingWrite(bool pendingWrite) {
         if (pendingWrite) {
-            m_Flags |= EmSyncFlags::_pendingWrite;
+            m_flags |= EmSyncFlags::_pendingWrite;
         } else {
-            m_Flags &= ~EmSyncFlags::_pendingWrite;
+            m_flags &= ~EmSyncFlags::_pendingWrite;
         }
     }
 
-    bool IsFirstRead() const {
-        return 0 != static_cast<int>(m_Flags & EmSyncFlags::_firstRead);
+    bool isFirstRead() const {
+        return 0 != static_cast<int>(m_flags & EmSyncFlags::_firstRead);
     }
 
-    void SetFirstRead(bool firstRead) {
+    void setFirstRead(bool firstRead) {
         if (firstRead) {
-            m_Flags |= EmSyncFlags::_firstRead;
+            m_flags |= EmSyncFlags::_firstRead;
         } else {
-            m_Flags &= ~EmSyncFlags::_firstRead;
+            m_flags &= ~EmSyncFlags::_firstRead;
         }
     }
 
     virtual bool _setCurrentValue(const T& currentValue) {
         // Read only item?
-        if (!ReadOnly()) {
-            if (!this->SetValue(currentValue)) {
-                SetPendingWrite(true);
+        if (!readOnly()) {
+            if (!this->setValue(currentValue)) {
+                setPendingWrite(true);
                 return false;
             }
         }
@@ -163,7 +169,7 @@ public:
     }
 
 protected:
-    EmSyncFlags m_Flags;
+    EmSyncFlags m_flags;
 };
 
 
@@ -172,18 +178,18 @@ protected:
 template <class T>
 class EmSyncValue: public EmUpdatable {
 public:
-    virtual bool Sync() = 0;
+    virtual bool doSync() = 0;
 
-    virtual void Update() override {
-        Sync();
+    virtual void update() override {
+        doSync();
     }
 
-    virtual void GetValue(T& value) {
-        value = m_CurrentValue;
+    virtual void getValue(T& value) {
+        value = m_currentValue;
     }
 
 protected:
-    T m_CurrentValue;
+    T m_currentValue;
 };
 
 // The simple priority based values synchronization class.
@@ -194,13 +200,13 @@ class EmSimpleSyncValue: public EmSyncValue<T> {
 public:
     EmSimpleSyncValue(EmSyncItemOfT* items[]) {
         for(uint8_t i=0; i < size; i++) {
-            m_Items[i] = items[i];
+            m_items[i] = items[i];
         }
     }
 
-    bool Sync() override {
+    bool doSync() override {
         for(uint8_t i=0; i < size; i++) {
-            switch (m_Items[i]->CheckNewValue(this->m_CurrentValue)) {
+            switch (m_items[i]->CheckNewValue(this->m_CurrentValue)) {
                 case CheckNewValueResult::valueChanged:
                     // First changed value found: lets write all the others! 
                     return _updateToNewValue(i);
@@ -209,7 +215,7 @@ public:
                     return false;
                 case CheckNewValueResult::pendingWrite:
                     // An "old" pending write
-                    m_Items[i]->DoPendingWrite(this->m_CurrentValue);
+                    m_items[i]->DoPendingWrite(this->m_CurrentValue);
                 case CheckNewValueResult::noChange:
                    break;
             }
@@ -223,7 +229,7 @@ protected:
         for(uint8_t i=0; i < size; i++) {
             // Value item that gave this new value?
             if (i != valIndex) {
-                if (!m_Items[i]->_setCurrentValue(this->m_CurrentValue)) {
+                if (!m_items[i]->_setCurrentValue(this->m_CurrentValue)) {
                     res = false;
                 }
             }
@@ -231,7 +237,7 @@ protected:
         return res;
     }
 
-    EmSyncItemOfT* m_Items[size];
+    EmSyncItemOfT* m_items[size];
 };
 
 #endif

@@ -1,7 +1,9 @@
-#ifndef EM_TIME_H
-#define EM_TIME_H   
+#ifndef __EM_TIME_H
+#define __EM_TIME_H   
 
-#include "time.h"
+#ifdef EM_TIME
+
+#include <time.h>
 #include <WiFi.h>
 #include <esp_sntp.h>
 
@@ -41,11 +43,11 @@ public:
         struct tm tmInfo;
         m_isInitialized = getLocalTime(&tmInfo, timeout.milliseconds());
         if (m_isInitialized) {
-            LogInfo<50>("Time initialized [<%d-%02d-%02d %02d:%02d:%02d]!", 
+            logInfo<50>("Time initialized [<%d-%02d-%02d %02d:%02d:%02d]!", 
                         tmInfo.tm_year + 1900, tmInfo.tm_mon + 1, tmInfo.tm_mday,
                         tmInfo.tm_hour, tmInfo.tm_min, tmInfo.tm_sec);            
         } else {
-            LogError("Failed to initialize time within the timeout period.");
+            logError("Failed to initialize time within the timeout period.");
         }
         return m_isInitialized;
     }
@@ -76,3 +78,4 @@ public:
 };
 
 #endif
+#endif // EM_TIME_H

@@ -1,24 +1,28 @@
 #ifndef __APP__H_
 #define __APP__H_
 
+#include "em_defs.h"
+#include "em_log.h"
 #include "em_app_interface.h"
 
-class EmApp
+class EmApp: public EmLog
 {
 public:
-    EmApp() : m_Interfaces() {};
+    EmApp(const char* logContext = "App", 
+          EmLogLevel logLevel = EmLogLevel::global) 
+     : EmLog(logContext, logLevel), m_Interfaces() {};
     
     virtual ~EmApp() {
-        m_Interfaces.Clear();
+        m_Interfaces.clear();
     }
 
-    void AddInterface(EmAppInterface& interface) {
-        m_Interfaces.Append(interface);
+    void addInterface(EmAppInterface& interface) {
+        m_Interfaces.append(interface);
     }
 
-    void Run(uint32_t loopDelayMs);
+    void run(uint32_t loopDelayMillis);
 
-private:
+protected:
     EmAppInterfaces m_Interfaces;
 };
 

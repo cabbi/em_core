@@ -1,10 +1,23 @@
-#ifndef __DEFS__H_
-#define __DEFS__H_
+#ifndef __EM_DEFS__H_
+#define __EM_DEFS__H_
 
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <math.h>
+
+#if defined(ESP32) || defined(ESP8266)
+    #define EM_STD_LIB  // Use of standard library (AVR arduinos does not have it!)
+    #define EM_WIFI
+    #define EM_BLE
+    #define EM_MULTICORE
+    #define EM_MULTITHREAD
+    #define EM_NVS
+    #define EM_TIME
+    #define EM_CORES_COUNT 2
+#else
+    #define EM_CORES_COUNT 1
+#endif
 
 #define SIZE_OF(x) (sizeof((x))/sizeof((x[0])))
 
@@ -39,16 +52,16 @@ inline int32_t iDiv(real_type num1, real_type num2) {
 // The abstract 'updatable' object class
 class EmUpdatable {
 public:
-    virtual void Update() = 0;
+    virtual void update() = 0;
 };
 
 // Simple updater object
 template <EmUpdatable* updatableObjects[], uint8_t size>
 class EmUpdater {
 public:
-    void Update() {
+    void update() {
         for (uint8_t i=0; i < size; i++) {
-            updatableObjects[i]->Update();
+            updatableObjects[i]->update();
         }
     }
 };

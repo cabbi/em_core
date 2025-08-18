@@ -19,7 +19,9 @@
 # 1.0.8
 - Fixed 'EmList' compilation issues
 
-# 1.0.9
+# 2.0.0
+- New most c++ naming sytle
 - 'EmSyncValue' is now also 'EmUpdatable'
-- Added 'EmTime" and "EmDuration" time handling classes
 - Removed the 'EmLogSerialBase' in favour of the simpler 'EmLogPrintTarget'
+- Added 'EmTime" and "EmDuration" time handling classes (ESP only)
+- Added 'EmStore' and 'EmStoreValue' classes for presistent storage in NVS (ESP only)

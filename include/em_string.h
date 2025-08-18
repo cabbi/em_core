@@ -16,28 +16,28 @@ public:
 
     EmString(const char* initValue)
      : EmString() {
-        Set(initValue);
+        set(initValue);
     }
 
     // Returns the current length of this string object.
-    size_t Len() {
+    size_t len() {
         return strlen(m_buf);
     }
 
     // Returns the max length of this string object.
-    size_t MaxStrLen() {
+    size_t maxStrLen() {
         return maxStrLen;
     }
 
     // Set the string to a new value.
     // Returns true if the new value is not longer than max length.
-    bool Set(const char* value) {
+    bool set(const char* value) {
         strncpy(m_buf, value, maxStrLen);
         return strlen(value) <= maxStrLen;
     }
 
     // Creates a formatted string (i.e. same as 'sprintf').
-    const char* Format(const char* format, ...) {
+    const char* format(const char* format, ...) {
         va_list args;
         va_start(args, format);     
         vsnprintf(m_buf, maxStrLen+1, format, args);
@@ -46,8 +46,8 @@ public:
     }
 
     // Appends a string to current one.
-    const char* Append(const char* str) {
-        int free_size = static_cast<int>(maxStrLen - this->Len());
+    const char* append(const char* str) {
+        int free_size = static_cast<int>(maxStrLen - this->len());
         if (free_size > 0) {
             strncat(m_buf, str, static_cast<size_t>(free_size));
         }
@@ -56,7 +56,7 @@ public:
 
     // Gets the string buffer. 
     // Using the string buffer is not safe!
-    char* Buffer() {
+    char* buffer() {
         return m_buf;
     }
 
@@ -77,9 +77,9 @@ public:
     // (e.g. -1 returns the last char of the string).
     char operator [](int i) {
         if (i < 0) {
-            i = static_cast<int>(this->Len()) + i;
+            i = static_cast<int>(this->len()) + i;
         }
-        if (i < 0 || i >= static_cast<int>(this->Len())) {
+        if (i < 0 || i >= static_cast<int>(this->len())) {
             return 0;
         }
         return m_buf[i];

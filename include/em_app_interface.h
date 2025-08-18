@@ -5,6 +5,7 @@
 
 #include "em_log.h"
 #include "em_list.h"
+#include "em_duration.h"
 #include "em_timeout.h"
 #include "em_defs.h"
 
@@ -39,71 +40,72 @@ inline EmInterfaceStatus& operator&=(EmInterfaceStatus& a, EmInterfaceStatus b) 
 // Each interface should implement 'Name', 'Setup' & 'Loop' methods
 class EmAppInterface: public EmLog {
 public:
-    EmAppInterface(uint32_t runningTimeoutMs = 60000, EmLogLevel logLevel=EmLogLevel::none)
+    EmAppInterface(const EmDuration& runningTimeout = EmDuration(0, 1, 0), 
+                   EmLogLevel logLevel=EmLogLevel::global)
      : EmLog("AppInt", logLevel),
-       m_InterfaceStatus(EmInterfaceStatus::isNone),
-       m_RunningTimeout(runningTimeoutMs)
+       m_interfaceStatus(EmInterfaceStatus::isNone),
+       m_runningTimeout(runningTimeout)
     { 
-        memset(m_WarningMsg, 0, sizeof(m_WarningMsg));
-        memset(m_ErrorMsg, 0, sizeof(m_ErrorMsg));
+        memset(m_warningMsg, 0, sizeof(m_warningMsg));
+        memset(m_errorMsg, 0, sizeof(m_errorMsg));
     }
     
     virtual ~EmAppInterface() {}
 
-    static bool Match(const EmAppInterface& int1, const EmAppInterface& int2) {
-        return 0==strcmp(int1.Name(), int2.Name());
+    static bool match(const EmAppInterface& int1, const EmAppInterface& int2) {
+        return 0==strcmp(int1.name(), int2.name());
     }
 
-    virtual const char* Name() const=0;
-    virtual EmIntOperationResult Setup()=0;
-    virtual EmIntOperationResult Loop()=0;
+    virtual const char* name() const=0;
+    virtual EmIntOperationResult setup()=0;
+    virtual EmIntOperationResult loop()=0;
 
     // Override this in case app should not call interface 'Loop' method all the times
-    virtual bool CanCallLoop() { return true; }
+    virtual bool canCallLoop() { return true; }
     
     // Status handling
-    virtual bool IsInitialized() const { return GetStatusFlag(EmInterfaceStatus::isInitialized); }
-    virtual bool IsRunning()     const { return GetStatusFlag(EmInterfaceStatus::isRunning) && !IsBlocked(); }
-    virtual bool HasWarning()    const { return GetStatusFlag(EmInterfaceStatus::isWarning); }
-    virtual bool HasError()      const { return GetStatusFlag(EmInterfaceStatus::isError); }
-    virtual bool IsBlocked()     const { return m_RunningTimeout.IsElapsed(false); }
+    virtual bool isInitialized() const { return getStatusFlag(EmInterfaceStatus::isInitialized); }
+    virtual bool isRunning()     const { return getStatusFlag(EmInterfaceStatus::isRunning) && !isBlocked(); }
+    virtual bool hasWarning()    const { return getStatusFlag(EmInterfaceStatus::isWarning); }
+    virtual bool hasError()      const { return getStatusFlag(EmInterfaceStatus::isError); }
+    virtual bool isBlocked()     const { return m_runningTimeout.isElapsed(false); }
 
     // Initialized, running and no errors
-    virtual bool IsOk()          const { return IsInitialized() && IsRunning() && !HasError(); }
+    virtual bool isOk()          const { return isInitialized() && isRunning() && !hasError(); }
 
-    virtual void SetInitialized(bool value)
-        { SetStatusFlag(EmInterfaceStatus::isInitialized, value); }
+    virtual void setInitialized(bool value)
+        { setStatusFlag(EmInterfaceStatus::isInitialized, value); }
     
-    virtual void SetRunning(bool value)
-        { if (value) m_RunningTimeout.Restart();
-          SetStatusFlag(EmInterfaceStatus::isRunning, value); }
+    virtual void setRunning(bool value)
+        { if (value) m_runningTimeout.restart();
+          setStatusFlag(EmInterfaceStatus::isRunning, value); }
     
-    virtual void SetWarning(bool value, const char* msg="");
-    virtual void SetError(bool value, const char* msg="");
+    virtual void setWarning(bool value, const char* msg="");
+    virtual void setError(bool value, const char* msg="");
 
-    virtual const char* GetErrorMsg() const { return m_ErrorMsg; }
-    virtual const char* GetWarningMsg() const { return m_WarningMsg; }
+    virtual const char* getErrorMsg() const { return m_errorMsg; }
+    virtual const char* getWarningMsg() const { return m_warningMsg; }
 
-    virtual EmInterfaceStatus GetStatus() const
-        { return m_InterfaceStatus; }
-    virtual bool GetStatusFlag(EmInterfaceStatus statusFlags) const
-        { return statusFlags == (m_InterfaceStatus & statusFlags); }
-    virtual void SetStatusFlag(EmInterfaceStatus statusFlags, bool value) 
-        { if (value) m_InterfaceStatus |= statusFlags;
-                else m_InterfaceStatus &= ~statusFlags; }
+    virtual EmInterfaceStatus getStatus() const
+        { return m_interfaceStatus; }
+    virtual bool getStatusFlag(EmInterfaceStatus statusFlags) const
+        { return statusFlags == (m_interfaceStatus & statusFlags); }
+    virtual void setStatusFlag(EmInterfaceStatus statusFlags, bool value) 
+        { if (value) m_interfaceStatus |= statusFlags;
+                else m_interfaceStatus &= ~statusFlags; }
     
 protected:
-    EmInterfaceStatus m_InterfaceStatus; 
+    EmInterfaceStatus m_interfaceStatus; 
 
 private:
-    mutable EmTimeout m_RunningTimeout;
-    char m_WarningMsg[MAX_INTERFACE_MSG_LEN+1];
-    char m_ErrorMsg[MAX_INTERFACE_MSG_LEN+1];
+    mutable EmTimeout m_runningTimeout;
+    char m_warningMsg[MAX_INTERFACE_MSG_LEN+1];
+    char m_errorMsg[MAX_INTERFACE_MSG_LEN+1];
 };
 
 class EmAppInterfaces: public EmList<EmAppInterface> {
 public:
-    EmAppInterfaces() : EmList<EmAppInterface>(&EmAppInterface::Match) {}
+    EmAppInterfaces() : EmList<EmAppInterface>(&EmAppInterface::match) {}
 };
 
 // This interface has a loop call timeout, app will call the 'Loop' method each time timeout elapses
@@ -116,7 +118,7 @@ public:
      : EmAppInterface(runningTimeoutMs, logLevel), 
        m_LoopTimeout(EmTimeout(loopTimeoutMs, startAsElapsed)) {}
 
-    virtual bool CanCallLoop() { return m_LoopTimeout.IsElapsed(true); }
+    virtual bool canCallLoop() { return m_LoopTimeout.isElapsed(true); }
 
 private:
     mutable EmTimeout m_LoopTimeout;
@@ -131,16 +133,16 @@ public:
                           EmLogLevel logLevel=EmLogLevel::none) 
      : EmAppInterface(runningTimeoutMs, logLevel) {}
 
-    virtual const char* Name() const override {
+    virtual const char* name() const override {
         return "EmUpdater";
     }
 
-    virtual EmIntOperationResult Setup() {
+    virtual EmIntOperationResult setup() {
         return EmIntOperationResult::canContinue;
     }
 
-    virtual EmIntOperationResult Loop() {
-        EmUpdater<updatableObjects, size>::Update();
+    virtual EmIntOperationResult loop() {
+        EmUpdater<updatableObjects, size>::update();
         return EmIntOperationResult::canContinue;    
     }
 };

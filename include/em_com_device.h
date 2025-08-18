@@ -10,9 +10,9 @@ public:
      : m_IsAvailable(true)
     {}
 
-    virtual bool IsAvailable() const { return m_IsAvailable; }
-    virtual void KeepDevice() { m_IsAvailable = false; }
-    virtual void ReleaseDevice() { m_IsAvailable = true; }
+    virtual bool isAvailable() const { return m_IsAvailable; }
+    virtual void keepDevice() { m_IsAvailable = true; }
+    virtual void releaseDevice() { m_IsAvailable = false; }
 
 protected: 
     bool m_IsAvailable;

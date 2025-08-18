@@ -7,10 +7,10 @@ template<class T>
 class EmIterator {
 public:
     // Returns true if next item is available or false if iterable is empty or end of iteration is reached
-    virtual bool Next(T*& pItem) = 0;
+    virtual bool next(T*& pItem) = 0;
 
     // Resets the iterator by starting from begin
-    virtual void Reset() = 0;
+    virtual void reset() = 0;
 };
 
 
@@ -19,11 +19,11 @@ class EmArrayIterator: public EmIterator<T> {
 public:
     EmArrayIterator(T* items[], size_t size)
      : m_items(items), m_size(size) {
-        Reset();
+        reset();
     }
 
     // Returns true if next item is available or false if iterable is empty or end of iteration is reached
-    virtual bool Next(T*& pItem) override {
+    virtual bool next(T*& pItem) override {
         if (m_index < m_size -1) {
             pItem = m_items[++m_index];
             return true;
@@ -33,7 +33,7 @@ public:
     }
 
     // Resets the iterator by starting from begin
-    virtual void Reset() override {
+    virtual void reset() override {
         m_index = -1;
     }
 

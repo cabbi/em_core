@@ -28,25 +28,25 @@ const char* LevelToStr(EmLogLevel level) {
     return "<unknown>";
 }
 
-void EmLog::Log(EmLogLevel level, const char* msg) const { 
-    if (CheckLevel(level)) {
+void EmLog::log(EmLogLevel level, const char* msg) const { 
+    if (checkLevel(level)) {
         _writeToTargets(level, m_Context, msg);
     }
 }
 
-void EmLog::Log(EmLogLevel level, const __FlashStringHelper* msg) const { 
-    if (CheckLevel(level)) {
+void EmLog::log(EmLogLevel level, const __FlashStringHelper* msg) const { 
+    if (checkLevel(level)) {
         _writeToTargets(level, m_Context, msg);
     }
 }
 
-void EmLog::Log(EmLogLevel level, const char* context, const char* msg) { 
+void EmLog::log(EmLogLevel level, const char* context, const char* msg) { 
     if (g_Level >= level) {
         _writeToTargets(level, context, msg);
     }
 }
 
-void EmLog::Log(EmLogLevel level, const char* context, const __FlashStringHelper* msg) { 
+void EmLog::log(EmLogLevel level, const char* context, const __FlashStringHelper* msg) { 
     if (g_Level >= level) {
         _writeToTargets(level, context, msg);
     }
