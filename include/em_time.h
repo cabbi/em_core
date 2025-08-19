@@ -1,13 +1,14 @@
 #ifndef __EM_TIME_H
 #define __EM_TIME_H   
 
+#include "em_defs.h"
+
 #ifdef EM_TIME
 
 #include <time.h>
 #include <WiFi.h>
 #include <esp_sntp.h>
 
-#include "em_defs.h"
 #include "em_timeout.h"
 #include "em_log.h"
 

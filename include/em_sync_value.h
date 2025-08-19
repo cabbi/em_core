@@ -48,7 +48,7 @@ public:
 // The flags assigned to each synchronized item
 enum class EmSyncFlags: uint8_t {
     canRead  = 0x01, // The item can be read but read can fail and synching moves forward
-    mustRead = 0x02, // The item must be read if not synching stops
+    mustRead = 0x02, // The item must be read if not, then synching stops
     write    = 0x04, // Item can be written
     // Combination flags
     canReadAndWrite = 0x05,
@@ -206,7 +206,7 @@ public:
 
     bool doSync() override {
         for(uint8_t i=0; i < size; i++) {
-            switch (m_items[i]->CheckNewValue(this->m_CurrentValue)) {
+            switch (m_items[i]->checkNewValue(this->m_currentValue)) {
                 case CheckNewValueResult::valueChanged:
                     // First changed value found: lets write all the others! 
                     return _updateToNewValue(i);
@@ -215,7 +215,8 @@ public:
                     return false;
                 case CheckNewValueResult::pendingWrite:
                     // An "old" pending write
-                    m_items[i]->DoPendingWrite(this->m_CurrentValue);
+                    m_items[i]->doPendingWrite(this->m_currentValue);
+                    break;
                 case CheckNewValueResult::noChange:
                    break;
             }
@@ -229,7 +230,7 @@ protected:
         for(uint8_t i=0; i < size; i++) {
             // Value item that gave this new value?
             if (i != valIndex) {
-                if (!m_items[i]->_setCurrentValue(this->m_CurrentValue)) {
+                if (!m_items[i]->_setCurrentValue(this->m_currentValue)) {
                     res = false;
                 }
             }

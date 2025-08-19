@@ -4,9 +4,11 @@
 #include "em_defs.h"
 
 // EmDuration class for handling duration-related operations
+// NOTE:
+// due to 32 bit implementation a maximum duration of 49 days and 17 hours is supported!
 class EmDuration {
 protected:
-    uint64_t m_durationMillis;
+    uint32_t m_durationMillis;  
 
 public:
     EmDuration(uint16_t hours,
@@ -14,13 +16,13 @@ public:
                uint16_t seconds, 
                uint16_t milliseconds=0) {
         m_durationMillis = 
-            (static_cast<uint64_t>(hours) * 3600 * 1000) + 
-            (static_cast<uint64_t>(minutes) * 60 * 1000) + 
-            (static_cast<uint64_t>(seconds) * 100) +       
-            (static_cast<uint64_t>(milliseconds));
+            (static_cast<uint32_t>(hours) * 3600 * 1000) + 
+            (static_cast<uint32_t>(minutes) * 60 * 1000) + 
+            (static_cast<uint32_t>(seconds) * 100) +       
+            (static_cast<uint32_t>(milliseconds));
     }
     
-    EmDuration(uint64_t milliseconds) 
+    EmDuration(uint32_t milliseconds) 
      : m_durationMillis(milliseconds) {}
 
     // Operators
@@ -48,7 +50,7 @@ public:
         return m_durationMillis >= other.m_durationMillis;
     }   
 
-    EmDuration operator +(uint64_t milliseconds) {
+    EmDuration operator +(uint32_t milliseconds) {
         return EmDuration(m_durationMillis + milliseconds);
     }
 
@@ -56,7 +58,7 @@ public:
         return EmDuration(m_durationMillis + other.m_durationMillis);
     }
     
-    EmDuration operator -(uint64_t milliseconds) const {
+    EmDuration operator -(uint32_t milliseconds) const {
         return EmDuration(m_durationMillis - milliseconds);
     }
 
@@ -64,7 +66,7 @@ public:
         return EmDuration(m_durationMillis - other.m_durationMillis);
     }
 
-    EmDuration& operator +=(uint64_t milliseconds) {
+    EmDuration& operator +=(uint32_t milliseconds) {
         m_durationMillis += milliseconds;
         return *this;
     }
@@ -74,7 +76,7 @@ public:
         return *this;
     }
     
-    EmDuration& operator -=(uint64_t milliseconds) {
+    EmDuration& operator -=(uint32_t milliseconds) {
         m_durationMillis -= milliseconds;
         return *this;
     }
@@ -100,7 +102,7 @@ public:
     }
 
     // Get the duration in milliseconds
-    uint64_t milliseconds() const {
+    uint32_t milliseconds() const {
         return m_durationMillis;
     }
 };

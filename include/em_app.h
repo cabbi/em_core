@@ -10,20 +10,20 @@ class EmApp: public EmLog
 public:
     EmApp(const char* logContext = "App", 
           EmLogLevel logLevel = EmLogLevel::global) 
-     : EmLog(logContext, logLevel), m_Interfaces() {};
+     : EmLog(logContext, logLevel), m_interfaces() {};
     
     virtual ~EmApp() {
-        m_Interfaces.clear();
+        m_interfaces.clear();
     }
 
     void addInterface(EmAppInterface& interface) {
-        m_Interfaces.append(interface);
+        m_interfaces.append(interface);
     }
 
     void run(uint32_t loopDelayMillis);
 
 protected:
-    EmAppInterfaces m_Interfaces;
+    EmAppInterfaces m_interfaces;
 };
 
 #endif

@@ -25,7 +25,7 @@ public:
     }
 
     // Returns the max length of this string object.
-    size_t maxStrLen() {
+    size_t getMaxStrLen() {
         return maxStrLen;
     }
 

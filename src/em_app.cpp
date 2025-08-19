@@ -1,5 +1,7 @@
 #include "em_app.h"
 
+void delay(uint32_t);
+
 void EmApp::run(uint32_t loopDelayMillis) {
     bool running = true;
     bool restart = false;
@@ -12,40 +14,46 @@ void EmApp::run(uint32_t loopDelayMillis) {
     // The app running loop 
     while (running) {
         // Iteration of each interface
-        bool iterResult = runningInterfaces.forEach([&restart, &running, &runningInterfaces](EmAppInterface& interface) -> EmIterResult {
-            EmIntOperationResult res;
-            if (interface.isInitialized()) {
-                res = interface.canCallLoop() ? interface.loop() : EmIntOperationResult::canContinue;
-            } else {
-                res = interface.setup();
-                if (res == EmIntOperationResult::canContinue) {
-                    interface.setInitialized(true);
+        struct LoopContext {
+            bool* restart;
+            bool* running;
+        } loopContext = { &restart, &running };
+
+        bool iterResult = runningInterfaces.forEach<LoopContext>([](EmAppInterface& interface, bool, bool, LoopContext* ctx) -> EmIterResult {
+                EmIntOperationResult res;
+                if (interface.isInitialized()) {
+                    res = interface.canCallLoop() ? interface.loop() : EmIntOperationResult::canContinue;
+                } else {
+                    res = interface.setup();
+                    if (res == EmIntOperationResult::canContinue) {
+                        interface.setInitialized(true);
+                    }
                 }
-            }
-            switch (res) {
-                case EmIntOperationResult::removeInterface:
-                    return EmIterResult::removeMoveNext;
-                case EmIntOperationResult::restartApp:
-                    restart = true;
-                    return EmIterResult::stopFailed;
-                case EmIntOperationResult::exitApp:
-                    running = false;
-                    return EmIterResult::stopFailed;
-                case EmIntOperationResult::canContinue:
-                    break; // Just to keep compiler happy
-            }
-            return EmIterResult::moveNext;
-        });  
+                switch (res) {
+                    case EmIntOperationResult::removeInterface:
+                        return EmIterResult::removeMoveNext;
+                    case EmIntOperationResult::restartApp:
+                        *(ctx->restart) = true;
+                        return EmIterResult::stopFailed;
+                    case EmIntOperationResult::exitApp:
+                        *(ctx->running) = false;
+                        return EmIterResult::stopFailed;
+                    case EmIntOperationResult::canContinue:
+                        break; // Just to keep compiler happy
+                }
+                return EmIterResult::moveNext;
+            }, &loopContext
+        );
         // Restart application requested?
         if (restart) {
             // Restore all application interfaces and set them as "uninitialized"
             restart = false;
             runningInterfaces.clear();
-            m_interfaces.forEach([](EmAppInterface& interface) -> EmIterResult {
+            m_interfaces.forEach<EmAppInterfaces>([](EmAppInterface& interface, bool, bool, EmAppInterfaces* pRunningInterfaces) -> EmIterResult {
                 interface.setInitialized(false);
-                runningInterfaces.Append(interface);
+                pRunningInterfaces->append(interface);
                 return EmIterResult::moveNext;
-            });
+            }, &runningInterfaces);
         } 
         // We do wait next iteration in case of iteration success
         else if (loopDelayMillis && iterResult) {      

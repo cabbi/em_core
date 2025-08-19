@@ -24,4 +24,4 @@
 - 'EmSyncValue' is now also 'EmUpdatable'
 - Removed the 'EmLogSerialBase' in favour of the simpler 'EmLogPrintTarget'
 - Added 'EmTime" and "EmDuration" time handling classes (ESP only)
-- Added 'EmStore' and 'EmStoreValue' classes for presistent storage in NVS (ESP only)
+- Added 'EmStore' and 'EmStoreValue' classes for persistent storage in NVS (ESP only)
