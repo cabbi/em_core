@@ -6,7 +6,7 @@ EmLogLevel EmLog::g_Level = EmLogLevel::none;
 EmLogTarget* EmLog::g_Targets = NULL;
 uint8_t EmLog::g_TargetsCount = 0;
 
-const char* LevelToStr(EmLogLevel level) {
+const char* levelToStr(EmLogLevel level) {
     switch (level) {
         case EmLogLevel::none: 
             return "None"; 
@@ -23,42 +23,42 @@ const char* LevelToStr(EmLogLevel level) {
             if (EmLog::g_Level == EmLogLevel::global) {
                 return "global";
             }
-            return LevelToStr(EmLog::g_Level); 
+            return levelToStr(EmLog::g_Level); 
     }
     return "<unknown>";
 }
 
 void EmLog::log(EmLogLevel level, const char* msg) const { 
     if (checkLevel(level)) {
-        _writeToTargets(level, m_Context, msg);
+        writeToTargets_(level, m_Context, msg);
     }
 }
 
 void EmLog::log(EmLogLevel level, const __FlashStringHelper* msg) const { 
     if (checkLevel(level)) {
-        _writeToTargets(level, m_Context, msg);
+        writeToTargets_(level, m_Context, msg);
     }
 }
 
 void EmLog::log(EmLogLevel level, const char* context, const char* msg) { 
     if (g_Level >= level) {
-        _writeToTargets(level, context, msg);
+        writeToTargets_(level, context, msg);
     }
 }
 
 void EmLog::log(EmLogLevel level, const char* context, const __FlashStringHelper* msg) { 
     if (g_Level >= level) {
-        _writeToTargets(level, context, msg);
+        writeToTargets_(level, context, msg);
     }
 }
 
-void EmLog::_writeToTargets(EmLogLevel level, const char* context, const char* msg) { 
+void EmLog::writeToTargets_(EmLogLevel level, const char* context, const char* msg) { 
     for(uint8_t i=0; i<g_TargetsCount; i++) {
         g_Targets[i].write(level, context, msg);
     }
 }
 
-void EmLog::_writeToTargets(EmLogLevel level, 
+void EmLog::writeToTargets_(EmLogLevel level, 
                             const char* context, 
                             const __FlashStringHelper* msg) { 
     for(uint8_t i=0; i<g_TargetsCount; i++) {

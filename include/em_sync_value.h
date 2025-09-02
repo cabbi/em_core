@@ -1,5 +1,5 @@
-#ifndef __SYNCVALUE__H_
-#define __SYNCVALUE__H_
+#ifndef __EM_SYNCVALUE__H_
+#define __EM_SYNCVALUE__H_
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,7 +24,7 @@ enum class EmGetValueResult: uint8_t {
 //
 // IMPLEMENTATION NOTES:
 // ---------------------
-//   If 'GetValue' fails (i.e. returns EmGetValueResult::failed) 
+//   If 'getValue' fails (i.e. returns EmGetValueResult::failed) 
 //   it SHOULD NOT change the provided 'value' content
 //
 template <class T>
@@ -48,11 +48,11 @@ public:
 // The flags assigned to each synchronized item
 enum class EmSyncFlags: uint8_t {
     canRead  = 0x01, // The item can be read but read can fail and synching moves forward
-    mustRead = 0x02, // The item must be read if not, then synching stops
-    write    = 0x04, // Item can be written
+    mustRead = 0x02, // The item must be read if not, then item synching stops
+    canWrite = 0x04, // Item can be written
     // Combination flags
-    canReadAndWrite = 0x05,
-    mustReadAndWrite = 0x06,
+    canReadCanWrite = 0x05,
+    mustReadCanWrite = 0x06,
     // Internal flags
     _firstRead = 0x10,
     _pendingWrite = 0x20,
@@ -126,7 +126,7 @@ public:
     }
 
     bool readOnly() const {
-        return 0 == static_cast<int>(m_flags & EmSyncFlags::write);
+        return 0 == static_cast<int>(m_flags & EmSyncFlags::canWrite);
     }
 
     bool writeOnly() const {

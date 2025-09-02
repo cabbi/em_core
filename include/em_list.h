@@ -1,4 +1,5 @@
-#pragma once
+#ifndef __EM_LIST_H__
+#define __EM_LIST_H__
 
 #include <stdint.h>
 #include "em_iterator.h"
@@ -72,25 +73,31 @@ class _EmListElement : public EmListIterator<T> {
     friend class EmList<T>;
     friend class EmListIterator<T>;
 private:
-    _EmListElement(EmList<T>& list, T* pItem, bool shouldBeDeleted)
+    _EmListElement(EmList<T>& list, T* pItem, bool takeOwnership)
         : EmListIterator<T>(list), 
-          m_shouldBeDeleted(shouldBeDeleted) {
+          m_ownsItem(takeOwnership) {
         this->m_pItem = pItem;
         this->m_pNext = nullptr;
     }
     
     // NOTE: keep destructor and class without virtual functions to limit RAM footprint
     ~_EmListElement() {
-        if (this->m_pItem != nullptr && m_shouldBeDeleted) {
+        if (this->m_pItem != nullptr && m_ownsItem) {
             delete this->m_pItem;
         }
+    }
+
+    virtual bool next(T*& pItem) override {
+        _EmListElement<T>* pNextElement = this->next();
+        pItem = pNextElement != nullptr ? pNextElement->m_pItem : nullptr;
+        return pItem != nullptr;
     }
 
     _EmListElement<T>* next() const {
         return static_cast<_EmListElement<T>*>(this->m_pNext);
     }
 
-    bool m_shouldBeDeleted;
+    bool m_ownsItem;
 };
 
 // Items matching callback prototype
@@ -119,28 +126,76 @@ public:
         append(list);
     }
 
+    // Per Rule of Three/Five, since this class has a custom destructor to manage resources,
+    // it should also have a copy constructor and copy assignment operator, or have them deleted.
+    // The original copy constructor was shallow and dangerous. Disabling them is the safest default.
+    EmList(const EmList<T>&) = delete;
+    EmList& operator=(const EmList<T>&) = delete;
+
     // NOTE: keep destructor and class without virtual functions to limit RAM footprint
     ~EmList() { clear(); }
 
-    // Append an element at the end of the list.
-    void append(T& item) { _append(item, false); }
-
-    // Append an element pointer at the end of the list.
-    void append(T* item, bool shouldBeDeleted) {
-        if (item != nullptr) {
-            _append(*item, shouldBeDeleted);
+    // Append an element by creating a copy.
+    // 
+    // If 'takeOwnership' is true, the list takes ownership creating a copy of 'item'
+    // and deleting it when no longer needed.
+    // If 'takeOwnership' is false, the caller is responsible for ensuring that the 
+    // lifetime of 'item' exceeds the lifetime of this list. Use with caution, 
+    // typically for objects with static or global scope.
+    void append(T& item, bool takeOwnership) {
+        if (takeOwnership) {
+            append_(new T(item), true);
+        } else {
+            append_(&item, false);
         }
     }
 
-    // Append 'list' elements at the end of this list.
-    void append(EmList<T>& list) {
-        list.forEach<EmList<T>>([](T& item, bool, bool, EmList<T>* pThis) -> EmIterResult {
-            pThis->_append(item, false);
-            return EmIterResult::moveNext;
-        }, this);
+    // Append an element pointer at the end of the list.
+    //
+    // If takeOwnership is true, the list takes ownership of 'item' deleting it when
+    // no longer needed.
+    // If 'takeOwnership' is false, the caller is responsible for freeing 'item' once
+    // it is no longer needed.
+    void append(T* item, bool takeOwnership) {
+        if (item != nullptr) {
+            append_(item, takeOwnership);
+        }
+    }
+
+    // Appends an instance that will not be owned (e.g. global objects).
+    //
+    // This method has been added for clarity. It might be used for those objects that
+    // does not have a copy constructor (i.e. cannot une the 'append(item, false)' because
+    // compiler will give an error).
+    void appendUnowned(T& item) {
+        append_(&item, false);
+    }
+
+    // Extend this list by appending all elements from another list.
+    //
+    // If 'takeOwnership' is true, the list takes ownership creating a copy of each 
+    // 'list' item and deleting it when no longer needed.
+    // If 'takeOwnership' is false, the caller is responsible for ensuring that the 
+    // lifetime of 'item' exceeds the lifetime of this list. Use with caution, 
+    // typically for objects with static or global scope.
+    void extend(EmList<T>& list, bool takeOwnership) {
+        _EmListElement<T>* elem = list.m_pFirst;
+        while (elem != nullptr) {
+            append_(elem->m_pItem, takeOwnership);
+            elem = elem->next();
+        }
+    }
+
+    // Sets the list elements to the specified 'list' elements.
+    //
+    // This is same as calling 'clear' and 'extend'
+    void set(EmList<T>& list, bool takeOwnership) {
+        clear();
+        extend(list, takeOwnership);
     }
 
     // Remove an element from list.
+    //
     // Returns true if element has been found and removed.
     bool remove(T& item) {
         _EmListElement<T>* pPrev = nullptr;
@@ -148,7 +203,7 @@ public:
         while (elem != nullptr) {
             if (m_itemsMatch(*(elem->m_pItem), item)) {
                 // Found!
-                _remove(elem, pPrev);
+                remove_(elem, pPrev);
                 return true;
             }
             pPrev = elem;
@@ -163,19 +218,24 @@ public:
     }
 
     // Remove all elements in that equals 'list' elements.
+    //
     // Returns false if at least one element in the removal list was not found
-    bool remove(const EmList<T>& list) {
+    bool remove(EmList<T>& list) {
         bool res = true;
-        list.forEach<bool>([this](T& item, bool, bool, bool* pRes) -> EmIterResult {
-            if (!remove(item)) *pRes = false;
-            return EmIterResult::moveNext;
-        }, &res);
+        _EmListElement<T>* elem = list.m_pFirst;
+        while (elem != nullptr) {
+            if (!remove(*elem->m_pItem)) {
+                res = false;
+            }
+            elem = elem->next();
+        }
         return res;
     }
 
     // Find the same element of the list. T should have right equality operator.
+    //
     // Return NULL if element is not found.
-    T* find(const T& item) const {
+    T* find(const T& item) {
         _EmListElement<T>* elem = m_pFirst;
         while (elem != nullptr) {
             if (m_itemsMatch(*elem->m_pItem, item)) {
@@ -186,7 +246,19 @@ public:
         return nullptr;
     }
 
-    T* find(const T* item) const {
+    const T* find(const T& item) const {
+        const _EmListElement<T>* elem = m_pFirst;
+        while (elem != nullptr) {
+            if (m_itemsMatch(*elem->m_pItem, item)) {
+                return elem->m_pItem;
+            }
+            elem = elem->next();
+        }
+        return nullptr;
+    }
+
+
+    T* find(const T* item) {
         if (item == nullptr) return nullptr;
         return find(*item);
     }
@@ -215,60 +287,66 @@ public:
         m_pFirst = nullptr;
     }
 
-    bool forEach(IterationCb<T> iter) {
-        return _forEach<void>((void*)iter, false, nullptr);
+    EmIterResult forEach(IterationCb<T> iter) {
+        return forEach_<void>((void*)iter, false, nullptr);
     }
 
     template<class V = void>
-    bool forEach(IterationExCb<T, V> iter, V* pUserData = nullptr) {
-        return _forEach<V>((void*)iter, true, pUserData);
+    EmIterResult forEach(IterationExCb<T, V> iter, V* pUserData = nullptr) {
+        return forEach_<V>((void*)iter, true, pUserData);
     }
 
-    T* first() const { return m_pFirst ? m_pFirst->m_pItem : nullptr; }
-    T* last() const {
-        _EmListElement<T>* last = _last();
+    T* first() { return m_pFirst ? m_pFirst->m_pItem : nullptr; }
+    const T* first() const { return m_pFirst ? m_pFirst->m_pItem : nullptr; }
+    T* last() {
+        _EmListElement<T>* last = last_();
+        return last ? last->m_pItem : nullptr;
+    }
+    const T* last() const {
+        _EmListElement<T>* last = last_();
         return last ? last->m_pItem : nullptr;
     }
 
 protected:
-    void _append(T& item, bool shouldBeDeleted) {
-        _EmListElement<T>* last = _last();
+    void append_(T* pItem, bool takeOwnership) {
+        _EmListElement<T>* last = last_();
         if (last) {
-            last->m_pNext = new _EmListElement<T>(*this, &item, shouldBeDeleted);
+            last->m_pNext = new _EmListElement<T>(*this, pItem, takeOwnership);
         } else {
-            m_pFirst = new _EmListElement<T>(*this, &item, shouldBeDeleted);
+            m_pFirst = new _EmListElement<T>(*this, pItem, takeOwnership);
         }
     }
 
     template<class V>
-    bool _forEach(void* iter, bool isExtendedCb, V* pUserData) {
+    EmIterResult forEach_(void* iter, bool isExtendedCb, V* pUserData) {
         _EmListElement<T>* pPrev = nullptr;
         _EmListElement<T>* pItem = m_pFirst;
+        EmIterResult res = EmIterResult::moveNext;
         while (pItem != nullptr) {
-            EmIterResult res = isExtendedCb ?
+            res = isExtendedCb ?
                 ((IterationExCb<T, V>)iter)(*pItem->m_pItem, pItem == m_pFirst, pItem->m_pNext == nullptr, pUserData) :
                 ((IterationCb<T>)iter)(*pItem->m_pItem);
             switch (res) {
-                case EmIterResult::stopSucceed: return true;
-                case EmIterResult::stopFailed: return false;
+                case EmIterResult::stopSucceed: return res;
+                case EmIterResult::stopFailed: return res;
                 case EmIterResult::removeMoveNext:
-                    pItem = _remove(pItem, pPrev);
+                    pItem = remove_(pItem, pPrev);
                     break;
                 case EmIterResult::removeStopSucceed:
-                    pItem = _remove(pItem, pPrev);
-                    return true;
+                    pItem = remove_(pItem, pPrev);
+                    return res;
                 case EmIterResult::removeStopFailed:
-                    pItem = _remove(pItem, pPrev);
-                    return false;
+                    pItem = remove_(pItem, pPrev);
+                    return res;
                 default:
                     pPrev = pItem;
                     pItem = pItem->next();
             }
         }
-        return true;
+        return res;
     }
 
-    _EmListElement<T>* _last() const {
+    _EmListElement<T>* last_() const {
         _EmListElement<T>* elem = m_pFirst;
         while (elem && elem->m_pNext) {
             elem = elem->next();
@@ -276,7 +354,7 @@ protected:
         return elem;
     }
 
-    _EmListElement<T>* _remove(_EmListElement<T>* item, _EmListElement<T>* prev) {
+    _EmListElement<T>* remove_(_EmListElement<T>* item, _EmListElement<T>* prev) {
         _EmListElement<T>* next = item->next();
         if (prev) {
             prev->m_pNext = item->m_pNext;
@@ -292,3 +370,4 @@ private:
     ItemsMatchCb<T> m_itemsMatch;
 };
 
+#endif // __EM_LIST_H__

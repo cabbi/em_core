@@ -4,12 +4,12 @@
 void EmAppInterface::setWarning(bool value, const char* msg)
 {
     // Any change? (avoid log same stuff many times)
-    if (value == getStatusFlag(EmInterfaceStatus::isWarning) &&
+    if (value == getStatusFlag_(EmInterfaceStatusFlag::hasWarning) &&
         ((msg == NULL && m_warningMsg[0]==0) ||
           0==strcmp(msg, m_warningMsg)))
         return;
     // Set new status
-    setStatusFlag(EmInterfaceStatus::isWarning, value); 
+    setStatusFlag_(EmInterfaceStatusFlag::hasWarning, value); 
     memset(m_warningMsg, 0, sizeof(m_warningMsg));
     if (msg) 
     {
@@ -20,12 +20,12 @@ void EmAppInterface::setWarning(bool value, const char* msg)
 void EmAppInterface::setError(bool value, const char* msg) 
 {
     // Any change? (avoid log same stuff many times)
-    if (value == getStatusFlag(EmInterfaceStatus::isError) &&
+    if (value == getStatusFlag_(EmInterfaceStatusFlag::hasError) &&
         ((msg == NULL && m_errorMsg[0]==0) ||
           0==strcmp(msg, m_errorMsg)))
         return;
     // Set new status
-    setStatusFlag(EmInterfaceStatus::isError, value); 
+    setStatusFlag_(EmInterfaceStatusFlag::hasError, value); 
     memset(m_errorMsg, 0, sizeof(m_errorMsg));
     if (msg) 
     {

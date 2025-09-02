@@ -1,94 +1,109 @@
-#ifndef __STRING__H_
-#define __STRING__H_
+#ifndef __EM_STRING__H_
+#define __EM_STRING__H_
 
 #include <stdint.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stdio.h> // For vsnprintf
 
 // This tiny string class uses a fixed templated size and
 // no virtual methods to minimize RAM footprint.
-template<size_t maxStrLen>
+template<size_t TCapacity>
 class EmString {
 public:
+    // TCapacity is the number of characters, not including the null terminator.
+    // The internal buffer will be TCapacity + 1.
+    static constexpr size_t Capacity = TCapacity;
+
     EmString() {
-        memset(m_buf, 0, sizeof(m_buf));
+        m_buf[0] = '\0';
     }
 
-    EmString(const char* initValue)
-     : EmString() {
+    EmString(const char* initValue) {
         set(initValue);
     }
 
     // Returns the current length of this string object.
-    size_t len() {
+    size_t length() const {
         return strlen(m_buf);
     }
 
-    // Returns the max length of this string object.
-    size_t getMaxStrLen() {
-        return maxStrLen;
+    // Returns the max capacity of this string object.
+    size_t capacity() const {
+        return Capacity;
     }
 
-    // Set the string to a new value.
-    // Returns true if the new value is not longer than max length.
-    bool set(const char* value) {
-        strncpy(m_buf, value, maxStrLen);
-        return strlen(value) <= maxStrLen;
+    // Set the string to a new value. Truncates if the source is too long.
+    void set(const char* value) {
+        if (!value) {
+            m_buf[0] = '\0';
+            return;
+        }
+        // snprintf is safe and guarantees null termination.
+        snprintf(m_buf, sizeof(m_buf), "%s", value);
     }
 
     // Creates a formatted string (i.e. same as 'sprintf').
-    const char* format(const char* format, ...) {
+    const char* format(const char* fmt, ...) {
         va_list args;
-        va_start(args, format);     
-        vsnprintf(m_buf, maxStrLen+1, format, args);
+        va_start(args, fmt);
+        vsnprintf(m_buf, sizeof(m_buf), fmt, args);
         va_end(args);
         return m_buf;
     }
 
     // Appends a string to current one.
-    const char* append(const char* str) {
-        int free_size = static_cast<int>(maxStrLen - this->len());
-        if (free_size > 0) {
-            strncat(m_buf, str, static_cast<size_t>(free_size));
+    void append(const char* str) {
+        if (!str) {
+            return;
         }
+        size_t currentLen = length();
+        if (currentLen >= Capacity) {
+            return; // Already full
+        }
+        size_t space_left = Capacity - currentLen;
+        strncat_s(m_buf, str, space_left);
+    }
+
+    // Gets the string buffer.
+    const char* c_str() const {
         return m_buf;
     }
 
-    // Gets the string buffer. 
+    // Gets the string buffer.
     // Using the string buffer is not safe!
     char* buffer() {
         return m_buf;
     }
 
     // String compare (i.e. same as 'strcmp').
-    // 
-    int strcmp(const char* value) {
+    int strcmp(const char* value) const {
         return ::strcmp(m_buf, value);
     }
 
     // 'const char*' casting operator.
-    operator const char*() {
+    operator const char*() const {
         return m_buf;
     }
 
-    // Returns the char at the 'i' position or zero if 'i' is greater or equal
-    // than string length. 
-    // If 'i' is negative it returns the char starting from end 
+    // Returns the char at the 'i' position or zero if 'i' is out of bounds.
+    // If 'i' is negative it returns the char starting from end
     // (e.g. -1 returns the last char of the string).
-    char operator [](int i) {
+    char operator[](int i) const {
+        size_t len = length();
         if (i < 0) {
-            i = static_cast<int>(this->len()) + i;
+            i = static_cast<int>(len) + i;
         }
-        if (i < 0 || i >= static_cast<int>(this->len())) {
+        if (i < 0 || i >= static_cast<int>(len)) {
             return 0;
         }
         return m_buf[i];
     }
 
     // Assigns a new string.
-    const char* operator =(const char* value) {
-        strncpy(m_buf, value, maxStrLen);
-        return m_buf;
+    EmString& operator=(const char* value) {
+        set(value);
+        return *this;
     }
 
     // Equal operator.
@@ -98,11 +113,11 @@ public:
 
     // Not-equal operator.
     bool operator !=(const char* value) {
-        return 0 != this->strcmp(value);
+        return !(*this == value);
     }
 
 private:
-    char m_buf[maxStrLen+1];
+    char m_buf[TCapacity + 1];
 };
 
-#endif
+#endif // __EM_STRING__H_

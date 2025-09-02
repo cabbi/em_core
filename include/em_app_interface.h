@@ -1,53 +1,51 @@
-#ifndef __APP_INTERFACE__H_
-#define __APP_INTERFACE__H_
+#ifndef __EM_APP_INTERFACE__H_
+#define __EM_APP_INTERFACE__H_
 
 #include <string.h>
 
+#include "em_defs.h"
 #include "em_log.h"
 #include "em_list.h"
+#include "em_threading.h"
 #include "em_duration.h"
 #include "em_timeout.h"
-#include "em_defs.h"
 
 class EmAppInterface;
 
-enum class EmInterfaceStatus: int8_t {
-    isNone        = 0x0000,
-    isInitialized = 0x0001, // Correctly initialized
-    isRunning     = 0x0002, // Running or Blocked (in case running timeout is elapsed!)
-    isWarning     = 0x0004, // Has any warning
-    isError       = 0x0008, // Has any error
-};
+namespace EmInterfaceStatusFlag {
+    constexpr uint8_t none          = 0x0000;
+    constexpr uint8_t isInitialized = 0x0001; // Is correctly initialized (app will call 'setup' instead of 'loop' until this flag is not set)
+    constexpr uint8_t hasWarning    = 0x0010; // Has any warning
+    constexpr uint8_t hasError      = 0x0020; // Has any error
+
+    using Type = uint8_t;
+    using TypeInternal = ts_uint8;
+}
 
 enum class EmIntOperationResult: int8_t {
     canContinue = 0,
-    removeInterface = 1,
+    stopInterface = 1,
     restartApp = 2,
-    exitApp = 3,
+    stopApp = 3,
 };
-
-inline EmInterfaceStatus operator~ (EmInterfaceStatus a) { return static_cast<EmInterfaceStatus>(~static_cast<int>(a)); }
-inline EmInterfaceStatus operator|(EmInterfaceStatus a, EmInterfaceStatus b) { return static_cast<EmInterfaceStatus>(static_cast<int>(a) | static_cast<int>(b)); }
-inline EmInterfaceStatus operator&(EmInterfaceStatus a, EmInterfaceStatus b) { return static_cast<EmInterfaceStatus>(static_cast<int>(a) & static_cast<int>(b)); }
-inline EmInterfaceStatus& operator|=(EmInterfaceStatus& a, EmInterfaceStatus b) { return (EmInterfaceStatus&)((int&)(a) |= static_cast<int>(b)); }
-inline EmInterfaceStatus& operator&=(EmInterfaceStatus& a, EmInterfaceStatus b) { return (EmInterfaceStatus&)((int&)(a) &= static_cast<int>(b)); }
 
 #define MAX_INTERFACE_MSG_LEN 60
 
 // TODO: add multithreading sync!
 
 // This is the base interface class.
-// Each interface should implement 'Name', 'Setup' & 'Loop' methods
+//
+// Each interface should implement 'name', 'setup' & 'loop' methods. 
+// Override 'dispose' In case your application might restart (i.e. any interface returning 'EmIntOperationResult::restartApp')
 class EmAppInterface: public EmLog {
+    friend class EmApp;
 public:
-    EmAppInterface(const EmDuration& runningTimeout = EmDuration(0, 1, 0), 
+    EmAppInterface(const EmDuration& blockedTimeout = EmDuration(0, 1, 0), 
                    EmLogLevel logLevel=EmLogLevel::global)
      : EmLog("AppInt", logLevel),
-       m_interfaceStatus(EmInterfaceStatus::isNone),
-       m_runningTimeout(runningTimeout)
-    { 
-        memset(m_warningMsg, 0, sizeof(m_warningMsg));
-        memset(m_errorMsg, 0, sizeof(m_errorMsg));
+       m_interfaceStatus(EmInterfaceStatusFlag::none),
+       m_blockedTimeout(blockedTimeout) { 
+        clear_();
     }
     
     virtual ~EmAppInterface() {}
@@ -56,49 +54,56 @@ public:
         return 0==strcmp(int1.name(), int2.name());
     }
 
-    virtual const char* name() const=0;
-    virtual EmIntOperationResult setup()=0;
-    virtual EmIntOperationResult loop()=0;
+    // NOTE: these methods should be overridden.
+    // Those are NOT set as pure virtual since EmApp interfaces list requires concrete classes.
+    virtual const char* name() const { return ""; }
+    virtual EmIntOperationResult setup() { return EmIntOperationResult::canContinue; }
+    virtual EmIntOperationResult loop() { return EmIntOperationResult::stopApp; }
 
-    // Override this in case app should not call interface 'Loop' method all the times
+    // Called if interface needs to stop for one of the following reasons
+    // 'EmIntOperationResult::stopInterface', 'EmIntOperationResult::restartApp' or 'EmIntOperationResult::stopApp'
+    virtual void onStop(EmIntOperationResult /*reason*/) { 
+        // Do some cleanup if needed
+    }
+
+    // Override this in case app should not call interface 'loop' method all the times
     virtual bool canCallLoop() { return true; }
     
     // Status handling
-    virtual bool isInitialized() const { return getStatusFlag(EmInterfaceStatus::isInitialized); }
-    virtual bool isRunning()     const { return getStatusFlag(EmInterfaceStatus::isRunning) && !isBlocked(); }
-    virtual bool hasWarning()    const { return getStatusFlag(EmInterfaceStatus::isWarning); }
-    virtual bool hasError()      const { return getStatusFlag(EmInterfaceStatus::isError); }
-    virtual bool isBlocked()     const { return m_runningTimeout.isElapsed(false); }
+    virtual bool isInitialized() const { return getStatusFlag_(EmInterfaceStatusFlag::isInitialized); }
+    virtual bool hasWarning()    const { return getStatusFlag_(EmInterfaceStatusFlag::hasWarning); }
+    virtual bool hasError()      const { return getStatusFlag_(EmInterfaceStatusFlag::hasError); }
+    virtual bool isBlocked()     const { return m_blockedTimeout.isElapsed(false); }
+    // Initialized and no errors
+    virtual bool isOk()          const { return isInitialized() && !hasError(); }
 
-    // Initialized, running and no errors
-    virtual bool isOk()          const { return isInitialized() && isRunning() && !hasError(); }
-
-    virtual void setInitialized(bool value)
-        { setStatusFlag(EmInterfaceStatus::isInitialized, value); }
+    virtual void setInitialized(bool value) { 
+        setStatusFlag_(EmInterfaceStatusFlag::isInitialized, value); }
     
-    virtual void setRunning(bool value)
-        { if (value) m_runningTimeout.restart();
-          setStatusFlag(EmInterfaceStatus::isRunning, value); }
-    
+   
     virtual void setWarning(bool value, const char* msg="");
     virtual void setError(bool value, const char* msg="");
 
     virtual const char* getErrorMsg() const { return m_errorMsg; }
     virtual const char* getWarningMsg() const { return m_warningMsg; }
-
-    virtual EmInterfaceStatus getStatus() const
-        { return m_interfaceStatus; }
-    virtual bool getStatusFlag(EmInterfaceStatus statusFlags) const
-        { return statusFlags == (m_interfaceStatus & statusFlags); }
-    virtual void setStatusFlag(EmInterfaceStatus statusFlags, bool value) 
+   
+protected:
+    virtual bool getStatusFlag_(EmInterfaceStatusFlag::Type statusFlags) const
+        { return statusFlags == (static_cast<EmInterfaceStatusFlag::Type>(m_interfaceStatus) & statusFlags); }
+    virtual void setStatusFlag_(EmInterfaceStatusFlag::Type statusFlags, bool value) 
         { if (value) m_interfaceStatus |= statusFlags;
                 else m_interfaceStatus &= ~statusFlags; }
-    
-protected:
-    EmInterfaceStatus m_interfaceStatus; 
 
-private:
-    mutable EmTimeout m_runningTimeout;
+
+
+    void clear_(){ 
+        m_interfaceStatus = EmInterfaceStatusFlag::none;
+        memset(m_warningMsg, 0, sizeof(m_warningMsg));
+        memset(m_errorMsg, 0, sizeof(m_errorMsg));
+    }
+
+    EmInterfaceStatusFlag::TypeInternal m_interfaceStatus; 
+    mutable EmTimeout m_blockedTimeout;
     char m_warningMsg[MAX_INTERFACE_MSG_LEN+1];
     char m_errorMsg[MAX_INTERFACE_MSG_LEN+1];
 };
@@ -108,15 +113,16 @@ public:
     EmAppInterfaces() : EmList<EmAppInterface>(&EmAppInterface::match) {}
 };
 
-// This interface has a loop call timeout, app will call the 'Loop' method each time timeout elapses
+// This interface has a loop call timeout, app will call the 'loop' 
+// method each time timeout elapses
 class EmAppTimeoutInterface: public EmAppInterface {
 public:
-    EmAppTimeoutInterface(uint32_t loopTimeoutMs, 
+    EmAppTimeoutInterface(EmDuration loopTimeout, 
                           bool startAsElapsed=true,
-                          uint32_t runningTimeoutMs = 60000, 
-                          EmLogLevel logLevel=EmLogLevel::none) 
-     : EmAppInterface(runningTimeoutMs, logLevel), 
-       m_LoopTimeout(EmTimeout(loopTimeoutMs, startAsElapsed)) {}
+                          EmDuration blockedTimeout = EmDuration(0, 1, 0),
+                          EmLogLevel logLevel=EmLogLevel::global) 
+     : EmAppInterface(blockedTimeout, logLevel), 
+       m_LoopTimeout(loopTimeout, startAsElapsed) {}
 
     virtual bool canCallLoop() { return m_LoopTimeout.isElapsed(true); }
 

@@ -1,5 +1,5 @@
-#ifndef __LOG_SERIAL__H_
-#define __LOG_SERIAL__H_
+#ifndef __EM_LOG_PRINT__H_
+#define __EM_LOG_PRINT__H_
 
 #include "em_log.h"
 
@@ -12,7 +12,7 @@ public:
     virtual void write(EmLogLevel level, 
                        const char* context, 
                        const char* msg){
-        _printLevel(level);
+        printLevel_(level);
         if (context != NULL) {
             m_Printer.print(context);m_Printer.print(" - ");
         }
@@ -22,7 +22,7 @@ public:
     virtual void write(EmLogLevel level, 
                        const char* context, 
                        const __FlashStringHelper* msg){
-        _printLevel(level);
+        printLevel_(level);
         if (context != NULL) {
             m_Printer.print(context);m_Printer.print(" - ");
         }
@@ -30,11 +30,11 @@ public:
     }                       
 
 protected:
-    virtual void _printLevel(EmLogLevel level){
-        m_Printer.print("[");m_Printer.print(LevelToStr(level));m_Printer.print("] ");
+    virtual void printLevel_(EmLogLevel level){
+        m_Printer.print("[");m_Printer.print(levelToStr(level));m_Printer.print("] ");
     }
 
     T& m_Printer;
 };
 
-#endif
+#endif // __EM_LOG_PRINT__H__

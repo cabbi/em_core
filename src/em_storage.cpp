@@ -119,7 +119,7 @@ size_t EmStorage::getString(const char* key, char* value, const size_t maxLen) c
     return len;
 }
 
-String EmStorage::getString(const char* key, const String defaultValue) const {
+String EmStorage::getString(const char* key, const char* defaultValue) const {
     char * value = NULL;
     size_t len = 0;
     if (!isInitialized() || !key) {

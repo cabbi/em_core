@@ -1,4 +1,5 @@
-#pragma once
+#ifndef __EM_ITERATOR_H__
+#define __EM_ITERATOR_H__
 
 #include <stddef.h>
 
@@ -24,7 +25,7 @@ public:
 
     // Returns true if next item is available or false if iterable is empty or end of iteration is reached
     virtual bool next(T*& pItem) override {
-        if (m_index < m_size -1) {
+        if (m_index < static_cast<int>(m_size) - 1) {
             pItem = m_items[++m_index];
             return true;
         }
@@ -42,3 +43,5 @@ private:
     size_t m_size;
     int m_index;
 };
+
+#endif // __EM_ITERATOR_H__

@@ -1,5 +1,5 @@
-#ifndef __LOG__H_
-#define __LOG__H_
+#ifndef __EM_LOG__H_
+#define __EM_LOG__H_
 
 #include <stdio.h>
 #include <stdint.h>
@@ -17,7 +17,7 @@ enum class EmLogLevel: int8_t {
 
 // Forward declarations
 class __FlashStringHelper;
-const char* LevelToStr(EmLogLevel level);
+const char* levelToStr(EmLogLevel level);
 
 // The base log target class each logging target should implement. 
 class EmLogTarget {
@@ -36,65 +36,65 @@ public:
 //  Define 'EM_NO_LOG' to avoid extra Flash and RAM memory consumption.  
 #ifdef EM_NO_LOG
 
-inline const char* LevelToStr(EmLogLevel level) { return ""; }
+inline const char* levelToStr(EmLogLevel level) { return ""; }
 
 class EmLog {
 public:    
-    static void Init(EmLogTarget targets[], uint8_t targetsCount, EmLogLevel level) {}
+    static void init(EmLogTarget targets[], uint8_t targetsCount, EmLogLevel level) {}
 
     EmLog(const char* context = NULL, 
           EmLogLevel level = EmLogLevel::global) {}
 
     template<uint8_t max_len>
-    void LogError(const char* format, ...) const {}
-    void LogError(const char* msg) const {}
-    void LogError(const __FlashStringHelper* msg) const {}
+    void logError(const char* format, ...) const {}
+    void logError(const char* msg) const {}
+    void logError(const __FlashStringHelper* msg) const {}
 
     template<uint8_t max_len>
-    void LogWarning(const char* format, ...) const {}
-    void LogWarning(const char* msg) const {}
-    void LogWarning(const __FlashStringHelper* msg) const {}
+    void logWarning(const char* format, ...) const {}
+    void logWarning(const char* msg) const {}
+    void logWarning(const __FlashStringHelper* msg) const {}
 
     template<uint8_t max_len>
-    void LogInfo(const char* format, ...) const {}
-    void LogInfo(const char* msg) const {}
-    void LogInfo(const __FlashStringHelper* msg) const {}
+    void logInfo(const char* format, ...) const {}
+    void logInfo(const char* msg) const {}
+    void logInfo(const __FlashStringHelper* msg) const {}
 
     template<uint8_t max_len>
-    void LogDebug(const char* format, ...) const {} 
-    void LogDebug(const char* msg) const {}
-    void LogDebug(const __FlashStringHelper* msg) const {}
+    void logDebug(const char* format, ...) const {}
+    void logDebug(const char* msg) const {}
+    void logDebug(const __FlashStringHelper* msg) const {}
 
     template<uint8_t max_len>
-    void Log(EmLogLevel level, const char* format, ...) const {} 
-    void Log(EmLogLevel level, const char* msg) const {} 
-    void Log(EmLogLevel level, const __FlashStringHelper* msg) const {} 
+    void log(EmLogLevel level, const char* format, ...) const {}
+    void log(EmLogLevel level, const char* msg) const {}
+    void log(EmLogLevel level, const __FlashStringHelper* msg) const {}
     
     template<uint8_t max_len>
-    static void Log(EmLogLevel level, const char* context, const char* msg, ...) {} 
-    static void Log(EmLogLevel level, const char* context, const char* msg) {} 
-    static void Log(EmLogLevel level, const char* context, const __FlashStringHelper* msg) {} 
-    
-    bool CheckLevel(EmLogLevel level) const { return false; }
+    static void log(EmLogLevel level, const char* context, const char* msg, ...) {}
+    static void log(EmLogLevel level, const char* context, const char* msg) {}
+    static void log(EmLogLevel level, const char* context, const __FlashStringHelper* msg) {}
 
-    void SetLevel(EmLogLevel level) {}
+    bool checkLevel(EmLogLevel level) const { return false; }
 
-    static void SetGlobalLevel(EmLogLevel level) {}
+    void setLevel(EmLogLevel level) {}
+
+    static void setGlobalLevel(EmLogLevel level) {}
 };
 
 #else
 
 // The log class can be inherited to allow easy logging
 class EmLog {
-    friend const char* LevelToStr(EmLogLevel level);
+    friend const char* levelToStr(EmLogLevel level);
 public:    
-    static void Init(EmLogTarget& target, EmLogLevel level) {
+    static void init(EmLogTarget& target, EmLogLevel level) {
         EmLog::g_Targets = &target;
         EmLog::g_TargetsCount = 1;
         EmLog::g_Level = level;
     }
 
-    static void Init(EmLogTarget targets[], uint8_t targetsCount, EmLogLevel level) {
+    static void init(EmLogTarget targets[], uint8_t targetsCount, EmLogLevel level) {
         EmLog::g_Targets = targets;
         EmLog::g_TargetsCount = targetsCount;
         EmLog::g_Level = level;
@@ -169,14 +169,14 @@ public:
 
 protected:
     template<uint8_t max_len>
-    static void _writeToTargets(EmLogLevel level, 
+    static void writeToTargets_(EmLogLevel level, 
                                 const char* context, 
                                 const char* format,
                                 va_list args); 
-    static void _writeToTargets(EmLogLevel level, 
+    static void writeToTargets_(EmLogLevel level, 
                                 const char* context, 
                                 const char* msg); 
-    static void _writeToTargets(EmLogLevel level, 
+    static void writeToTargets_(EmLogLevel level, 
                                 const char* context, 
                                 const __FlashStringHelper* msg); 
 
@@ -194,7 +194,7 @@ inline void EmLog::logError(const char* format, ...) const {
     if (checkLevel(EmLogLevel::error)) {
         va_list args;
         va_start(args, format);     
-        _writeToTargets<max_len>(EmLogLevel::error, m_Context, format, args);
+        writeToTargets_<max_len>(EmLogLevel::error, m_Context, format, args);
         va_end(args);
     }
 }
@@ -204,7 +204,7 @@ inline void EmLog::logWarning(const char* format, ...) const {
     if (checkLevel(EmLogLevel::warning)) {
         va_list args;
         va_start(args, format);     
-        _writeToTargets<max_len>(EmLogLevel::warning, m_Context, format, args);
+        writeToTargets_<max_len>(EmLogLevel::warning, m_Context, format, args);
         va_end(args);
     }
 }
@@ -214,7 +214,7 @@ inline void EmLog::logInfo(const char* format, ...) const {
     if (checkLevel(EmLogLevel::info)) {
         va_list args;
         va_start(args, format);     
-        _writeToTargets<max_len>(EmLogLevel::info, m_Context, format, args);
+        writeToTargets_<max_len>(EmLogLevel::info, m_Context, format, args);
         va_end(args);
     }
 }
@@ -224,7 +224,7 @@ inline void EmLog::logDebug(const char* format, ...) const {
     if (checkLevel(EmLogLevel::debug)) {
         va_list args;
         va_start(args, format);     
-        _writeToTargets<max_len>(EmLogLevel::debug, m_Context, format, args);
+        writeToTargets_<max_len>(EmLogLevel::debug, m_Context, format, args);
         va_end(args);
     }
 }
@@ -234,7 +234,7 @@ inline void EmLog::log(EmLogLevel level, const char* format, ...) const {
     if (checkLevel(level)) {
         va_list args;
         va_start(args, format);     
-        _writeToTargets<max_len>(level, m_Context, format, args);
+        writeToTargets_<max_len>(level, m_Context, format, args);
         va_end(args);
     }
 }
@@ -246,19 +246,19 @@ inline void EmLog::log(EmLogLevel level,
     if (g_Level >= level) {
         va_list args;
         va_start(args, format);     
-        _writeToTargets<max_len>(level, context, format, args);
+        writeToTargets_<max_len>(level, context, format, args);
         va_end(args);
     }
 }
 
 template<uint8_t max_len>
-void EmLog::_writeToTargets(EmLogLevel level, 
+void EmLog::writeToTargets_(EmLogLevel level, 
                             const char* context, 
                             const char* format,
                             va_list args) { 
     char msg[max_len+1];
     vsnprintf(msg, max_len+1, format, args);
-    _writeToTargets(level, context, msg);
+    writeToTargets_(level, context, msg);
 }
-#endif
-#endif
+#endif 
+#endif // __EM_LOG__H__

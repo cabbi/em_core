@@ -19,6 +19,10 @@
     #define EM_CORES_COUNT 1
 #endif
 
+#if defined(AVR)
+    #define EM_EEPROM
+#endif
+
 #define SIZE_OF(x) (sizeof((x))/sizeof((x[0])))
 
 #define MIN(x, y) ((x)<(y) ? (x) : (y))
@@ -27,7 +31,7 @@
 // Returns the power of 10`^ exp as an integer number
 // This method will avoid using the "double pow10(...)" implementation
 inline int32_t iPow10(size_t exp) {
-    return static_cast<int32_t>(pow(10, exp));
+    return static_cast<int32_t>(pow(10, static_cast<double>(exp)));
 }
 
 // Returns the integer rounded number
