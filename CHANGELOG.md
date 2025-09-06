@@ -27,3 +27,8 @@
 - Added "EmDuration" for a more clear time duration definition 
 - Added 'EmTime" time handling classes (ESP only)
 - Added 'EmStore' and 'EmStoreValue' classes for persistent storage in NVS (ESP only)
+
+# 2.0.1
+- 'EmTime' added logLeve in constructor
+- 'EmStore' added logLeve in constructor
+- 'EmStore' added new methods: 'getStringLength', 'hasValue', 'hasBytes' and 'hasString'

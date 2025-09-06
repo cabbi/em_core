@@ -153,6 +153,19 @@ size_t EmStorage::getBytesLength(const char* key) const {
     return len;
 }
 
+size_t EmStorage::getStringLength(const char* key) const {
+    size_t len = 0;
+    if (!isInitialized() || !key) {
+        return 0;
+    }
+    esp_err_t err = nvs_get_str(m_handle, key, NULL, &len);
+    if (err) {
+        logError<50>("nvs_get_str len fail: %s %s", key, nvs_error(err));
+        return 0;
+    }
+    return len;
+}
+
 size_t EmStorage::getBytes(const char* key, void * buf, size_t maxLen) const {
     size_t len = getBytesLength(key);
     if (!len || !buf || !maxLen) {

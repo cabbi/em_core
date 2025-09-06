@@ -18,8 +18,8 @@ private:
     nvs_handle_t m_handle;
 
 public:
-    EmStorage()
-     : EmLog("EmStorage"),
+    EmStorage(EmLogLevel logLevel = EmLogLevel::global)
+     : EmLog("EmStorage", logLevel),
        m_handle(-1) {}
 
     ~EmStorage() {
@@ -52,8 +52,14 @@ public:
     }
     size_t getString(const char* key, char* value, const size_t maxLen) const;
     String getString(const char* key, const char* defaultValue="") const;
-    size_t getBytesLength(const char* key) const;
     size_t getBytes(const char* key, void * buf, size_t maxLen) const;
+
+    size_t getBytesLength(const char* key) const;
+    size_t getStringLength(const char* key) const;
+
+    bool hasValue(const char* key) const { return hasBytes(key); }
+    bool hasBytes(const char* key) const { return getBytesLength(key) > 0;}
+    bool hasString(const char* key) const { return getStringLength(key) > 0; }
 
     size_t freeEntries() const;
 };
