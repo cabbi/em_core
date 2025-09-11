@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <cstdarg>
 
 #include "em_defs.h"
 
@@ -71,14 +72,14 @@ enum class CheckNewValueResult: int8_t {
     pendingWrite
 };
 
-// The item which is used in any synched value class
+// The synchronized value class.
 template <class EmValueOfT, class T>
-class EmSyncItem: public EmValueOfT {
+class EmSyncValue: public EmValueOfT {
 public:
-    EmSyncItem(EmSyncFlags flags) 
+    EmSyncValue(EmSyncFlags flags) 
      : m_flags(flags|EmSyncFlags::_firstRead) {}
 
-    virtual ~EmSyncItem() = default;
+    virtual ~EmSyncValue() = default;
 
     virtual CheckNewValueResult checkNewValue(T& currentValue) {
         // Item to be read?
@@ -173,10 +174,9 @@ protected:
 };
 
 
-// This is tha base abstract class that keeps different 
-// instances of EmSyncItem synchronized.
+// This is tha base abstract class that keeps multiple instances of EmSyncValue synchronized.
 template <class T>
-class EmSyncValue: public EmUpdatable {
+class EmSyncValues: public EmUpdatable {
 public:
     virtual bool doSync() = 0;
 
@@ -196,12 +196,16 @@ protected:
 // The values order is set as the priority, the first that
 // changes sets other values.
 template <class EmSyncItemOfT, class T, uint8_t size>
-class EmSimpleSyncValue: public EmSyncValue<T> {
+class EmSimpleSyncValue: public EmSyncValues<T> {
 public:
-    EmSimpleSyncValue(EmSyncItemOfT* items[]) {
-        for(uint8_t i=0; i < size; i++) {
-            m_items[i] = items[i];
+    EmSimpleSyncValue(EmSyncItemOfT* firstItem, ...) {
+        m_items[0] = firstItem;
+        va_list args;
+        va_start(args, firstItem);
+        for(uint8_t i=1; i < size; i++) {
+            m_items[i] = va_arg(args, EmSyncItemOfT*);
         }
+        va_end(args);
     }
 
     bool doSync() override {
