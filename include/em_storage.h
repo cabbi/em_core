@@ -44,7 +44,23 @@ public:
         return putBytes(key, &value, sizeof(value), commit);
     }   
     size_t putValue(const char* key, const EmTagValue& value, bool commit=true) const {
-        return putBytes(key, &value, sizeof(value), commit);
+        // String special handling!?
+        if (value.getType() == EmTagValueType::vt_string) {
+            String str;
+            EmGetValueResult res = value.getValue(str);
+            if (res == EmGetValueResult::succeedNotEqualValue) {
+                return putString(key, str, commit);
+            } else 
+            if (res == EmGetValueResult::succeedEqualValue) {
+                // Avoid writing the same value again
+                return str.length();
+            }
+            return 0;
+        }
+        // Not a string, lets write the value bytes
+        EmTagValueStruct valueBytes;
+        value.toStruct(valueBytes);
+        return putBytes(key, &valueBytes, sizeof(valueBytes), commit);
     }
     size_t putString(const char* key, const char* value, bool commit=true) const;
     size_t putString(const char* key, const String& value, bool commit=true) const;
@@ -55,7 +71,22 @@ public:
         return getBytes(key, &value, sizeof(value));
     }
     size_t getValue(const char* key, EmTagValue& value) const {
-        return getBytes(key, &value, sizeof(value));
+        // String special handling!?
+        if (value.getType() == EmTagValueType::vt_string) {
+            String str;
+            EmGetValueResult res = value.getValue(str);
+            if (res == EmGetValueResult::succeedNotEqualValue) {
+                return value.setValue(str, false);
+            }
+            return str.length();
+        }
+        // Not a string, lets read the value bytes
+        EmTagValueStruct valueBytes;
+        size_t size = getBytes(key, &valueBytes, sizeof(valueBytes));
+        if (size > 0) {
+            value.fromStruct(valueBytes);
+        }
+        return size;
     }
     size_t getString(const char* key, char* value, const size_t maxLen) const;
     String getString(const char* key, const char* defaultValue="") const;
@@ -103,7 +134,7 @@ public:
         return EmGetValueResult::succeedNotEqualValue;
     }
 
-    virtual bool setValue(const T value) override {
+    virtual bool setValue(const T& value) override {
         bool res = m_storage.putValue(m_key, value) == sizeof(value);
         if (res && m_onSetValue) {
             m_onSetValue(value);
@@ -132,7 +163,7 @@ public:
         return EmStorageValue<EmTagValue>::getValue(value);
     }
 
-    virtual bool setValue(const EmTagValue value) override {
+    virtual bool setValue(const EmTagValue& value) override {
         return EmStorageValue<EmTagValue>::setValue(value);
     }
 };

@@ -14,41 +14,56 @@ enum class EmTagValueType: uint8_t {
     vt_string = 4
 };
 
+
+// The tag value bytes union
+union EmTagValueUnion {
+    bool as_bool;
+    int32_t as_integer;
+    double as_real;
+    String* as_string;
+};
+
+// The tag value bytes structure used to read and write an EmTagValue object in case 'EmTagValue' 
+// will have virtual functions in the future.
+struct EmTagValueStruct {
+    EmTagValueStruct() 
+     : m_type(EmTagValueType::vt_undefined), m_value{0} {}
+
+    EmTagValueStruct(EmTagValueType type, 
+                     EmTagValueUnion value = {0})
+     : m_type(type), m_value(value) {}
+
+    EmTagValueType m_type;
+    EmTagValueUnion m_value;
+};
+
 // The tag value class.
 //
 // NOTE: we need to have a concrete implementation of value since 'EmTag' and "EmTags" 
 //       classes will not support templates.
-class EmTagValue {
-    // The tag value contained
-    union _EmTagValueUnion {
-        bool as_bool;
-        int32_t as_integer;
-        double as_real;
-        String* as_string;
-    };
+class EmTagValue: protected EmTagValueStruct {
 public:
-    EmTagValue() : m_type(EmTagValueType::vt_undefined) {
-        m_value.as_integer = 0;
+    EmTagValue() : EmTagValueStruct(EmTagValueType::vt_undefined) {
     }
-    EmTagValue(int32_t value) : m_type(EmTagValueType::vt_integer) {
+    EmTagValue(int32_t value) : EmTagValueStruct(EmTagValueType::vt_integer) {
         m_value.as_integer = value;
     }
-    EmTagValue(float value) : m_type(EmTagValueType::vt_real) {
+    EmTagValue(float value) : EmTagValueStruct(EmTagValueType::vt_real) {
         m_value.as_real = value;
     }
-    EmTagValue(double value) : m_type(EmTagValueType::vt_real) {
+    EmTagValue(double value) : EmTagValueStruct(EmTagValueType::vt_real) {
         m_value.as_real = value;
     }
-    EmTagValue(bool value) : m_type(EmTagValueType::vt_boolean) {
+    EmTagValue(bool value) : EmTagValueStruct(EmTagValueType::vt_boolean) {
         m_value.as_bool = value;
     }
-    EmTagValue(const char* value) : m_type(EmTagValueType::vt_string) {
+    EmTagValue(const char* value) : EmTagValueStruct(EmTagValueType::vt_string) {
         m_value.as_string = new String(value);
     }
-    EmTagValue(const String& value) : m_type(EmTagValueType::vt_string) {
+    EmTagValue(const String& value) : EmTagValueStruct(EmTagValueType::vt_string) {
         m_value.as_string = new String(value);
     }
-    EmTagValue(const EmTagValue& other) : m_type(EmTagValueType::vt_undefined) {
+    EmTagValue(const EmTagValue& other) : EmTagValueStruct(EmTagValueType::vt_undefined) {
         copyFrom_(other);
     }
 
@@ -91,6 +106,10 @@ public:
         }
     }
 
+    bool operator!=(const EmTagValue& other) const {
+        return !(*this == other);
+    }
+
     EmTagValueType getType() const { return m_type; }
 
     EmGetValueResult getValue(bool& value) const {
@@ -101,6 +120,21 @@ public:
                                                           : EmGetValueResult::succeedNotEqualValue;
         value = m_value.as_bool;
         return res;
+    }
+
+    void toStruct(EmTagValueStruct& out) const {
+        out.m_type = m_type;
+        out.m_value = m_value;
+    }
+
+    void fromStruct(const EmTagValueStruct& in) {
+        clear_();
+        m_type = in.m_type;
+        m_value = in.m_value;
+        if (m_type == EmTagValueType::vt_string && m_value.as_string != nullptr) {
+            // Deep copy the string to avoid dangling pointer issues
+            m_value.as_string = new String(*m_value.as_string);
+        }
     }
 
     EmGetValueResult getValue(int32_t& value) const {
@@ -232,9 +266,6 @@ protected:
                 break;
         }
     }
-
-    EmTagValueType m_type;
-    _EmTagValueUnion m_value;
 };
 
 // A tag iterface that provides synchronizable value identified by a string.
@@ -249,7 +280,7 @@ public:
 
     // 'EmValue' interface to be implemented by derived classes
     virtual EmGetValueResult getValue(EmTagValue& value) const = 0;
-    virtual bool setValue(const EmTagValue value) = 0;
+    virtual bool setValue(const EmTagValue& value) = 0;
 
     // Base operators
     virtual bool operator==(const EmTagInterface& other) const {
@@ -328,7 +359,7 @@ public:
         return res;
     }
 
-    virtual bool setValue(const EmTagValue value) override {
+    virtual bool setValue(const EmTagValue& value) override {
         m_value = value;
         return true;
     }

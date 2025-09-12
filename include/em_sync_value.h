@@ -34,7 +34,7 @@ public:
     virtual ~EmValue() = default;
 
     virtual EmGetValueResult getValue(T& /*value*/) const = 0;
-    virtual bool setValue(const T /*value*/) = 0;
+    virtual bool setValue(const T& /*value*/) = 0;
 };
 
 template <class T>

@@ -28,7 +28,8 @@
 - Added 'EmTime" time handling classes (ESP only)
 - Added 'EmStore' and 'EmStoreValue' classes for persistent storage in NVS (ESP only)
 
-# 2.0.1
-- 'EmTime' added logLeve in constructor
-- 'EmStore' added logLeve in constructor
+# 2.1.0
+- 'EmTime' added logLevel in constructor
+- 'EmStore' added logLevel in constructor
 - 'EmStore' added new methods: 'getStringLength', 'hasValue', 'hasBytes' and 'hasString'
+- Added new 'EmTag' & 'EmTags' classes to have simple synchronization among same values coming from different sources
