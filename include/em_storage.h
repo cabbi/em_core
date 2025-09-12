@@ -10,6 +10,7 @@
 #include <WString.h>
 #include "em_log.h"
 #include "em_sync_value.h"
+#include "em_tag.h"
 
 
 // NVS persistent storage class
@@ -42,12 +43,18 @@ public:
     size_t putValue(const char* key, const T& value, bool commit=true) const {
         return putBytes(key, &value, sizeof(value), commit);
     }   
+    size_t putValue(const char* key, const EmTagValue& value, bool commit=true) const {
+        return putBytes(key, &value, sizeof(value), commit);
+    }
     size_t putString(const char* key, const char* value, bool commit=true) const;
     size_t putString(const char* key, const String& value, bool commit=true) const;
     size_t putBytes(const char* key, const void* value, size_t len, bool commit=true) const;
 
     template<typename T>
     size_t getValue(const char* key, T& value) const {
+        return getBytes(key, &value, sizeof(value));
+    }
+    size_t getValue(const char* key, EmTagValue& value) const {
         return getBytes(key, &value, sizeof(value));
     }
     size_t getString(const char* key, char* value, const size_t maxLen) const;
@@ -82,6 +89,8 @@ public:
 
     virtual ~EmStorageValue() = default;
 
+    virtual const char* getKey() const { return m_key; }
+
     virtual EmGetValueResult getValue(T& value) const override {
         T curVal;
         if (m_storage.getValue(m_key, curVal) != sizeof(value)) {
@@ -90,7 +99,7 @@ public:
         if (value == curVal) {
             return EmGetValueResult::succeedEqualValue;        
         }
-        value = curVal;
+            value = curVal;
         return EmGetValueResult::succeedNotEqualValue;
     }
 
@@ -100,6 +109,31 @@ public:
             m_onSetValue(value);
         }
         return res;
+    }
+};
+
+class EmStorageTag: public EmStorageValue<EmTagValue>, public EmTagInterface {
+public:
+    EmStorageTag(const char* key, 
+                 const EmStorage& storage,
+                 EmSyncFlags flags,
+                 void (*onSetValue)(const EmTagValue&) = nullptr)
+     : EmStorageValue<EmTagValue>(key, storage, onSetValue),
+       EmTagInterface(flags) {}
+
+    virtual const char* getId() const override { return getKey(); }     
+    virtual EmTagValue getValue() const {
+        EmTagValue val;
+        m_storage.getValue(m_key, val);
+        return val;
+    }
+
+    virtual EmGetValueResult getValue(EmTagValue& value) const override {
+        return EmStorageValue<EmTagValue>::getValue(value);
+    }
+
+    virtual bool setValue(const EmTagValue value) override {
+        return EmStorageValue<EmTagValue>::setValue(value);
     }
 };
 

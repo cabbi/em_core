@@ -1,3 +1,6 @@
+#ifndef _EM_TAG_H_
+#define _EM_TAG_H_
+
 #include "em_sync_value.h"
 #include "em_list.h"
 #include <WString.h>
@@ -18,10 +21,10 @@ enum class EmTagValueType: uint8_t {
 class EmTagValue {
     // The tag value contained
     union _EmTagValueUnion {
-    bool as_bool;
-    int32_t as_integer;
-    double as_real;
-    String* as_string;
+        bool as_bool;
+        int32_t as_integer;
+        double as_real;
+        String* as_string;
     };
 public:
     EmTagValue() : m_type(EmTagValueType::vt_undefined) {
@@ -54,16 +57,16 @@ public:
         clear_();
     }   
 
+    bool isSameType(const EmTagValue& other) const {
+        return m_type == other.m_type;
+    }
+
     EmTagValue& operator=(const EmTagValue& other) {
         if (this != &other) {
             clear_();
             copyFrom_(other);
         }
         return *this;
-    }
-
-    bool isSameType(const EmTagValue& other) const {
-        return m_type == other.m_type;
     }
     
     bool operator==(const EmTagValue& other) const {
@@ -234,21 +237,73 @@ protected:
     _EmTagValueUnion m_value;
 };
 
-using EmTV = EmSyncValue<EmValue<EmTagValue>, EmTagValue>;
-
 // A tag iterface that provides synchronizable value identified by a string.
-class EmTagInterface: public EmTV {
+class EmTagInterface: public EmSyncValue<EmValue<EmTagValue>, EmTagValue> {
 public:
-    EmTagInterface(EmSyncFlags flags) : EmTV(flags) {}
+    EmTagInterface(EmSyncFlags flags)
+     : EmSyncValue<EmValue<EmTagValue>, EmTagValue>(flags) {}
     
+    // Base methods to be implemented by derived classes
+    virtual const char* getId() const = 0;
+    virtual EmTagValue getValue() const = 0;
+
+    // 'EmValue' interface to be implemented by derived classes
+    virtual EmGetValueResult getValue(EmTagValue& value) const = 0;
+    virtual bool setValue(const EmTagValue value) = 0;
+
+    // Base operators
+    virtual bool operator==(const EmTagInterface& other) const {
+        return match(*this, other) && getValue() == other.getValue();
+    }
+
+    virtual bool operator!=(const EmTagInterface& other) const {
+        return !(*this == other);
+    }
+
+    // It makes no sense to have the = operator since setting right Tag might fail if of different type.
+    EmTagInterface& operator=(const EmTagInterface& other) = delete;
+
     // Custom comparison function for EmList
     static bool match(const EmTagInterface& item1, const EmTagInterface& item2) {
         return strcmp(item1.getId(), item2.getId()) == 0;
     }
 
-    virtual const char* getId() const = 0;
-    virtual EmGetValueResult getValue(EmTagValue& value) const = 0;
-    virtual bool setValue(const EmTagValue& value) = 0;
+    // Convenience getValue overloads
+    virtual EmGetValueResult getValue(bool& value) const {
+        return getValue().getValue(value);
+    }
+    virtual EmGetValueResult getValue(int32_t& value) const {
+        return getValue().getValue(value);
+    }
+    virtual EmGetValueResult getValue(float& value) const {
+        return getValue().getValue(value);
+    }
+    virtual EmGetValueResult getValue(double& value) const {
+        return getValue().getValue(value);
+    }
+    virtual EmGetValueResult getValue(String& value) const {
+        return getValue().getValue(value);
+    }
+
+    // Convenience setValue overloads
+    virtual bool setValue(const bool value, bool forceType) {
+        return getValue().setValue(value, forceType);
+    }
+    virtual bool setValue(int32_t value, bool forceType) {
+        return getValue().setValue(value, forceType);
+    }
+    virtual bool setValue(float value, bool forceType) {
+        return getValue().setValue(value, forceType);
+    }
+    virtual bool setValue(double value, bool forceType) {
+        return getValue().setValue(value, forceType);
+    }
+    virtual bool setValue(const String& value, bool forceType) {
+        return getValue().setValue(value, forceType);
+    }
+    virtual bool setValue(const char* value, bool forceType) {
+        return getValue().setValue(value, forceType);
+    }
 };
 
 // A simple EmTag iterface implementation.
@@ -261,60 +316,21 @@ public:
     EmTag(const char* id, EmSyncFlags flags)
         : EmTagInterface(flags), m_id(id) {}
 
+    virtual EmTagValue getValue() const { return m_value; };
     virtual const char* getId() const override { return m_id; }
 
     virtual EmGetValueResult getValue(EmTagValue& value) const override {
         EmGetValueResult res = (value == m_value) ? EmGetValueResult::succeedEqualValue
                                                   : EmGetValueResult::succeedNotEqualValue;
-        value = m_value;
+        if (res == EmGetValueResult::succeedNotEqualValue) {
+            value = m_value;
+        }
         return res;
     }
 
-    virtual bool setValue(const EmTagValue& value) override {
+    virtual bool setValue(const EmTagValue value) override {
         m_value = value;
         return true;
-    }
-
-    virtual bool operator==(const EmTag& other) const {
-        return strcmp(m_id, other.m_id) == 0 &&
-               m_value == other.m_value;
-    }
-
-    // Convenience getValue overloads
-    virtual EmGetValueResult getValue(bool& value) const {
-        return m_value.getValue(value);
-    }
-    virtual EmGetValueResult getValue(int32_t& value) const {
-        return m_value.getValue(value);
-    }
-    virtual EmGetValueResult getValue(float& value) const {
-        return m_value.getValue(value);
-    }
-    virtual EmGetValueResult getValue(double& value) const {
-        return m_value.getValue(value);
-    }
-    virtual EmGetValueResult getValue(String& value) const {
-        return m_value.getValue(value);
-    }
-
-    // Convenience setValue overloads
-    virtual bool setValue(const bool value, bool forceType) {
-        return m_value.setValue(value, forceType);
-    }
-    virtual bool setValue(int32_t value, bool forceType) {
-        return m_value.setValue(value, forceType);
-    }
-    virtual bool setValue(float value, bool forceType) {
-        return m_value.setValue(value, forceType);
-    }
-    virtual bool setValue(double value, bool forceType) {
-        return m_value.setValue(value, forceType);
-    }
-    virtual bool setValue(const String& value, bool forceType) {
-        return m_value.setValue(value, forceType);
-    }
-    virtual bool setValue(const char* value, bool forceType) {
-        return m_value.setValue(value, forceType);
     }
 };
 
@@ -482,6 +498,7 @@ protected:
         if (res == EmGetValueResult::succeedNotEqualValue) {
             tagValue.getValue(value);
         }
+        return res;
     }
 
     template<typename T>
@@ -496,3 +513,5 @@ protected:
 
     EmList<EmTagSyncGroupInterface_> m_groups;
 };
+
+#endif // _EM_TAG_H_
