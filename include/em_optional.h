@@ -25,7 +25,7 @@ public:
         return *this;
     }
 
-    EmOptional& operator=(EmOptional& other) {
+    EmOptional& operator=(const EmOptional& other) {
         m_hasValue = other.hasValue;
         m_value = other.value;
         return *this;

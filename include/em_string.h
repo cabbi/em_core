@@ -23,6 +23,10 @@ public:
         set(initValue);
     }
 
+    EmString(const EmString& initValue) {
+        set(initValue.c_str());
+    }
+
     // Returns the current length of this string object.
     size_t length() const {
         return strlen(m_buf);
@@ -103,6 +107,11 @@ public:
     // Assigns a new string.
     EmString& operator=(const char* value) {
         set(value);
+        return *this;
+    }
+
+    EmString& operator=(const EmString& value) {
+        set(value.c_str());
         return *this;
     }
 

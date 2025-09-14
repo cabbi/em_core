@@ -18,8 +18,8 @@ protected:
     bool m_isInitialized;
 
 public:
-    EmTime()
-     : EmLog("EmTime"),
+    EmTime(EmLogLevel logLevel = EmLogLevel::global)
+     : EmLog("EmTime", logLevel),
        m_isInitialized(false) { }
 
     // Begins the time management by configuring the NTP server and time zone
@@ -48,7 +48,7 @@ public:
                         tmInfo.tm_year + 1900, tmInfo.tm_mon + 1, tmInfo.tm_mday,
                         tmInfo.tm_hour, tmInfo.tm_min, tmInfo.tm_sec);            
         } else {
-            logError("Failed to initialize time within the timeout period.");
+            logWarning(F("Failed to initialize time within the timeout period"));
         }
         return m_isInitialized;
     }
