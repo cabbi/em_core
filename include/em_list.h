@@ -235,7 +235,7 @@ public:
     // Find the same element of the list. T should have right equality operator.
     //
     // Return NULL if element is not found.
-    T* find(const T& item) {
+    T* find(const T& item) const {
         _EmListElement<T>* elem = m_pFirst;
         while (elem != nullptr) {
             if (m_itemsMatch(*elem->m_pItem, item)) {
@@ -246,19 +246,7 @@ public:
         return nullptr;
     }
 
-    const T* find(const T& item) const {
-        const _EmListElement<T>* elem = m_pFirst;
-        while (elem != nullptr) {
-            if (m_itemsMatch(*elem->m_pItem, item)) {
-                return elem->m_pItem;
-            }
-            elem = elem->next();
-        }
-        return nullptr;
-    }
-
-
-    T* find(const T* item) {
+    T* find(const T* item) const {
         if (item == nullptr) return nullptr;
         return find(*item);
     }

@@ -148,14 +148,14 @@ public:
 };
 
 class EmStorageTag: public EmStorageValue<EmTagValue>, 
-                    public EmTagInterface {
+                    public EmTagBase {
 public:
     EmStorageTag(const char* key, 
                  const EmStorage& storage,
                  EmSyncFlags flags,
                  void (*onSetValue)(const EmTagValue&) = nullptr)
      : EmStorageValue<EmTagValue>(key, storage, onSetValue),
-       EmTagInterface(flags) {}
+       EmTagBase(flags) {}
 
     virtual const char* getId() const override { return getKey(); }     
     virtual EmTagValue getValue() const {
