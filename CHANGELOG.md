@@ -33,3 +33,4 @@
 - 'EmStore' added logLevel in constructor
 - 'EmStore' added new methods: 'getStringLength', 'hasValue', 'hasBytes' and 'hasString'
 - Added new 'EmTag' & 'EmTags' classes to have simple synchronization among same values coming from different sources
+- Added new 'EmAutoPtr' class as a lightweight alternative to std::auto_ptr for environments where the standard library is not available or desired

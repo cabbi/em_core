@@ -496,60 +496,36 @@ protected:
 };
 
 class EmTagSyncGroup: public EmTagSyncGroupBase, 
-                      public EmSyncValues<EmTagValue> {
+                      public EmSyncValues<EmTagBase, EmTagValue> {
 protected:
     EmList<EmTagBase> m_tagList;
 
 public:
-    EmTagSyncGroup() 
-        : m_tagList(&EmTagBase::match) {
-    }
+    EmTagSyncGroup() : m_tagList(&EmTagBase::match) {}
+    virtual ~EmTagSyncGroup() = default;
 
     virtual const char* getId() const override { 
         const EmTagBase* first = m_tagList.first();
         return first ? first->getId() : nullptr;
     }
 
+    virtual EmIterator<EmTagBase>* iterator() {
+        return new EmListIterator<EmTagBase>(m_tagList);
+    }
+
     void add(EmTagBase& tag) {
         m_tagList.appendUnowned(tag);
     }
 
-    virtual bool doSync() override {
-        EmListIterator<EmTagBase> iter(m_tagList);
-        EmTagBase* pItem = nullptr;
-        while (iter.next(pItem)) {
-            switch (pItem->checkNewValue(this->m_currentValue)) {
-                case CheckNewValueResult::valueChanged:
-                    // First changed value found: lets write all the others! 
-                    return updateToNewValue_(*pItem);
-                case CheckNewValueResult::mustReadFailed:
-                    // A "must read" value failed to read, cannot proceed with synch!
-                    return false;
-                case CheckNewValueResult::pendingWrite:
-                    // An "old" pending write
-                    pItem->doPendingWrite(this->m_currentValue);
-                    break;
-                case CheckNewValueResult::noChange:
-                   break;
-            }
+    virtual bool setValue(const EmTagValue& value, bool doSyncNow) override{
+        m_currentValue = value;
+        if (doSyncNow) {
+            return doSync();
         }
         return true;
     }
 
-protected:
-    bool updateToNewValue_(EmTagBase& changedItem) {
-        bool res = true;
-        EmListIterator<EmTagBase> iter(m_tagList);
-        EmTagBase* pItem = nullptr;
-        while (iter.next(pItem)) {
-            if (pItem != &changedItem) {
-                if (!pItem->_setCurrentValue(this->m_currentValue)) {
-                    res = false;
-                }
-            }
-        }
-        return res;
-    }
+
 };
 
 

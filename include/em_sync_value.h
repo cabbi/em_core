@@ -9,6 +9,8 @@
 #include <stdarg.h>
 
 #include "em_defs.h"
+#include "em_iterator.h"
+#include "em_auto_ptr.h"
 
 // The get methods result.
 enum class EmGetValueResult: uint8_t {    
@@ -55,8 +57,9 @@ enum class EmSyncFlags: uint8_t {
     canReadCanWrite = 0x05,
     mustReadCanWrite = 0x06,
     // Internal flags
-    _firstRead = 0x10,
-    _pendingWrite = 0x20,
+    _firstRead = 0x10,    // The item has never been read
+    _pendingWrite = 0x20,  // The item has a pending write (i.e. setValue failed)
+    _valueChanged = 0x40   // The item value has changed
 };
 
 inline EmSyncFlags operator~ (EmSyncFlags a) { return static_cast<EmSyncFlags>(~static_cast<int>(a)); }
@@ -80,6 +83,19 @@ public:
      : m_flags(flags|EmSyncFlags::_firstRead) {}
 
     virtual ~EmSyncValue() = default;
+
+    /*  TODO: check if we can avoid the "m_currentValue" storage in 'EmSyncValues'
+    virtual bool setValue(const T& value) override {
+        bool res = EmValueOfT::setValue(value);
+        if (res) {
+            setPendingWrite(false);
+            setValueChanged(true);
+        } else {
+            setPendingWrite(true);
+        }
+        return res;
+    }
+    */        
 
     virtual CheckNewValueResult checkNewValue(T& currentValue) {
         // Item to be read?
@@ -138,11 +154,19 @@ public:
         return 0 != static_cast<int>(m_flags & EmSyncFlags::_pendingWrite);
     }
 
-    virtual void setPendingWrite(bool pendingWrite) {
-        if (pendingWrite) {
+    virtual void setPendingWrite(bool newStatus) {
+        if (newStatus) {
             m_flags |= EmSyncFlags::_pendingWrite;
         } else {
             m_flags &= ~EmSyncFlags::_pendingWrite;
+        }
+    }
+
+    virtual void setValueChanged(bool newStatus) {
+        if (newStatus) {
+            m_flags |= EmSyncFlags::_valueChanged;
+        } else {
+            m_flags &= ~EmSyncFlags::_valueChanged;
         }
     }
 
@@ -158,7 +182,7 @@ public:
         }
     }
 
-    virtual bool _setCurrentValue(const T& currentValue) {
+    virtual bool setCurrentValue_(const T& currentValue) {
         // Read only item?
         if (!readOnly()) {
             if (!this->setValue(currentValue)) {
@@ -175,13 +199,13 @@ protected:
 
 
 // This is tha base abstract class that keeps multiple instances of EmSyncValue synchronized.
-template <class T>
+template <class EmSyncItemOfT, class T>
 class EmSyncValues: public EmUpdatable {
 public:
     EmSyncValues() = default;
     virtual ~EmSyncValues() = default;
 
-    virtual bool doSync() = 0;
+    virtual EmIterator<EmSyncItemOfT>* iterator() = 0;
 
     virtual void update() override {
         doSync();
@@ -203,15 +227,53 @@ public:
         return true;
     }
 
+    virtual bool doSync() {
+        EmAutoPtr<EmIterator<EmSyncItemOfT>> it(iterator());
+        EmSyncItemOfT* pItem = nullptr;
+        while (it->next(pItem)) {
+            switch (pItem->checkNewValue(this->m_currentValue)) {
+                case CheckNewValueResult::valueChanged:
+                    // First changed value found: lets write all the others! 
+                    return updateToNewValue_(it.get(), pItem);
+                case CheckNewValueResult::mustReadFailed:
+                    // A "must read" value failed to read, cannot proceed with synch!
+                    return false;
+                case CheckNewValueResult::pendingWrite:
+                    // An "old" pending write
+                    pItem->doPendingWrite(this->m_currentValue);
+                    break;
+                case CheckNewValueResult::noChange:
+                    break;
+            }
+        }
+        return true;
+    }
+
 protected:
+    virtual bool updateToNewValue_(EmIterator<EmSyncItemOfT>* it, 
+                                   EmSyncItemOfT* pUpdatedItem) {
+        bool res = true;
+        EmSyncItemOfT* pItem = nullptr;
+        it->reset();
+        while (it->next(pItem)) {
+            // Value item that gave this new value?
+            if (pUpdatedItem != pItem) {
+                if (!pItem->setCurrentValue_(this->m_currentValue)) {
+                    res = false;
+                }
+            }
+        }
+        return res;
+    }
+
     T m_currentValue;
 };
 
-// The simple priority based values synchronization class.
+// The simple array priority based values synchronization class.
 // The values order is set as the priority, the first that
 // changes sets other values.
 template <class EmSyncItemOfT, class T, uint8_t size>
-class EmSimpleSyncValue: public EmSyncValues<T> {
+class EmSimpleSyncValue: public EmSyncValues<EmSyncItemOfT, T> {
 public:
     EmSimpleSyncValue(EmSyncItemOfT* firstItem, ...) {
         m_items[0] = firstItem;
@@ -225,40 +287,11 @@ public:
 
     virtual ~EmSimpleSyncValue() = default;
 
-    virtual bool doSync() override {
-        for(uint8_t i=0; i < size; i++) {
-            switch (m_items[i]->checkNewValue(this->m_currentValue)) {
-                case CheckNewValueResult::valueChanged:
-                    // First changed value found: lets write all the others! 
-                    return _updateToNewValue(i);
-                case CheckNewValueResult::mustReadFailed:
-                    // A "must read" value failed to read, cannot proceed with synch!
-                    return false;
-                case CheckNewValueResult::pendingWrite:
-                    // An "old" pending write
-                    m_items[i]->doPendingWrite(this->m_currentValue);
-                    break;
-                case CheckNewValueResult::noChange:
-                    break;
-            }
-        }
-        return true;
+    virtual EmIterator<EmSyncItemOfT>* iterator() {
+        return new EmArrayIterator<EmSyncItemOfT>(m_items, size);
     }
 
 protected:
-    virtual bool _updateToNewValue(uint8_t valIndex) {
-        bool res = true;
-        for(uint8_t i=0; i < size; i++) {
-            // Value item that gave this new value?
-            if (i != valIndex) {
-                if (!m_items[i]->_setCurrentValue(this->m_currentValue)) {
-                    res = false;
-                }
-            }
-        }
-        return res;
-    }
-
     EmSyncItemOfT* m_items[size];
 };
 
