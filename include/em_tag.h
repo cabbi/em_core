@@ -185,12 +185,7 @@ public:
 
     void fromStruct(const EmTagValueStruct& in) {
         clear_();
-        m_type = in.m_type;
-        m_value = in.m_value;
-        if (m_type == EmTagValueType::vt_string && m_value.as_string != nullptr) {
-            // Deep copy the string to avoid dangling pointer issues
-            m_value.as_string = new String(*m_value.as_string);
-        }
+        copyFrom_(in);
     }
 
     EmGetValueResult getValue(bool& value) const {
@@ -241,6 +236,20 @@ public:
                                                              : EmGetValueResult::succeedNotEqualValue;
         value = *m_value.as_string;
         return res;
+    }
+
+    EmGetValueResult getValue(EmTagValue& value) const {
+        // Is already equal
+        if (*this == value) {
+            return EmGetValueResult::succeedEqualValue; 
+        }
+        // Compatible type?
+        if (!isSameType(value) && value.m_type != EmTagValueType::vt_undefined) {
+            return EmGetValueResult::failed;
+        }
+        // Set new value
+        value.fromStruct(*this);
+        return EmGetValueResult::succeedNotEqualValue;        
     }
 
     bool setValue(bool value, bool forceType) {
@@ -301,6 +310,15 @@ public:
     bool setValue(const char* value, bool forceType) {
         return setValue(String(value), forceType);
     }
+    
+    bool setValue(const EmTagValue& value, bool forceType) {
+        if (!forceType && m_type != value.m_type && m_type != EmTagValueType::vt_undefined) {
+            return false;
+        }
+        clear_();
+        copyFrom_(value);
+        return true;
+    }
 
 protected:
     void clear_() {
@@ -311,7 +329,7 @@ protected:
         m_value.as_integer = 0; // Zero out the union
     }
 
-    void copyFrom_(const EmTagValue& other) {
+    void copyFrom_(const EmTagValueStruct& other) {
         m_type = other.m_type;
         switch (m_type) {
             case EmTagValueType::vt_boolean:
@@ -517,15 +535,9 @@ public:
         m_tagList.appendUnowned(tag);
     }
 
-    virtual bool setValue(const EmTagValue& value, bool doSyncNow) override{
-        m_currentValue = value;
-        if (doSyncNow) {
-            return doSync();
-        }
-        return true;
-    }
-
-
+    size_t count() const {
+        return m_tagList.count();
+    } 
 };
 
 
@@ -595,24 +607,37 @@ public:
         return getValue_<String>(tagId, value);
     }
 
+    virtual EmGetValueResult getValue(const char* tagId, EmTagValue& value) const {
+        return getValue_<EmTagValue>(tagId, value);
+    }
+
     // Convenience setValue overloads
     virtual bool setValue(const char* tagId, bool value, bool doSync) {
         return setValue_<bool>(tagId, value, doSync);
     }
+
     virtual bool setValue(const char* tagId, int32_t value, bool doSync) {
         return setValue_<int32_t>(tagId, value, doSync);
     }
+
     virtual bool setValue(const char* tagId, float value, bool doSync) {
         return setValue_<float>(tagId, value, doSync);
     }
+
     virtual bool setValue(const char* tagId, double value, bool doSync) {
         return setValue_<double>(tagId, value, doSync);
     }
+
     virtual bool setValue(const char* tagId, const String& value, bool doSync) {
         return setValue_<const String>(tagId, value, doSync);
     }
+
     virtual bool setValue(const char* tagId, const char* value, bool doSync) {
         return setValue_<const char*>(tagId, value, doSync);
+    }
+
+    virtual bool setValue(const char* tagId, const EmTagValue& value, bool doSync) {
+        return setValue_<EmTagValue>(tagId, value, doSync);
     }
 
 protected: 

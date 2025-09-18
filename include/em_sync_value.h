@@ -59,7 +59,7 @@ enum class EmSyncFlags: uint8_t {
     // Internal flags
     _firstRead = 0x10,    // The item has never been read
     _pendingWrite = 0x20,  // The item has a pending write (i.e. setValue failed)
-    _valueChanged = 0x40   // The item value has changed
+    // TODO: _valueChanged = 0x40   // The item value has changed
 };
 
 inline EmSyncFlags operator~ (EmSyncFlags a) { return static_cast<EmSyncFlags>(~static_cast<int>(a)); }
@@ -75,36 +75,28 @@ enum class CheckNewValueResult: int8_t {
     pendingWrite
 };
 
+// Forward declaration
+template <class EmSyncItemOfT, class T>
+class EmSyncValues;
+
 // The synchronized value class.
 template <class EmValueOfT, class T>
 class EmSyncValue: public EmValueOfT {
+    template <class A, class B> friend class EmSyncValues;
 public:
     EmSyncValue(EmSyncFlags flags) 
      : m_flags(flags|EmSyncFlags::_firstRead) {}
 
     virtual ~EmSyncValue() = default;
 
-    /*  TODO: check if we can avoid the "m_currentValue" storage in 'EmSyncValues'
-    virtual bool setValue(const T& value) override {
-        bool res = EmValueOfT::setValue(value);
-        if (res) {
-            setPendingWrite(false);
-            setValueChanged(true);
-        } else {
-            setPendingWrite(true);
-        }
-        return res;
-    }
-    */        
-
     virtual CheckNewValueResult checkNewValue(T& currentValue) {
-        // Item to be read?
-        if (writeOnly()) {
-            return CheckNewValueResult::noChange;
-        }
         // Pending write? 
         if (isPendingWrite()) { 
             return CheckNewValueResult::pendingWrite; 
+        }
+        // Can we read the item value?
+        if (writeOnly()) {
+            return CheckNewValueResult::noChange;
         }
         // Get the value and check the operation result
         EmGetValueResult res = this->getValue(currentValue);
@@ -156,20 +148,26 @@ public:
 
     virtual void setPendingWrite(bool newStatus) {
         if (newStatus) {
-            m_flags |= EmSyncFlags::_pendingWrite;
+            if (!readOnly()) {
+                m_flags |= EmSyncFlags::_pendingWrite;
+            }
         } else {
             m_flags &= ~EmSyncFlags::_pendingWrite;
         }
     }
 
+    /*
     virtual void setValueChanged(bool newStatus) {
         if (newStatus) {
             m_flags |= EmSyncFlags::_valueChanged;
+            // Reset eventual pending write!
+            m_flags &= ~EmSyncFlags::_pendingWrite;
         } else {
             m_flags &= ~EmSyncFlags::_valueChanged;
         }
     }
-
+    */
+   
     virtual bool isFirstRead() const {
         return 0 != static_cast<int>(m_flags & EmSyncFlags::_firstRead);
     }
@@ -182,6 +180,7 @@ public:
         }
     }
 
+protected:
     virtual bool setCurrentValue_(const T& currentValue) {
         // Read only item?
         if (!readOnly()) {
@@ -193,7 +192,6 @@ public:
         return true;
     }
 
-protected:
     EmSyncFlags m_flags;
 };
 
@@ -221,6 +219,13 @@ public:
 
     virtual bool setValue(const T& value, bool doSyncNow) {
         m_currentValue = value;
+        // Set pending write for all items that can be written
+        EmAutoPtr<EmIterator<EmSyncItemOfT>> it(iterator());
+        EmSyncItemOfT* pItem = nullptr;
+        while (it->next(pItem)) {
+            pItem->setPendingWrite(true);
+        }
+        // Synch requested?
         if (doSyncNow) {
             return doSync();
         }
