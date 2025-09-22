@@ -135,10 +135,14 @@ public:
     template<uint8_t max_len>
     void logDebug(const char* format, ...) const;
     void logDebug(const char* msg) const { 
+    #ifndef EM_LOG_NO_DEBUG
         log(EmLogLevel::debug, msg);
+    #endif
     }
     void logDebug(const __FlashStringHelper* msg) const { 
+    #ifndef EM_LOG_NO_DEBUG
         log(EmLogLevel::debug, msg);
+    #endif
     }
 
     template<uint8_t max_len>
@@ -150,10 +154,61 @@ public:
     static void log(EmLogLevel level, const char* context, const char* format, ...);
     static void log(EmLogLevel level, const char* context, const char* msg);
     static void log(EmLogLevel level, const char* context, const __FlashStringHelper* msg);
+
+    template<uint8_t max_len>
+    static void logInfo(const char* context, const char* format, ...) {
+        EmLog::log<max_len>(EmLogLevel::info, context, format);
+    }
+    static void logInfo(const char* context, const char* msg) {
+        EmLog::log(EmLogLevel::info, context, msg);
+    }
+    static void logInfo(const char* context, const __FlashStringHelper* msg) {
+        EmLog::log(EmLogLevel::info, context, msg);
+    }
     
     bool checkLevel(EmLogLevel level) const { 
         return (m_Level == EmLogLevel::global ? g_Level : m_Level) >= level; 
     }
+
+    template<uint8_t max_len>
+    static void logWarning(const char* context, const char* format, ...) {
+        EmLog::log<max_len>(EmLogLevel::warning, context, format);
+    }
+    static void logWarning(const char* context, const char* msg) {
+        EmLog::log(EmLogLevel::warning, context, msg);
+    }
+    static void logWarning(const char* context, const __FlashStringHelper* msg) {
+        EmLog::log(EmLogLevel::warning, context, msg);
+    }
+    
+    template<uint8_t max_len>
+    static void logError(const char* context, const char* format, ...) {
+        EmLog::log<max_len>(EmLogLevel::error, context, format);
+    }
+    static void logError(const char* context, const char* msg) {
+        EmLog::log(EmLogLevel::error, context, msg);
+    }
+    static void logError(const char* context, const __FlashStringHelper* msg) {
+        EmLog::log(EmLogLevel::error, context, msg);
+    }
+    
+    template<uint8_t max_len>
+    static void logDebug(const char* context, const char* format, ...) {
+        #ifndef EM_LOG_NO_DEBUG
+        EmLog::log<max_len>(EmLogLevel::debug, context, format);
+        #endif
+    }
+    static void logDebug(const char* context, const char* msg) {
+        #ifndef EM_LOG_NO_DEBUG
+        EmLog::log(EmLogLevel::debug, context, msg);
+        #endif
+    }
+    static void logDebug(const char* context, const __FlashStringHelper* msg) {
+        #ifndef EM_LOG_NO_DEBUG
+        EmLog::log(EmLogLevel::debug, context, msg);
+        #endif
+    }
+    
 
     void setLevel(EmLogLevel level) { 
         // Since we are running on a 1 Core CPU this operation might be atomic 
@@ -221,12 +276,14 @@ inline void EmLog::logInfo(const char* format, ...) const {
 
 template<uint8_t max_len>
 inline void EmLog::logDebug(const char* format, ...) const { 
+#ifndef EM_LOG_NO_DEBUG
     if (checkLevel(EmLogLevel::debug)) {
         va_list args;
         va_start(args, format);     
         writeToTargets_<max_len>(EmLogLevel::debug, m_Context, format, args);
         va_end(args);
     }
+#endif
 }
 
 template<uint8_t max_len>

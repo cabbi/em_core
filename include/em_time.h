@@ -15,7 +15,7 @@
 // EmTime class for handling time-related operations
 class EmTime: public EmLog {
 protected:
-    bool m_isInitialized;
+    mutable bool m_isInitialized;
 
 public:
     EmTime(EmLogLevel logLevel = EmLogLevel::global)
@@ -35,7 +35,7 @@ public:
         return m_isInitialized;
     }
 
-    bool checkInitialized(const EmDuration& timeout = EmDuration(100)) {
+    bool checkInitialized(const EmDuration& timeout = EmDuration(100)) const {
         // Check if the time is already initialized
         if (m_isInitialized) {
             return true;
@@ -54,7 +54,7 @@ public:
     }
 
     // Get the current time in seconds since epoch
-    bool now(time_t& currentTime) {
+    bool now(time_t& currentTime) const {
         if (checkInitialized()) {
             currentTime = time(nullptr);
         }
@@ -62,7 +62,7 @@ public:
     }
 
     // Get the current time in milliseconds since epoch
-    bool nowMs(uint32_t& currentTimeMs) {
+    bool nowMs(uint32_t& currentTimeMs) const {
         if (checkInitialized()) {
             currentTimeMs = static_cast<uint32_t>(time(nullptr) * 1000);
         }
@@ -70,7 +70,7 @@ public:
     }
     
     // Get the current time as a struct tm
-    bool getTime(struct tm& timeinfo) {
+    bool getTime(struct tm& timeinfo) const {
         if (checkInitialized()) {
             return getLocalTime(&timeinfo);
         }
