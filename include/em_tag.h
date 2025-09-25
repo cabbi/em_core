@@ -574,11 +574,15 @@ public:
     virtual void add(EmTagBase* tag, ...) {
         va_list args;
         va_start(args, tag);
+        add(tag, args);
+        va_end(args);
+    }
+
+    virtual void add(EmTagBase* tag, va_list args) {
         EmTagBase* pTag = tag;
         do {
             add(*pTag);
         } while ((pTag = va_arg(args, EmTagBase*)) != nullptr);
-        va_end(args);
     }
 
     EmTagSyncGroup* find(const char* tagId) const {

@@ -41,14 +41,15 @@ class EmAppInterface: public EmLog {
     friend class EmApp;
 public:
     EmAppInterface(const EmDuration& blockedTimeout = EmDuration(0, 1, 0), 
+                   const char* logContext = "AppInt",
                    EmLogLevel logLevel=EmLogLevel::global)
-     : EmLog("AppInt", logLevel),
+     : EmLog(logContext, logLevel),
        m_interfaceStatus(EmInterfaceStatusFlag::none),
        m_blockedTimeout(blockedTimeout) { 
         clear_();
     }
     
-    virtual ~EmAppInterface() {}
+    virtual ~EmAppInterface() = default;
 
     static bool match(const EmAppInterface& int1, const EmAppInterface& int2) {
         return 0==strcmp(int1.name(), int2.name());
@@ -58,7 +59,7 @@ public:
     // Those are NOT set as pure virtual since EmApp interfaces list requires concrete classes.
     virtual const char* name() const { return ""; }
     virtual EmIntOperationResult setup() { return EmIntOperationResult::canContinue; }
-    virtual EmIntOperationResult loop() { return EmIntOperationResult::stopApp; }
+    virtual EmIntOperationResult loop() { return EmIntOperationResult::canContinue; }
 
     // Called if interface needs to stop for one of the following reasons
     // 'EmIntOperationResult::stopInterface', 'EmIntOperationResult::restartApp' or 'EmIntOperationResult::stopApp'
@@ -120,8 +121,9 @@ public:
     EmAppTimeoutInterface(EmDuration loopTimeout, 
                           bool startAsElapsed=true,
                           EmDuration blockedTimeout = EmDuration(0, 1, 0),
+                          const char* logContext = "AppInt",
                           EmLogLevel logLevel=EmLogLevel::global) 
-     : EmAppInterface(blockedTimeout, logLevel), 
+     : EmAppInterface(blockedTimeout, logContext, logLevel), 
        m_LoopTimeout(loopTimeout, startAsElapsed) {}
 
     virtual bool canCallLoop() { return m_LoopTimeout.isElapsed(true); }

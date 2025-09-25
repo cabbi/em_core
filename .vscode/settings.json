@@ -66,5 +66,5 @@
     "type_traits": "cpp",
     "utility": "cpp",
     "cstdarg": "cpp"
-}
+  }
 }

@@ -16,6 +16,8 @@ public:
     EmOptional(const T& value) : m_hasValue(true), m_value(value) {}
 
     bool hasValue() const { return m_hasValue; }
+    bool hasNoValue() const { return !hasValue(); }
+    
     T& value() { return m_value; }
     const T& value() const { return m_value; }
 
