@@ -211,14 +211,10 @@ public:
     
 
     void setLevel(EmLogLevel level) { 
-        // Since we are running on a 1 Core CPU this operation might be atomic 
-        // (i.e. no thread sync needed since we use 1 byte and we are running on a single CPU)
         m_Level = level; 
     }
 
     static void setGlobalLevel(EmLogLevel level) { 
-        // Since we are running on a 1 Core CPU this operation might be atomic 
-        // (i.e. no thread sync needed since we use 1 byte and we are running on a single CPU)
         g_Level = level; 
     }
 

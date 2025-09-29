@@ -106,21 +106,15 @@ public:
     size_t freeEntries() const;
 };
 
-template<typename T>
+template<typename T, EmStorage& tStorage>
 class EmStorageValue: public EmValue<T> {
 protected:
     const char* m_key;
-    const EmStorage& m_storage;
-    void (*m_onSetValue)(const T&);
 
 public:
-    EmStorageValue(const char* key, 
-                   const EmStorage& storage,
-                   void (*onSetValue)(const T&) = nullptr)
+    EmStorageValue(const char* key)
      : EmValue<T>(), 
-       m_key(key),
-       m_storage(storage),
-       m_onSetValue(onSetValue) {}
+       m_key(key) {}
 
     virtual ~EmStorageValue() = default;
 
@@ -128,7 +122,7 @@ public:
 
     virtual EmGetValueResult getValue(T& value) const override {
         T curVal;
-        if (m_storage.getValue(m_key, curVal) != sizeof(value)) {
+        if (tStorage.getValue(m_key, curVal) != sizeof(value)) {
             return EmGetValueResult::failed;
         }
         if (value == curVal) {
@@ -139,37 +133,80 @@ public:
     }
 
     virtual bool setValue(const T& value) override {
-        bool res = m_storage.putValue(m_key, value) == sizeof(value);
-        if (res && m_onSetValue) {
+        return tStorage.putValue(m_key, value) == sizeof(value);
+    }
+};
+
+template<typename T, EmStorage& tStorage>
+class EmStorageValueEx: public EmStorageValue<T, tStorage> {
+protected:
+    void (*m_onSetValue)(const T&);
+
+public:
+    EmStorageValueEx(const char* key, 
+                     void (*onSetValue)(const T&))
+     : EmStorageValue<T, tStorage>(key), 
+       m_onSetValue(onSetValue) {}
+
+    virtual ~EmStorageValueEx() = default;
+
+    virtual bool setValue(const T& value) override {
+        bool res = EmStorageValue<T, tStorage>::setValue(value);
+        if (res && m_onSetValue != nullptr) {
             m_onSetValue(value);
         }
         return res;
     }
 };
 
-class EmStorageTag: public EmStorageValue<EmTagValue>, 
+template<EmStorage& tStorage>
+class EmStorageTag: public EmStorageValue<EmTagValue, tStorage>, 
                     public EmTagBase {
 public:
     EmStorageTag(const char* key, 
-                 const EmStorage& storage,
-                 EmSyncFlags flags,
-                 void (*onSetValue)(const EmTagValue&) = nullptr)
-     : EmStorageValue<EmTagValue>(key, storage, onSetValue),
+                 EmSyncFlags flags)
+     : EmStorageValue<EmTagValue, tStorage>(key),
        EmTagBase(flags) {}
 
-    virtual const char* getId() const override { return getKey(); }     
+    virtual const char* getId() const override { return this->getKey(); }     
     virtual EmTagValue getValue() const {
         EmTagValue val;
-        m_storage.getValue(m_key, val);
+        tStorage.getValue(this->getKey(), val);
         return val;
     }
 
     virtual EmGetValueResult getValue(EmTagValue& value) const override {
-        return EmStorageValue<EmTagValue>::getValue(value);
+        return EmStorageValue<EmTagValue, tStorage>::getValue(value);
     }
 
     virtual bool setValue(const EmTagValue& value) override {
-        return EmStorageValue<EmTagValue>::setValue(value);
+        return EmStorageValue<EmTagValue, tStorage>::setValue(value);
+    }
+};
+
+template<EmStorage& tStorage>
+class EmStorageTagEx: public EmStorageValueEx<EmTagValue, tStorage>, 
+                      public EmTagBase {
+public:
+    EmStorageTagEx(const char* key, 
+                   EmSyncFlags flags,
+                   void (*onSetValue)(const EmTagValue&) = nullptr)
+     : EmStorageValueEx<EmTagValue, tStorage>(key, onSetValue),
+       EmTagBase(flags) {}
+
+    virtual const char* getId() const override { return this->getKey(); }     
+    virtual EmTagValue getValue() const {
+        EmTagValue val;
+        tStorage.getValue(this->getKey(), val);
+        return val;
+    }
+
+    virtual EmGetValueResult getValue(EmTagValue& value) const override {
+        return EmStorageValueEx<EmTagValue, tStorage>::getValue(value);
+    }
+
+    virtual bool setValue(const EmTagValue& value) override {
+        return EmStorageValueEx<EmTagValue, tStorage>::setValue(value);
     }
 };
 

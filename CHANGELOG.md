@@ -30,8 +30,10 @@
 
 # 2.1.0
 - 'EmTime' added logLevel in constructor
-- 'EmString new methods: startsWith, endsWith, indexOf, substring, getToken, isToken
-- 'EmStore' added logLevel in constructor
-- 'EmString' added new methods: 'getStringLength', 'hasValue', 'hasBytes' and 'hasString'
+- 'EmString' new methods: startsWith, endsWith, indexOf, substring, getToken, isToken
+- 'EmStorage' added logLevel in constructor
+- 'EmStorage' added new methods: 'getStringLength', 'hasValue', 'hasBytes' and 'hasString'
+- 'EmStorageValue' has EmStorage as template value to reduce RAM footprint
+- 'EmStorageValueEx' has onSetValue callback (split from 'EmStorageValue' to reduce RAM footprint if callback is not needed)
 - Added new 'EmTag' & 'EmTags' classes to have simple synchronization among same values coming from different sources
 - Added new 'EmAutoPtr' class as a lightweight alternative to std::auto_ptr for environments where the standard library is not available or desired
