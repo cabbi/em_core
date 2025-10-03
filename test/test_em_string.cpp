@@ -1,4 +1,5 @@
-#include <unity.h>
+#include "unity.h"
+//#include "unity.c"
 #include "em_string.h"
 
 // Test for default constructor
@@ -79,14 +80,14 @@ void test_set() {
 void test_format() {
     EmString<20> s;
     s.format("Hello %s, value: %d", "World", 42);
-    TEST_ASSERT_EQUAL_STRING("Hello World, value: 4", s.c_str()); // Truncated
+    TEST_ASSERT_EQUAL_STRING("Hello World, value: ", s.c_str()); // Truncated
 
     EmString<30> s2;
     s2.format("Hello %s, value: %d", "World", 42);
     TEST_ASSERT_EQUAL_STRING("Hello World, value: 42", s2.c_str());
 
     s2.format("A very long format string that will surely be truncated %d %d %d", 1, 2, 3);
-    TEST_ASSERT_EQUAL_STRING("A very long format string tha", s2.c_str());
+    TEST_ASSERT_EQUAL_STRING("A very long format string that", s2.c_str());
 }
 
 // Test append()
@@ -110,6 +111,22 @@ void test_append() {
 
     s2.append("");
     TEST_ASSERT_EQUAL_STRING("first", s2.c_str());
+}
+
+// Test appendFormat()
+void test_appendFormat() {
+    EmString<15> s("start");
+    EmStrResult res = s.appendFormat("-%s", "middle");
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::success, res);
+    TEST_ASSERT_EQUAL_STRING("start-middle", s.c_str());
+
+    res = s.appendFormat("-%s", "end");
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::partial, res);
+    TEST_ASSERT_EQUAL_STRING("start-middle-en", s.c_str());
+
+    res = s.appendFormat("-%s", "more"); // Already full
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::failure, res);
+    TEST_ASSERT_EQUAL_STRING("start-middle-en", s.c_str());
 }
 
 // Test c_str() and buffer()
@@ -164,47 +181,50 @@ void test_endsWith() {
 // Test getToken()
 void test_getToken() {
     EmString<30> s("token1,token2,token3");
-    char token_buf[10];
+    EmString<10> token;
 
-    TEST_ASSERT_TRUE(s.getToken(0, ',', token_buf, sizeof(token_buf)));
-    TEST_ASSERT_EQUAL_STRING("token1", token_buf);
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::success, s.getToken(0, ',', token));
+    TEST_ASSERT_EQUAL_STRING("token1", token.c_str());
 
-    TEST_ASSERT_TRUE(s.getToken(1, ',', token_buf, sizeof(token_buf)));
-    TEST_ASSERT_EQUAL_STRING("token2", token_buf);
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::success, s.getToken(1, ',', token));
+    TEST_ASSERT_EQUAL_STRING("token2", token.c_str());
 
-    TEST_ASSERT_TRUE(s.getToken(2, ',', token_buf, sizeof(token_buf)));
-    TEST_ASSERT_EQUAL_STRING("token3", token_buf);
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::success, s.getToken(2, ',', token));
+    TEST_ASSERT_EQUAL_STRING("token3", token.c_str());
 
-    TEST_ASSERT_FALSE(s.getToken(3, ',', token_buf, sizeof(token_buf)));
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::failure, s.getToken(3, ',', token));
 
     // Test with small buffer
-    TEST_ASSERT_FALSE(s.getToken(0, ',', token_buf, 5));
+    EmString<5> small_token;
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::partial, s.getToken(0, ',', small_token));
+    TEST_ASSERT_EQUAL_STRING("token", small_token.c_str());
 
     // Test with different separator
     EmString<30> s2("a|b|c");
-    TEST_ASSERT_TRUE(s2.getToken(1, '|', token_buf, sizeof(token_buf)));
-    TEST_ASSERT_EQUAL_STRING("b", token_buf);
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::success, s2.getToken(1, '|', token));
+    TEST_ASSERT_EQUAL_STRING("b", token.c_str());
 
     // Test with empty tokens
     EmString<30> s3("a,,c");
-    TEST_ASSERT_TRUE(s3.getToken(1, ',', token_buf, sizeof(token_buf)));
-    TEST_ASSERT_EQUAL_STRING("", token_buf);
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::success, s3.getToken(1, ',', token));
+    TEST_ASSERT_EQUAL_STRING("", token.c_str());
 
     // Test with trailing separator
     EmString<30> s4("a,b,");
-    TEST_ASSERT_TRUE(s4.getToken(2, ',', token_buf, sizeof(token_buf)));
-    TEST_ASSERT_EQUAL_STRING("", token_buf);
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::success, s4.getToken(2, ',', token));
+    TEST_ASSERT_EQUAL_STRING("", token.c_str());
 
     // Test with leading separator
     EmString<30> s5(",a,b");
-    TEST_ASSERT_TRUE(s5.getToken(0, ',', token_buf, sizeof(token_buf)));
-    TEST_ASSERT_EQUAL_STRING("", token_buf);
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::success, s5.getToken(0, ',', token));
+    TEST_ASSERT_EQUAL_STRING("", token.c_str());
 
     // Test with null outToken
-    TEST_ASSERT_FALSE(s.getToken(0, ',', nullptr, 10));
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::failure, s.getToken(0, ',', nullptr, 10));
 
     // Test with zero outTokenSize
-    TEST_ASSERT_FALSE(s.getToken(0, ',', token_buf, 0));
+    char token_buf[1];
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::failure, s.getToken(0, ',', token_buf, 0));
 }
 
 // Test isToken()
@@ -237,36 +257,40 @@ void test_substring() {
     EmString<20> sub;
 
     // Substring from index to end
-    TEST_ASSERT_TRUE(s.substring(5, sub));
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::success, s.substring(5, sub));
     TEST_ASSERT_EQUAL_STRING("56789", sub.c_str());
 
     // Substring from beginning
-    TEST_ASSERT_TRUE(s.substring(0, sub));
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::success, s.substring(0, sub));
     TEST_ASSERT_EQUAL_STRING("0123456789", sub.c_str());
 
+    // Substring from second
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::success, s.substring(1, sub));
+    TEST_ASSERT_EQUAL_STRING("123456789", sub.c_str());
+
     // Substring out of bounds
-    TEST_ASSERT_FALSE(s.substring(10, sub));
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::failure, s.substring(10, sub));
     TEST_ASSERT_EQUAL_STRING("", sub.c_str());
-    TEST_ASSERT_FALSE(s.substring(11, sub));
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::failure, s.substring(11, sub));
     TEST_ASSERT_EQUAL_STRING("", sub.c_str());
 
     // Substring with begin and end index
-    TEST_ASSERT_TRUE(s.substring(2, 5, sub));
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::success, s.substring(2, 5, sub));
     TEST_ASSERT_EQUAL_STRING("234", sub.c_str());
 
     // Substring with end index out of bounds
-    TEST_ASSERT_TRUE(s.substring(7, 20, sub));
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::success, s.substring(7, 20, sub));
     TEST_ASSERT_EQUAL_STRING("789", sub.c_str());
 
     // Substring with invalid indices
-    TEST_ASSERT_FALSE(s.substring(5, 2, sub));
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::failure, s.substring(5, 2, sub));
     TEST_ASSERT_EQUAL_STRING("", sub.c_str());
-    TEST_ASSERT_FALSE(s.substring(5, 5, sub));
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::failure, s.substring(5, 5, sub));
     TEST_ASSERT_EQUAL_STRING("", sub.c_str());
 
     // Substring into smaller EmString (truncation)
     EmString<3> small_sub;
-    TEST_ASSERT_TRUE(s.substring(1, 8, small_sub));
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::partial, s.substring(1, 8, small_sub));
     TEST_ASSERT_EQUAL_STRING("123", small_sub.c_str());
 }
 
@@ -322,6 +346,7 @@ void test_operators() {
     TEST_ASSERT_FALSE(s3 != "compare");
 }
 
+#include <string>
 void run_em_string_tests() {
     RUN_TEST(test_constructor_default);
     RUN_TEST(test_constructor_from_cstr);
@@ -330,6 +355,7 @@ void run_em_string_tests() {
     RUN_TEST(test_set);
     RUN_TEST(test_format);
     RUN_TEST(test_append);
+    RUN_TEST(test_appendFormat);
     RUN_TEST(test_getters);
     RUN_TEST(test_strcmp);
     RUN_TEST(test_startsWith);
@@ -341,6 +367,9 @@ void run_em_string_tests() {
     RUN_TEST(test_operators);
 }
 
+void setUp(void) {}
+void tearDown(void) {}
+
 // In your main test file (e.g., using PlatformIO):
 /*
 #include <Arduino.h>
@@ -348,14 +377,6 @@ void run_em_string_tests() {
 
 // Forward declaration
 void run_em_string_tests();
-
-void setUp(void) {
-    // set up to run before each test
-}
-
-void tearDown(void) {
-    // clean up to run after each test
-}
 
 void setup() {
     // Wait for >2 secs for the board to stabilize
