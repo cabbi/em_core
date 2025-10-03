@@ -147,17 +147,24 @@ public:
 
     template<uint8_t max_len>
     void log(EmLogLevel level, const char* format, ...) const;
+    template<uint8_t max_len>
+    void log(EmLogLevel level, const char* format, va_list args) const;
     void log(EmLogLevel level, const char* msg) const;
     void log(EmLogLevel level, const __FlashStringHelper* msg) const;
     
     template<uint8_t max_len>
     static void log(EmLogLevel level, const char* context, const char* format, ...);
+    template<uint8_t max_len>
+    static void log(EmLogLevel level, const char* context, const char* format, va_list args);
     static void log(EmLogLevel level, const char* context, const char* msg);
     static void log(EmLogLevel level, const char* context, const __FlashStringHelper* msg);
 
     template<uint8_t max_len>
     static void logInfo(const char* context, const char* format, ...) {
-        EmLog::log<max_len>(EmLogLevel::info, context, format);
+        va_list args;
+        va_start(args, format);     
+        EmLog::log<max_len>(EmLogLevel::info, context, format, args);
+        va_end(args);
     }
     static void logInfo(const char* context, const char* msg) {
         EmLog::log(EmLogLevel::info, context, msg);
@@ -172,7 +179,10 @@ public:
 
     template<uint8_t max_len>
     static void logWarning(const char* context, const char* format, ...) {
-        EmLog::log<max_len>(EmLogLevel::warning, context, format);
+        va_list args;
+        va_start(args, format);     
+        EmLog::log<max_len>(EmLogLevel::warning, context, format, args);
+        va_end(args);
     }
     static void logWarning(const char* context, const char* msg) {
         EmLog::log(EmLogLevel::warning, context, msg);
@@ -183,7 +193,10 @@ public:
     
     template<uint8_t max_len>
     static void logError(const char* context, const char* format, ...) {
-        EmLog::log<max_len>(EmLogLevel::error, context, format);
+        va_list args;
+        va_start(args, format);     
+        EmLog::log<max_len>(EmLogLevel::error, context, format, args);
+        va_end(args);
     }
     static void logError(const char* context, const char* msg) {
         EmLog::log(EmLogLevel::error, context, msg);
@@ -195,7 +208,10 @@ public:
     template<uint8_t max_len>
     static void logDebug(const char* context, const char* format, ...) {
         #ifndef EM_LOG_NO_DEBUG
-        EmLog::log<max_len>(EmLogLevel::debug, context, format);
+        va_list args;
+        va_start(args, format);     
+        EmLog::log<max_len>(EmLogLevel::debug, context, format, args);
+        va_end(args);
         #endif
     }
     static void logDebug(const char* context, const char* msg) {
@@ -293,6 +309,13 @@ inline void EmLog::log(EmLogLevel level, const char* format, ...) const {
 }
 
 template<uint8_t max_len>
+inline void EmLog::log(EmLogLevel level, const char* format, va_list args) const {
+    if (checkLevel(level)) {
+        writeToTargets_<max_len>(level, m_Context, format, args);
+    }
+}
+
+template<uint8_t max_len>
 inline void EmLog::log(EmLogLevel level, 
                        const char* context, 
                        const char* format, ...) {
@@ -301,6 +324,16 @@ inline void EmLog::log(EmLogLevel level,
         va_start(args, format);     
         writeToTargets_<max_len>(level, context, format, args);
         va_end(args);
+    }
+}
+
+template<uint8_t max_len>
+inline void EmLog::log(EmLogLevel level, 
+                       const char* context, 
+                       const char* format,
+                       va_list args) {
+    if (g_Level >= level) {
+        writeToTargets_<max_len>(level, context, format, args);
     }
 }
 

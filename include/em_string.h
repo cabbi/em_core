@@ -88,6 +88,31 @@ public:
         return ::strlen(str) > space_left ? EmStrResult::partial : EmStrResult::success;
     }
 
+    // Appends a formatted string to current one (i.e. same as 'sprintf').
+    EmStrResult appendFormat(const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        EmStrResult res = appendFormat(fmt, args);
+        va_end(args);
+        return res;
+    }
+
+    EmStrResult appendFormat(const char* fmt, va_list args) {
+        size_t len = length();
+        size_t left = capacity()-len+1; // With null terminator!
+        if (left <= 1) {
+            return EmStrResult::failure;
+        }
+        int w = vsnprintf(&m_buf[len], left, fmt, args);
+        if (w < 0) {
+            return EmStrResult::failure;
+        }
+        if (w >= left) {
+            return EmStrResult::partial;
+        }
+        return EmStrResult::success;
+    }
+
     // Gets the string buffer.
     const char* c_str() const {
         return m_buf;
