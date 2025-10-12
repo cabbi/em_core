@@ -40,29 +40,17 @@ void EmLog::log(EmLogLevel level, const __FlashStringHelper* msg) const {
     }
 }
 
-void EmLog::log(EmLogLevel level, const char* context, const char* msg) { 
-    if (g_Level >= level) {
-        writeToTargets_(level, context, msg);
+void writeToTargets_(EmLogLevel level, const char* context, const char* msg) { 
+    for(uint8_t i=0; i<EmLog::getTargetsCount(); i++) {
+        EmLog::getTarget(i).write(level, context, msg);
     }
 }
 
-void EmLog::log(EmLogLevel level, const char* context, const __FlashStringHelper* msg) { 
-    if (g_Level >= level) {
-        writeToTargets_(level, context, msg);
-    }
-}
-
-void EmLog::writeToTargets_(EmLogLevel level, const char* context, const char* msg) { 
-    for(uint8_t i=0; i<g_TargetsCount; i++) {
-        g_Targets[i].write(level, context, msg);
-    }
-}
-
-void EmLog::writeToTargets_(EmLogLevel level, 
-                            const char* context, 
-                            const __FlashStringHelper* msg) { 
-    for(uint8_t i=0; i<g_TargetsCount; i++) {
-        g_Targets[i].write(level, context, msg);
+void writeToTargets_(EmLogLevel level, 
+                     const char* context, 
+                     const __FlashStringHelper* msg) { 
+    for(uint8_t i=0; i<EmLog::getTargetsCount(); i++) {
+        EmLog::getTarget(i).write(level, context, msg);
     }
 }
 

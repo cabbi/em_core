@@ -160,8 +160,8 @@ public:
 };
 
 template<EmStorage& tStorage>
-class EmStorageTag: public EmStorageValue<EmTagValue, tStorage>, 
-                    public EmTagBase {
+class EmStorageTag: public EmTagBase,
+                    public EmStorageValue<EmTagValue, tStorage> {
 public:
     EmStorageTag(const char* key, 
                  EmSyncFlags flags)

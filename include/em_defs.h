@@ -10,7 +10,7 @@
     #define EM_STD_LIB  // Use of standard library (AVR arduinos does not have it!)
     #define EM_WIFI
     #define EM_BLE
-    #define EM_MULTICORE
+    //#define EM_MULTICORE
     #define EM_MULTITHREAD
     #define EM_NVS
     #define EM_TIME
@@ -22,6 +22,12 @@
 #if defined(AVR)
     #define EM_EEPROM
 #endif
+
+#if defined(ARDUINO_NANO_ESP32)
+    #define USB_SERIAL_CLASS USBCDC
+#else
+    #define USB_SERIAL_CLASS HardwareSerial
+#endif    
 
 #define SIZE_OF(x) (sizeof((x))/sizeof((x[0])))
 

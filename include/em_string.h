@@ -44,6 +44,32 @@ public:
         return TCapacity;
     }
 
+    // Returns true if string has reached its capacity
+    bool isFull() const {
+        return length() == capacity();
+    }
+
+    // Retruns the space left to reach the string capacity
+    size_t spaceLeft() {
+        return capacity() - length();
+    }
+
+    // Sets a new string length.
+    //
+    // Returns the final length.
+    size_t setLen(size_t len) {
+        m_buf[MIN(len, capacity())] = 0;
+        return length();
+    }
+
+    // Reduces the string length.
+    //
+    // Returns the final length.
+    size_t reduceLen(size_t val) {
+        m_buf[MAX(0, static_cast<int32_t>(length()-val))] = 0;
+        return length();
+    }
+
     // Set the string to a new value. Truncates if the source is too long.
     EmStrResult set(const EmString& value) {
         return set(value.c_str());
@@ -68,47 +94,56 @@ public:
     }
 
     // Appends a string to current one.
-    EmStrResult append(const EmString& str) {
-        return append(str.c_str());
+    EmStrResult append(const EmString& str, bool allowPartial = false) {
+        return append(str.c_str(), allowPartial);
     }
 
-    EmStrResult append(const char* str) {
+    EmStrResult append(const char* str, bool allowPartial = false) {
+        // Nothing to append?
         if (!str || strlen(str) == 0) {
             return EmStrResult::success;
         }
-
-        const size_t currentLen = length();
-        if (currentLen >= capacity()) {
-            return EmStrResult::failure; // Already full
+        // Already full string
+        if (isFull()) {
+            return EmStrResult::failure;
         }
-
-        const size_t space_left = capacity() - currentLen;
-        strncat_s(m_buf, str, space_left);
+        // Partial append?
+        const size_t left = spaceLeft();
+        if (!allowPartial && left < strlen(str)) {
+            return EmStrResult::failure;
+        }
+        // Do the append
+        strncat(m_buf, str, left);
         m_buf[capacity()] = '\0';
-        return ::strlen(str) > space_left ? EmStrResult::partial : EmStrResult::success;
+        return ::strlen(str) > left ? EmStrResult::partial : EmStrResult::success;
     }
 
     // Appends a formatted string to current one (i.e. same as 'sprintf').
-    EmStrResult appendFormat(const char* fmt, ...) {
+    EmStrResult appendFormat(bool allowPartial, const char* fmt, ...) {
         va_list args;
         va_start(args, fmt);
-        EmStrResult res = appendFormat(fmt, args);
+        EmStrResult res = appendFormat(allowPartial, fmt, args);
         va_end(args);
         return res;
     }
 
-    EmStrResult appendFormat(const char* fmt, va_list args) {
-        size_t len = length();
-        size_t left = capacity()-len+1; // With null terminator!
-        if (left <= 1) {
+    EmStrResult appendFormat(bool allowPartial, const char* fmt, va_list args) {
+        if (isFull()) {
             return EmStrResult::failure;
         }
-        int w = vsnprintf(&m_buf[len], left, fmt, args);
+        const size_t len = length();
+        const size_t left = spaceLeft();
+        const int w = vsnprintf(&m_buf[len], left+1, fmt, args);
         if (w < 0) {
             return EmStrResult::failure;
         }
-        if (w >= left) {
-            return EmStrResult::partial;
+        if (w > left) {
+            if (allowPartial) {
+                return EmStrResult::partial;
+            }
+            // Restore previous string length
+            m_buf[len] = '\0';
+            return EmStrResult::failure;
         }
         return EmStrResult::success;
     }

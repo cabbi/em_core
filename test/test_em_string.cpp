@@ -96,7 +96,10 @@ void test_append() {
     s.append("-middle");
     TEST_ASSERT_EQUAL_STRING("start-middle", s.c_str());
 
-    s.append("-end");
+    s.append("-end", false);
+    TEST_ASSERT_EQUAL_STRING("start-middle", s.c_str());
+
+    s.append("-end", true);
     TEST_ASSERT_EQUAL_STRING("start-middle-en", s.c_str());
 
     s.append("-more"); // Already full
@@ -115,18 +118,38 @@ void test_append() {
 
 // Test appendFormat()
 void test_appendFormat() {
-    EmString<15> s("start");
-    EmStrResult res = s.appendFormat("-%s", "middle");
+    EmString<16> s("start");
+
+    // Deny partial
+    EmStrResult res = s.appendFormat(false, "-%s", "middle");
     TEST_ASSERT_EQUAL_UINT8(EmStrResult::success, res);
     TEST_ASSERT_EQUAL_STRING("start-middle", s.c_str());
 
-    res = s.appendFormat("-%s", "end");
-    TEST_ASSERT_EQUAL_UINT8(EmStrResult::partial, res);
-    TEST_ASSERT_EQUAL_STRING("start-middle-en", s.c_str());
+    res = s.appendFormat(false, "-%s", "end");
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::success, res);
+    TEST_ASSERT_EQUAL_STRING("start-middle-end", s.c_str());
+    TEST_ASSERT_TRUE(s.isFull());
 
-    res = s.appendFormat("-%s", "more"); // Already full
+    s.reduceLen(4);
+    TEST_ASSERT_EQUAL_STRING("start-middle", s.c_str());
+
+    res = s.appendFormat(false, "-%s", "more"); 
     TEST_ASSERT_EQUAL_UINT8(EmStrResult::failure, res);
-    TEST_ASSERT_EQUAL_STRING("start-middle-en", s.c_str());
+    TEST_ASSERT_EQUAL_STRING("start-middle", s.c_str());
+
+    // Allow partial
+    s.set("start");
+    res = s.appendFormat(true, "-%s", "middle");
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::success, res);
+    TEST_ASSERT_EQUAL_STRING("start-middle", s.c_str());
+
+    res = s.appendFormat(true, "-%s", "more");
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::partial, res);
+    TEST_ASSERT_EQUAL_STRING("start-middle-mor", s.c_str());
+
+    res = s.appendFormat(true, "-%s", "even more"); // Already full
+    TEST_ASSERT_EQUAL_UINT8(EmStrResult::failure, res);
+    TEST_ASSERT_EQUAL_STRING("start-middle-mor", s.c_str());
 }
 
 // Test c_str() and buffer()

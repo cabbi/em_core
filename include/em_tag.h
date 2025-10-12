@@ -1,9 +1,10 @@
 #ifndef _EM_TAG_H_
 #define _EM_TAG_H_
 
+#include <WString.h>
+
 #include "em_sync_value.h"
 #include "em_list.h"
-#include <WString.h>
 
 // The tag value type
 enum class EmTagValueType: uint8_t {
