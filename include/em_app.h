@@ -40,6 +40,15 @@ public:
         // Do some preparation if needed
     }
 
+    virtual void beforeInterfacesLoop() {
+        // Do something before each loop if needed
+    }
+
+    virtual void afterInterfacesLoop() {
+        // Do something after each loop if needed
+    }
+
+
     // Called before application restarts or stops due to an interface requesting
     // 'EmIntOperationResult::restartApp' or 'EmIntOperationResult::stopApp'
     virtual void onStop(EmIntOperationResult /*reason*/) { 

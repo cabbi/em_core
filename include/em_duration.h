@@ -109,6 +109,33 @@ public:
         return m_durationMillis;
     }
 
+    void to(uint16_t& days,
+            uint16_t& hours,
+            uint16_t& minutes,
+            uint16_t& seconds,
+            uint16_t& milliseconds) const {
+        uint32_t totalMillis = m_durationMillis;
+        days = static_cast<uint16_t>(totalMillis / (24 * 3600 * 1000));
+        totalMillis %= (24 * 3600 * 1000);
+        hours = static_cast<uint16_t>(totalMillis / (3600 * 1000));
+        totalMillis %= (3600 * 1000);
+        minutes = static_cast<uint16_t>(totalMillis / (60 * 1000));
+        totalMillis %= (60 * 1000);
+        seconds = static_cast<uint16_t>(totalMillis / 1000);
+    }
+
+    void to(uint16_t& hours,
+            uint16_t& minutes,
+            uint16_t& seconds,
+            uint16_t& milliseconds) const {
+        uint32_t totalMillis = m_durationMillis;
+        hours = static_cast<uint16_t>(totalMillis / (3600 * 1000));
+        totalMillis %= (3600 * 1000);
+        minutes = static_cast<uint16_t>(totalMillis / (60 * 1000));
+        totalMillis %= (60 * 1000);
+        seconds = static_cast<uint16_t>(totalMillis / 1000);
+        milliseconds = static_cast<uint16_t>(totalMillis % 1000);
+    }
 };
 
 #endif // EM_DURATION_H

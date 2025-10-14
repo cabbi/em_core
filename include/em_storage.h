@@ -106,7 +106,7 @@ public:
     size_t freeEntries() const;
 };
 
-template<typename T, EmStorage& tStorage>
+template<typename T, const EmStorage& tStorage>
 class EmStorageValue: public EmValue<T> {
 protected:
     const char* m_key;
@@ -137,7 +137,7 @@ public:
     }
 };
 
-template<typename T, EmStorage& tStorage>
+template<typename T, const EmStorage& tStorage>
 class EmStorageValueEx: public EmStorageValue<T, tStorage> {
 protected:
     void (*m_onSetValue)(const T&);
@@ -159,7 +159,7 @@ public:
     }
 };
 
-template<EmStorage& tStorage>
+template<const EmStorage& tStorage>
 class EmStorageTag: public EmTagBase,
                     public EmStorageValue<EmTagValue, tStorage> {
 public:
@@ -184,7 +184,7 @@ public:
     }
 };
 
-template<EmStorage& tStorage>
+template<const EmStorage& tStorage>
 class EmStorageTagEx: public EmStorageValueEx<EmTagValue, tStorage>, 
                       public EmTagBase {
 public:

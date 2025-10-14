@@ -11,18 +11,27 @@ enum class EmTagValueType: uint8_t {
     vt_undefined = 0,
     vt_boolean = 1,
     vt_integer = 2,
-    vt_real = 3,
-    vt_string = 4
+    vt_epoch = 3,
+    vt_real = 4,
+    vt_string = 5
 };
 
+// The value types
+using EmBoolType    = bool;
+using EmIntegerType = int32_t;
+using EmEpochType   = uint32_t;
+using EmRealType    = float;
+using EmStringType  = String;
 
 // The tag value bytes union
 union EmTagValueUnion {
-    bool as_bool;
-    int32_t as_integer;
-    double as_real;
-    String* as_string;
+    EmBoolType as_bool;
+    EmIntegerType as_integer;
+    EmEpochType as_epoch;
+    EmRealType as_real;
+    EmStringType* as_string;
 };
+
 
 // The tag value bytes structure used to read and write an EmTagValue object in case 'EmTagValue' 
 // will have virtual functions in the future.
@@ -95,26 +104,29 @@ struct EmTagValueStruct {
 // NOTE: we need to have a concrete implementation of value since 'EmTag' and "EmTags" 
 //       classes will not support templates.
 class EmTagValue: protected EmTagValueStruct {
+    
+    // TODO: handle the Epoch type!
+    
 public:
     EmTagValue() : EmTagValueStruct(EmTagValueType::vt_undefined) {}
     EmTagValue(EmTagValueType type) : EmTagValueStruct(type) {}
-    EmTagValue(int32_t value) : EmTagValueStruct(EmTagValueType::vt_integer) {
+    EmTagValue(EmIntegerType value) : EmTagValueStruct(EmTagValueType::vt_integer) {
         m_value.as_integer = value;
     }
     EmTagValue(float value) : EmTagValueStruct(EmTagValueType::vt_real) {
-        m_value.as_real = value;
+        m_value.as_real = static_cast<EmRealType>(value);
     }
     EmTagValue(double value) : EmTagValueStruct(EmTagValueType::vt_real) {
-        m_value.as_real = value;
+        m_value.as_real = static_cast<EmRealType>(value);
     }
-    EmTagValue(bool value) : EmTagValueStruct(EmTagValueType::vt_boolean) {
+    EmTagValue(EmBoolType value) : EmTagValueStruct(EmTagValueType::vt_boolean) {
         m_value.as_bool = value;
     }
     EmTagValue(const char* value) : EmTagValueStruct(EmTagValueType::vt_string) {
         m_value.as_string = new String(value);
     }
-    EmTagValue(const String& value) : EmTagValueStruct(EmTagValueType::vt_string) {
-        m_value.as_string = new String(value);
+    EmTagValue(const EmStringType& value) : EmTagValueStruct(EmTagValueType::vt_string) {
+        m_value.as_string = new EmStringType(value);
     }
     EmTagValue(const EmTagValue& other) : EmTagValueStruct(EmTagValueType::vt_undefined) {
         copyFrom_(other);
@@ -129,16 +141,24 @@ public:
         return m_type == other.m_type;
     }
 
-    bool asBool() const {
+    EmBoolType asBool() const {
         return (m_type == EmTagValueType::vt_boolean) ? m_value.as_bool : false;
     }
     
-    int32_t asInteger() const {
+    EmIntegerType asInteger() const {
         return (m_type == EmTagValueType::vt_integer) ? m_value.as_integer : 0;
     }
+
+    EmEpochType asEpoch() const {
+        return (m_type == EmTagValueType::vt_epoch) ? m_value.as_epoch : 0;
+    }
     
-    double asReal() const {
+    EmRealType asReal() const {
         return (m_type == EmTagValueType::vt_real) ? m_value.as_real : 0.0;
+    }
+    
+    EmStringType* asStringPtr() const {
+        return (m_type == EmTagValueType::vt_string && m_value.as_string != nullptr) ? m_value.as_string : nullptr;
     }
     
     const char* asString() const {
@@ -193,8 +213,9 @@ public:
         if (m_type != EmTagValueType::vt_boolean) {
             return EmGetValueResult::failed;
         }
-        EmGetValueResult res = (value == m_value.as_bool) ? EmGetValueResult::succeedEqualValue 
-                                                          : EmGetValueResult::succeedNotEqualValue;
+        EmGetValueResult res = (value == m_value.as_bool) 
+                         ? EmGetValueResult::succeedEqualValue 
+                         : EmGetValueResult::succeedNotEqualValue;
         value = m_value.as_bool;
         return res;
     }
@@ -203,8 +224,9 @@ public:
         if (m_type != EmTagValueType::vt_integer) {
             return EmGetValueResult::failed;
         }
-        EmGetValueResult res = (value == m_value.as_integer) ? EmGetValueResult::succeedEqualValue
-                                                             : EmGetValueResult::succeedNotEqualValue;
+        EmGetValueResult res = (static_cast<EmIntegerType>(value) == m_value.as_integer)
+                               ? EmGetValueResult::succeedEqualValue
+                               : EmGetValueResult::succeedNotEqualValue;
         value = m_value.as_integer;
         return res;
     }
@@ -213,8 +235,9 @@ public:
         if (m_type != EmTagValueType::vt_real)  {
             return EmGetValueResult::failed;
         }
-        EmGetValueResult res = (value == static_cast<float>(m_value.as_real)) ? EmGetValueResult::succeedEqualValue 
-                                                                              : EmGetValueResult::succeedNotEqualValue;
+        EmGetValueResult res = (static_cast<EmRealType>(value) == m_value.as_real)
+                               ? EmGetValueResult::succeedEqualValue
+                               : EmGetValueResult::succeedNotEqualValue;
         value = static_cast<float>(m_value.as_real);
         return res;
     }
@@ -223,18 +246,20 @@ public:
         if (m_type != EmTagValueType::vt_real)  {
             return EmGetValueResult::failed;
         }
-        EmGetValueResult res = (value == m_value.as_real) ? EmGetValueResult::succeedEqualValue 
-                                                          : EmGetValueResult::succeedNotEqualValue;
+        EmGetValueResult res = (static_cast<EmRealType>(value) == m_value.as_real)
+                               ? EmGetValueResult::succeedEqualValue
+                               : EmGetValueResult::succeedNotEqualValue;
         value = m_value.as_real;
         return res;
     }
 
-    EmGetValueResult getValue(String& value) const {
+    EmGetValueResult getValue(EmStringType& value) const {
         if (m_type != EmTagValueType::vt_string) {
             return EmGetValueResult::failed;
         }
-        EmGetValueResult res = (value == *m_value.as_string) ? EmGetValueResult::succeedEqualValue 
-                                                             : EmGetValueResult::succeedNotEqualValue;
+        EmGetValueResult res = (value == *m_value.as_string)
+                               ? EmGetValueResult::succeedEqualValue 
+                               : EmGetValueResult::succeedNotEqualValue;
         value = *m_value.as_string;
         return res;
     }
@@ -279,7 +304,7 @@ public:
         }
         clear_();
         m_type = EmTagValueType::vt_real;
-        m_value.as_real = value;
+        m_value.as_real = static_cast<EmRealType>(value);
         return true;
     }
 
@@ -289,7 +314,7 @@ public:
         }
         clear_();
         m_type = EmTagValueType::vt_real;
-        m_value.as_real = value;
+        m_value.as_real = static_cast<EmRealType>(value);
         return true;
     }
 

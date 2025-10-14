@@ -9,6 +9,8 @@ void EmApp::setup_() {
 }
 
 void EmApp::loop_() {
+    beforeInterfacesLoop();
+
     struct LoopContext {
         EmApp* self;
         EmIntOperationResult res;
@@ -46,6 +48,8 @@ void EmApp::loop_() {
         context.res == EmIntOperationResult::stopApp) {
         stop_(context.res);
     }
+    
+    afterInterfacesLoop();
 }
 
 void EmApp::stop_(EmIntOperationResult reason) {
