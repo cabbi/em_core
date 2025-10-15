@@ -12,6 +12,10 @@
 #include "em_timeout.h"
 #include "em_log.h"
 
+using EmEpochTypeSec = uint32_t;
+using EmEpochTypeMilli = uint64_t;
+
+
 // EmTime class for handling time-related operations
 class EmTime: public EmLog {
 protected:
@@ -54,17 +58,17 @@ public:
     }
 
     // Get the current time in seconds since epoch
-    bool now(time_t& currentTime) const {
+    bool now(EmEpochTypeSec& currentTime) const {
         if (checkInitialized()) {
-            currentTime = time(nullptr);
+            currentTime = static_cast<EmEpochTypeSec>(time(nullptr));
         }
         return m_isInitialized;
     }
 
     // Get the current time in milliseconds since epoch
-    bool nowMs(uint32_t& currentTimeMs) const {
+    bool nowMs(EmEpochTypeMilli& currentTimeMs) const {
         if (checkInitialized()) {
-            currentTimeMs = static_cast<uint32_t>(time(nullptr) * 1000);
+            currentTimeMs = static_cast<EmEpochTypeMilli>(time(nullptr) * 1000);
         }
         return m_isInitialized;
     }

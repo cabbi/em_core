@@ -29,11 +29,15 @@
 - Added 'EmStore' and 'EmStoreValue' classes for persistent storage in NVS (ESP only)
 
 # 2.1.0
+- 'EmApp' added 'beforeInterfacesSetup', 'afterInterfacesSetup, 'beforeInterfacesLoop' and 'afterInterfacesLoop' to provide app customization flexibility.
 - 'EmTime' added logLevel in constructor
 - 'EmString' new methods: startsWith, endsWith, indexOf, substring, getToken, isToken
 - 'EmStorage' added logLevel in constructor
 - 'EmStorage' added new methods: 'getStringLength', 'hasValue', 'hasBytes' and 'hasString'
 - 'EmStorageValue' has EmStorage as template value to reduce RAM footprint
 - 'EmStorageValueEx' has onSetValue callback (split from 'EmStorageValue' to reduce RAM footprint if callback is not needed)
+- 'EmTimeout' classes split to 'EmTimeout', 'EmTimeoutShort' and 'EmTimeoutLong' 
+- 'EmDuration' classes split to 'EmDuration', 'EmDurationShort' and 'EmDurationLong'. 
+- 'EmDuration' added 'to' method to get duration days, hours, minutes, seconds and milliseconds.
 - Added new 'EmTag' & 'EmTags' classes to have simple synchronization among same values coming from different sources
 - Added new 'EmAutoPtr' class as a lightweight alternative to std::auto_ptr for environments where the standard library is not available or desired
