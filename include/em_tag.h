@@ -3,8 +3,9 @@
 
 #include <WString.h>
 
-#include "em_sync_value.h"
 #include "em_list.h"
+#include "em_string.h"
+#include "em_sync_value.h"
 
 // The tag value type
 enum class EmTagValueType: uint8_t {
@@ -261,6 +262,18 @@ public:
                                ? EmGetValueResult::succeedEqualValue 
                                : EmGetValueResult::succeedNotEqualValue;
         value = *m_value.as_string;
+        return res;
+    }
+
+    template<size_t size>
+    EmGetValueResult getValue(EmString<size>& value) const {
+        if (m_type != EmTagValueType::vt_string) {
+            return EmGetValueResult::failed;
+        }
+        EmGetValueResult res = (value == m_value.as_string->c_str())
+                               ? EmGetValueResult::succeedEqualValue 
+                               : EmGetValueResult::succeedNotEqualValue;
+        value.set(m_value.as_string->c_str());
         return res;
     }
 

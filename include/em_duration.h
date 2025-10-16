@@ -31,7 +31,9 @@ public:
             (static_cast<T>(minutes) * 60 * 1000) + 
             (static_cast<T>(seconds) * 1000) +       
              static_cast<T>(milliseconds)) {}
-    
+
+    EmDuration_() : EmDuration_(0, 0, 0, 0) {}
+             
     // Using 'explicit' prevents unintentional conversions from integer types.
     explicit EmDuration_(T milliseconds) :
         m_durationMillis(milliseconds) {}

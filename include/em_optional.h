@@ -11,8 +11,8 @@ constexpr EmUndefined emUndefined = EmUndefined();
 template<class T>
 class EmOptional {
 public:
-    EmOptional() : m_hasValue(false) {}
-    EmOptional(const EmUndefined&) : m_hasValue(false) {}
+    EmOptional() : m_hasValue(false), m_value(T()) {}
+    EmOptional(const EmUndefined&) : m_hasValue(false), m_value(T()) {}
     EmOptional(const T& value) : m_hasValue(true), m_value(value) {}
 
     bool hasValue() const { return m_hasValue; }
