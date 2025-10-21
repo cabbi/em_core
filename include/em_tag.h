@@ -166,6 +166,10 @@ public:
         return (m_type == EmTagValueType::vt_string && m_value.as_string != nullptr) ? m_value.as_string->c_str() : "";
     }
     
+    const EmTagValueStruct& asStruct() const {
+        return *this;
+    }
+
     EmTagValue& operator=(const EmTagValue& other) {
         if (this != &other) {
             clear_();

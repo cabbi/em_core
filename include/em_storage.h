@@ -62,8 +62,7 @@ public:
             return 0;
         }
         // Not a string, lets write the value bytes
-        EmTagValueStruct valueBytes;
-        value.toStruct(valueBytes);
+        const EmTagValueStruct& valueBytes = value.asStruct();
         return putBytes(key, &valueBytes, sizeof(valueBytes), commit);
     }
     size_t putString(const char* key, const char* value, bool commit=true) const;
