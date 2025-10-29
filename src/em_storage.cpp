@@ -182,6 +182,27 @@ String EmStorage::getString(const char* key, const char* defaultValue) const {
     return String(buf);
 }
 
+#include "nvs_handle_simple.hpp"
+
+bool findKey(nvs_handle_t c_handle, const char* key, nvs_type_t* out_type)
+{
+    Lock lock;
+    ESP_LOGD(TAG, "%s %s", __func__, key);
+    NVSHandleSimple *handle;
+    auto err = nvs_find_ns_handle(c_handle, &handle);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    nvs_type_t nvstype;
+    err = handle->find_key(key, nvstype);
+
+    if(err == ESP_OK && out_type != nullptr)
+        *out_type = nvstype;
+
+    return err;
+}
+
 size_t EmStorage::getBytesLength(const char* key) const {
     size_t len = 0;
     if (!isInitialized() || !key) {
