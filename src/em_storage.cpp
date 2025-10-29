@@ -63,6 +63,29 @@ bool EmStorage::commit() const {
     return true;
 }
 
+size_t EmStorage::putValue(const char* key, const EmTagValue& value, bool commit) const {
+    // We do not store undefined type!
+    if (value.getType() == EmTagValueType::vt_undefined) {
+        return 0;
+    }
+    // String special handling!?
+    if (value.getType() == EmTagValueType::vt_string) {
+        String str;
+        EmGetValueResult res = value.getValue(str);
+        if (res == EmGetValueResult::succeedNotEqualValue) {
+            return putString(key, str, commit);
+        } else 
+        if (res == EmGetValueResult::succeedEqualValue) {
+            // Avoid writing the same value again
+            return str.length();
+        }
+        return 0;
+    }
+    // Not a string, lets write the value bytes
+    const EmTagValueStruct& valueBytes = value.asStruct();
+    return putBytes(key, &valueBytes, sizeof(valueBytes), commit);
+}
+
 size_t EmStorage::putString(const char* key, const char* value, bool commit) const {
     if (!isInitialized() || !key || !value) {
         return 0;
@@ -95,6 +118,25 @@ size_t EmStorage::putBytes(const char* key, const void* value, size_t len, bool 
         return 0;
     }
     return len;
+}
+
+size_t EmStorage::getValue(const char* key, EmTagValue& value) const {
+    // String special handling!?
+    if (value.getType() == EmTagValueType::vt_string) {
+        String str;
+        EmGetValueResult res = value.getValue(str);
+        if (res == EmGetValueResult::succeedNotEqualValue) {
+            return value.setValue(str, false);
+        }
+        return str.length();
+    }
+    // Not a string, lets read the value bytes
+    EmTagValueStruct valueBytes;
+    size_t size = getBytes(key, &valueBytes, sizeof(valueBytes));
+    if (size > 0) {
+        value.fromStruct(valueBytes);
+    }
+    return size;
 }
 
 size_t EmStorage::getString(const char* key, char* value, const size_t maxLen) const {

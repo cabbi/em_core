@@ -39,32 +39,44 @@ public:
     bool clear() const;
     bool commit() const;
 
+    // Initialization methods (i.e. value is set only if key does not exist)
+    template<typename T>
+    size_t initValue(const char* key, const T& value, bool commit=true) const {
+        if (!hasValue(key)) {
+            return putValue(key, value, commit);
+        }
+        return 0;
+    }   
+    size_t initValue(const char* key, const EmTagValue& value, bool commit=true) const {
+        if (!hasValue(key)) {
+            return putValue(key, value, commit);
+        }
+        return 0;
+    }   
+    size_t initString(const char* key, const char* value, bool commit=true) const {
+        if (!hasString(key)) {
+            return putString(key, value, commit);
+        }
+        return 0;
+    }   
+    size_t initString(const char* key, const String& value, bool commit=true) const {
+        if (!hasString(key)) {
+            return putString(key, value, commit);
+        }
+        return 0;
+    }   
+    size_t initBytes(const char* key, const void* value, size_t len, bool commit=true) const {
+        if (!hasValue(key)) {
+            return putBytes(key, value, len, commit);
+        }
+        return 0;
+    }   
+
     template<typename T>
     size_t putValue(const char* key, const T& value, bool commit=true) const {
         return putBytes(key, &value, sizeof(value), commit);
     }   
-    size_t putValue(const char* key, const EmTagValue& value, bool commit=true) const {
-        // We do not store undefined type!
-        if (value.getType() == EmTagValueType::vt_undefined) {
-            return 0;
-        }
-        // String special handling!?
-        if (value.getType() == EmTagValueType::vt_string) {
-            String str;
-            EmGetValueResult res = value.getValue(str);
-            if (res == EmGetValueResult::succeedNotEqualValue) {
-                return putString(key, str, commit);
-            } else 
-            if (res == EmGetValueResult::succeedEqualValue) {
-                // Avoid writing the same value again
-                return str.length();
-            }
-            return 0;
-        }
-        // Not a string, lets write the value bytes
-        const EmTagValueStruct& valueBytes = value.asStruct();
-        return putBytes(key, &valueBytes, sizeof(valueBytes), commit);
-    }
+    size_t putValue(const char* key, const EmTagValue& value, bool commit=true) const;
     size_t putString(const char* key, const char* value, bool commit=true) const;
     size_t putString(const char* key, const String& value, bool commit=true) const;
     size_t putBytes(const char* key, const void* value, size_t len, bool commit=true) const;
@@ -73,24 +85,7 @@ public:
     size_t getValue(const char* key, T& value) const {
         return getBytes(key, &value, sizeof(value));
     }
-    size_t getValue(const char* key, EmTagValue& value) const {
-        // String special handling!?
-        if (value.getType() == EmTagValueType::vt_string) {
-            String str;
-            EmGetValueResult res = value.getValue(str);
-            if (res == EmGetValueResult::succeedNotEqualValue) {
-                return value.setValue(str, false);
-            }
-            return str.length();
-        }
-        // Not a string, lets read the value bytes
-        EmTagValueStruct valueBytes;
-        size_t size = getBytes(key, &valueBytes, sizeof(valueBytes));
-        if (size > 0) {
-            value.fromStruct(valueBytes);
-        }
-        return size;
-    }
+    size_t getValue(const char* key, EmTagValue& value) const;
     size_t getString(const char* key, char* value, const size_t maxLen) const;
     String getString(const char* key, const char* defaultValue="") const;
     size_t getBytes(const char* key, void * buf, size_t maxLen) const;
