@@ -81,10 +81,11 @@ class EmSyncValues;
 
 // The synchronized value class.
 template <class EmValueOfT, class T>
-class EmSyncValue: public EmValueOfT {
+class EmSyncValue: public virtual EmValueOfT {
     template <class A, class B> friend class EmSyncValues;
 public:
-    EmSyncValue(EmSyncFlags flags) 
+    // NOTE: default flag is 'canReadCanWrite' to allow this class to be used as virtual base class!
+    EmSyncValue(EmSyncFlags flags = EmSyncFlags::canReadCanWrite) 
      : m_flags(flags|EmSyncFlags::_firstRead) {}
 
     virtual ~EmSyncValue() = default;

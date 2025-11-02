@@ -5,9 +5,10 @@
 
 #ifdef EM_NVS
 
-#include <nvs.h>
 #include <cstring>
 #include <WString.h>
+#include "nvs.h"
+
 #include "em_log.h"
 #include "em_sync_value.h"
 #include "em_tag.h"
@@ -42,31 +43,31 @@ public:
     // Initialization methods (i.e. value is set only if key does not exist)
     template<typename T>
     size_t initValue(const char* key, const T& value, bool commit=true) const {
-        if (!hasValue(key)) {
+        if (!hasKey(key)) {
             return putValue(key, value, commit);
         }
         return 0;
     }   
     size_t initValue(const char* key, const EmTagValue& value, bool commit=true) const {
-        if (!hasValue(key)) {
+        if (!hasKey(key)) {
             return putValue(key, value, commit);
         }
         return 0;
     }   
     size_t initString(const char* key, const char* value, bool commit=true) const {
-        if (!hasString(key)) {
+        if (!hasKey(key)) {
             return putString(key, value, commit);
         }
         return 0;
     }   
     size_t initString(const char* key, const String& value, bool commit=true) const {
-        if (!hasString(key)) {
+        if (!hasKey(key)) {
             return putString(key, value, commit);
         }
         return 0;
     }   
     size_t initBytes(const char* key, const void* value, size_t len, bool commit=true) const {
-        if (!hasValue(key)) {
+        if (!hasKey(key)) {
             return putBytes(key, value, len, commit);
         }
         return 0;
@@ -85,6 +86,14 @@ public:
     size_t getValue(const char* key, T& value) const {
         return getBytes(key, &value, sizeof(value));
     }
+    template<typename T>
+    T getValue(const char* key) const {
+        T value;
+        if (getBytes(key, &value, sizeof(value)) == sizeof(value)) {
+            return value;
+        }
+        return T();
+    }
     size_t getValue(const char* key, EmTagValue& value) const;
     size_t getString(const char* key, char* value, const size_t maxLen) const;
     String getString(const char* key, const char* defaultValue="") const;
@@ -93,6 +102,11 @@ public:
     size_t getBytesLength(const char* key) const;
     size_t getStringLength(const char* key) const;
 
+    #if ESP_IDF_VERSION_MAJOR >= 5
+    bool hasKey(const char* key) const { return nvm_find_key(m_handle, key, nullptr) == ESP_OK; }
+    #else
+    bool hasKey(const char* key) const { return hasValue(key); }
+    #endif
     bool hasValue(const char* key) const { return hasBytes(key); }
     bool hasBytes(const char* key) const { return getBytesLength(key) > 0;}
     bool hasString(const char* key) const { return getStringLength(key) > 0; }
@@ -101,7 +115,7 @@ public:
 };
 
 template<typename T, const EmStorage& tStorage>
-class EmStorageValue: public EmValue<T> {
+class EmStorageValue: virtual public EmValue<T> {
 protected:
     const char* m_key;
 
@@ -128,6 +142,18 @@ public:
 
     virtual bool setValue(const T& value) override {
         return tStorage.putValue(m_key, value) == sizeof(value);
+    }
+    
+    virtual T getValue() const {
+        T value;
+        if (tStorage.getBytes(m_key, &value, sizeof(value)) == sizeof(value)) {
+            return value;
+        }
+        return T();
+    }
+
+    virtual operator T() const {
+        return getValue();
     }
 };
 
@@ -159,8 +185,8 @@ class EmStorageTag: public EmTagBase,
 public:
     EmStorageTag(const char* key, 
                  EmSyncFlags flags)
-     : EmStorageValue<EmTagValue, tStorage>(key),
-       EmTagBase(flags) {}
+     : EmTagBase(flags),
+       EmStorageValue<EmTagValue, tStorage>(key) {}
 
     virtual const char* getId() const override { return this->getKey(); }     
     virtual EmTagValue getValue() const {
@@ -175,6 +201,16 @@ public:
 
     virtual bool setValue(const EmTagValue& value) override {
         return EmStorageValue<EmTagValue, tStorage>::setValue(value);
+    }
+
+    template<typename T>
+    T as() const {
+        T value;
+        EmTagValue tagVal;
+        if (getValue(tagVal) != EmGetValueResult::failed) {
+            return tagVal.as<T>();
+        }
+        return T();
     }
 };
 
@@ -201,6 +237,16 @@ public:
 
     virtual bool setValue(const EmTagValue& value) override {
         return EmStorageValueEx<EmTagValue, tStorage>::setValue(value);
+    }
+
+    template<typename T>
+    T as() const {
+        T value;
+        EmTagValue tagVal;
+        if (getValue(tagVal) != EmGetValueResult::failed) {
+            return tagVal.as<T>();
+        }
+        return T();
     }
 };
 

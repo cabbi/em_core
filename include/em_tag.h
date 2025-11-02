@@ -2,6 +2,7 @@
 #define _EM_TAG_H_
 
 #include <WString.h>
+#include <type_traits>
 
 #include "em_list.h"
 #include "em_string.h"
@@ -31,8 +32,57 @@ union EmTagValueUnion {
     EmEpochType as_epoch;
     EmRealType as_real;
     EmStringType* as_string;
-};
 
+    template<typename T>
+    typename std::enable_if<!std::is_pointer<T>::value, T>::type as() const {
+        return AsHelper<T>::get(*this);
+    }        
+    
+    template<typename T>
+    typename std::enable_if<std::is_pointer<T>::value, T>::type as() const {
+        typedef typename std::remove_pointer<T>::type P;
+        return AsHelper<P*>::get(*this);
+    }
+
+    template<typename T>
+    operator T() const {
+        return static_cast<T>(AsHelper<T>::get(*this));
+    }
+
+    template<typename T>
+    operator T*() const {
+        return static_cast<T*>(AsHelper<T*>::get(*this));
+    }
+
+private:
+    // C++11 helper for as() to generate a compile-time error for unsupported types.
+    template<typename T, typename V = void>
+    struct AsHelper {
+        static_assert(std::is_same<T, void>::value && !std::is_same<T, void>::value,
+                      "Unsupported type in EmTagValueUnion::as<T>()");
+    };
+
+    // Specializations for supported types
+    template<typename T> struct AsHelper<T, typename std::enable_if<std::is_same<T, bool>::value>::type> {
+        static T get(const EmTagValueUnion& u) { return u.as_bool; } 
+    };
+    template<typename T> struct AsHelper<T, typename std::enable_if<std::is_integral<T>::value && !std::is_same<T, bool>::value && sizeof(T) <= sizeof(EmIntegerType)>::type> {
+        static T get(const EmTagValueUnion& u) { return static_cast<T>(u.as_integer); } 
+    };
+    template<typename T> struct AsHelper<T, typename std::enable_if<std::is_floating_point<T>::value>::type> {
+        static T get(const EmTagValueUnion& u) { return static_cast<T>(u.as_real); } 
+    };
+    template<typename T> struct AsHelper<T, typename std::enable_if<std::is_same<T, EmEpochType>::value>::type> {
+        static T get(const EmTagValueUnion& u) { return u.as_epoch; } 
+    };
+    // Specializations for pointer types
+    template<typename T> struct AsHelper<T*, typename std::enable_if<std::is_same<T, EmStringType>::value>::type> {
+        static T* get(const EmTagValueUnion& u) { return u.as_string; } 
+    };
+    template<typename T> struct AsHelper<T*, typename std::enable_if<std::is_same<T, const char>::value>::type> {
+        static T* get(const EmTagValueUnion& u) { return u.as_string ? u.as_string->c_str() : nullptr; } 
+    };
+};
 
 // The tag value bytes structure used to read and write an EmTagValue object in case 'EmTagValue' 
 // will have virtual functions in the future.
@@ -43,6 +93,16 @@ struct EmTagValueStruct {
     EmTagValueStruct(EmTagValueType type, 
                      EmTagValueUnion value = {0})
      : m_type(type), m_value(value) {}
+
+    template<typename T>
+    bool operator ==(const T& other) const {
+        return this->m_value.as<T>() == other;
+    }
+
+    template<typename P>
+    bool operator ==(const P* other) const {
+        return this->m_value.as<P*>() == other;
+    }
 
     bool operator ==(const EmTagValueStruct& other) const {
         if (m_type != other.m_type) {
@@ -96,6 +156,13 @@ struct EmTagValueStruct {
         return !(*this > other);
     }
 
+    const EmTagValueType& getType() const {
+        return m_type;
+    }
+    const EmTagValueUnion& getValue() const {
+        return m_value;
+    }
+
     EmTagValueType m_type;
     EmTagValueUnion m_value;
 };
@@ -139,7 +206,7 @@ public:
     }   
 
     bool isSameType(const EmTagValue& other) const {
-        return m_type == other.m_type;
+        return m_type == other.getType();
     }
 
     EmBoolType asBool() const {
@@ -179,30 +246,40 @@ public:
     }
 
     bool operator ==(const EmTagValue& other) const {
-        return EmTagValueStruct::operator==(other);
+        return EmTagValueStruct::operator==(static_cast<const EmTagValueStruct&>(other));
     }
 
     bool operator !=(const EmTagValue& other) const {
-        return EmTagValueStruct::operator!=(other);
+        return EmTagValueStruct::operator!=(static_cast<const EmTagValueStruct&>(other));
     }
 
     bool operator >(const EmTagValue& other) const {
-        return EmTagValueStruct::operator>(other);
+        return EmTagValueStruct::operator>(static_cast<const EmTagValueStruct&>(other));
     }
 
     bool operator >=(const EmTagValue& other) const {
-        return EmTagValueStruct::operator>=(other);
+        return EmTagValueStruct::operator>=(static_cast<const EmTagValueStruct&>(other));
     }
 
     bool operator <(const EmTagValue& other) const {
-        return EmTagValueStruct::operator<(other);
+        return EmTagValueStruct::operator<(static_cast<const EmTagValueStruct&>(other));
     }
 
     bool operator <=(const EmTagValue& other) const {
-        return EmTagValueStruct::operator<=(other);
+        return EmTagValueStruct::operator<=(static_cast<const EmTagValueStruct&>(other));
     }
 
-    EmTagValueType getType() const { return m_type; }
+    EmTagValueType getType() const { 
+        return m_type; 
+    }
+
+    bool isType(EmTagValueType type) const { 
+        return m_type == type; 
+    }
+
+    bool isNotType(EmTagValueType type) const { 
+        return m_type != type; 
+    }
 
     void toStruct(EmTagValueStruct& out) const {
         out.m_type = m_type;
@@ -293,6 +370,11 @@ public:
         // Set new value
         value.fromStruct(*this);
         return EmGetValueResult::succeedNotEqualValue;        
+    }
+
+    template<typename T>
+    T as() const {
+        return static_cast<T>(m_value);
     }
 
     bool setValue(bool value, bool forceType) {
@@ -396,7 +478,7 @@ protected:
 };
 
 // A tag definition that provides synchronizable value identified by a string.
-class EmTagBase: public EmSyncValue<EmValue<EmTagValue>, EmTagValue> {
+class EmTagBase: public virtual EmSyncValue<EmValue<EmTagValue>, EmTagValue> {
 public:
     EmTagBase(EmSyncFlags flags)
      : EmSyncValue<EmValue<EmTagValue>, EmTagValue>(flags) {}
