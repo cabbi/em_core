@@ -58,7 +58,11 @@ public:
     bool isRunning() const {
         return !m_runningInterfaces.isEmpty();
     }
-    
+
+    EmAppInterfaces& interfaces() {
+        return m_appInterfaces;
+    }
+
 protected:
     virtual void setup_();
     virtual void loop_();

@@ -12,7 +12,6 @@
     "maintainer": true
   },
     "dependencies": {
-    "SoftwareSerial": "*"
   },
   "license": "BSD-3-Clause",
   "frameworks": ["arduino"],

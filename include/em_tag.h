@@ -478,7 +478,9 @@ protected:
 };
 
 // A tag definition that provides synchronizable value identified by a string.
-class EmTagBase: public virtual EmSyncValue<EmValue<EmTagValue>, EmTagValue> {
+// Tags are synchable and updatable. Sync and Update is called from a tag list on its update. 
+class EmTagBase: public virtual EmSyncValue<EmValue<EmTagValue>, EmTagValue>, 
+                 public virtual EmUpdatable {
 public:
     EmTagBase(EmSyncFlags flags)
      : EmSyncValue<EmValue<EmTagValue>, EmTagValue>(flags) {}
@@ -490,6 +492,11 @@ public:
     // 'EmValue' interface to be implemented by derived classes
     virtual EmGetValueResult getValue(EmTagValue& value) const = 0;
     virtual bool setValue(const EmTagValue& value) = 0;
+
+    virtual void update() override {
+        // Default update doing nothing.
+        // This method is called by EmTagList::update.
+    }
 
     // Base operators
     virtual bool operator==(const EmTagBase& other) const {
@@ -546,7 +553,7 @@ public:
     }
 };
 
-// A simple EmTag iterface implementation.
+// A tag implementation. 
 class EmTag: public EmTagBase {
 protected:
     const char* m_id;
@@ -618,7 +625,7 @@ public:
 };
 
 // A group of tags with the same ID that are synchronized together.
-class EmTagSyncGroupBase {
+class EmTagSyncGroupBase: public EmUpdatable {
     public: 
     virtual const char* getId() const = 0; 
 
@@ -633,6 +640,8 @@ public:
     virtual const char* getId() const override {
         return m_id;
     } 
+
+    virtual void update() override {} // Nothing to do in a search group
 
 protected:
     const char* m_id; 
@@ -656,11 +665,19 @@ public:
         return new EmListIterator<EmTagBase>(m_tagList);
     }
 
-    void add(EmTagBase& tag) {
+    virtual void update() override {
+        EmListIterator<EmTagBase> iter(m_tagList);
+        EmTagBase* pItem = nullptr;
+        while (iter.next(pItem)) {
+            pItem->update();
+        }
+    }
+
+    virtual void add(EmTagBase& tag) {
         m_tagList.appendUnowned(tag);
     }
 
-    size_t count() const {
+    virtual size_t count() const {
         return m_tagList.count();
     } 
 };
@@ -674,10 +691,12 @@ public:
     virtual ~EmTags() = default;
 
     virtual void update() override {
+        // Do the groups synch and update
         EmListIterator<EmTagSyncGroupBase> iter(m_groups);
         EmTagSyncGroupBase* pItem = nullptr;
         while (iter.next(pItem)) {
             static_cast<EmTagSyncGroup*>(pItem)->doSync();
+            pItem->update();
         }
     }
 

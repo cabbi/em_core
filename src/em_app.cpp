@@ -4,7 +4,8 @@
 void EmApp::setup_() {
     m_runningInterfaces.set(m_appInterfaces, false);
     beforeInterfacesSetup();
-    loop();  // This will call the 'setup' method of each interface
+    loop();  // This will call the 'setup' method of each interface until
+             // interface returns tro to 'isInitialized' method
     afterInterfacesSetup();
 }
 

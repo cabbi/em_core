@@ -10,13 +10,22 @@
     #define EM_STD_LIB  // Use of standard library (AVR arduinos does not have it!)
     #define EM_WIFI
     #define EM_BLE
-    //#define EM_MULTICORE
+    #define EM_MULTICORE  // TODO: some ESP32 MPUs do not have multicore!
     #define EM_MULTITHREAD
     #define EM_NVS
     #define EM_TIME
     #define EM_CORES_COUNT 2
+
+    enum class EmCoreId: uint8_t {
+        core0 = 0, 
+        core1 = 1
+    };
+
 #else
     #define EM_CORES_COUNT 1
+    enum class EmCoreId: uint8_t {
+        core0 = 0, 
+    };
 #endif
 
 #if defined(AVR)

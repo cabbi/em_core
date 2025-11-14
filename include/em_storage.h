@@ -188,6 +188,13 @@ public:
      : EmTagBase(flags),
        EmStorageValue<EmTagValue, tStorage>(key) {}
 
+    EmStorageTag(const char* key, 
+                 EmSyncFlags flags,
+                 EmTags& tags)
+     : EmStorageTag(key, flags) {
+        tags.add(*this);
+     }
+
     virtual const char* getId() const override { return this->getKey(); }     
     virtual EmTagValue getValue() const {
         EmTagValue val;

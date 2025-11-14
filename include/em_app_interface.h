@@ -6,6 +6,7 @@
 #include "em_defs.h"
 #include "em_log.h"
 #include "em_list.h"
+#include "em_task.h"
 #include "em_threading.h"
 #include "em_duration.h"
 #include "em_timeout.h"
@@ -36,20 +37,30 @@ enum class EmIntOperationResult: int8_t {
 // This is the base interface class.
 //
 // Each interface should implement 'name', 'setup' & 'loop' methods. 
-// Override 'dispose' In case your application might restart (i.e. any interface returning 'EmIntOperationResult::restartApp')
+// Consider overriding 'onStop' in case your application might restart
+// since interfaces can request 'EmIntOperationResult::restartApp'.
 class EmAppInterface: public EmLog {
     friend class EmApp;
 public:
     EmAppInterface(const EmDuration& blockedTimeout = EmDuration(0, 1, 0), 
-                   const char* logContext = "AppInt",
+                   const char* logContext=nullptr,
+                   EmLogLevel logLevel=EmLogLevel::global) : 
+        EmAppInterface(nullptr, blockedTimeout, logContext, logLevel) {}
+
+    EmAppInterface(EmList<EmAppInterface>* interfaces,
+                   const EmDuration& blockedTimeout = EmDuration(0, 1, 0), 
+                   const char* logContext=nullptr,
                    EmLogLevel logLevel=EmLogLevel::global)
-     : EmLog(logContext, logLevel),
+     : EmLog(logContext ? logContext : "AppInt", logLevel),
        m_interfaceStatus(EmInterfaceStatusFlag::none),
        m_blockedTimeout(blockedTimeout) { 
+        if (interfaces != nullptr) {
+            interfaces->appendUnowned(*this);
+        }   
         clear_();
     }
     
-    virtual ~EmAppInterface() = default;
+    virtual ~EmAppInterface() {}
 
     static bool match(const EmAppInterface& int1, const EmAppInterface& int2) {
         return 0==strcmp(int1.name(), int2.name());
@@ -109,10 +120,68 @@ protected:
     char m_errorMsg[MAX_INTERFACE_MSG_LEN+1];
 };
 
+// The interfaces list class
 class EmAppInterfaces: public EmList<EmAppInterface> {
 public:
     EmAppInterfaces() : EmList<EmAppInterface>(&EmAppInterface::match) {}
 };
+
+#if defined(EM_MULTITHREAD) 
+// This interface runs in its own task/thread and can contain more interfaces running within the same task. 
+class EmAppTaskInterfaces: public EmAppInterface, 
+                           public EmAppInterfaces {
+public:
+    EmAppTaskInterfaces(const char* name,
+                        EmCoreId coreId = EmCoreId::core1,
+                        const EmDuration& blockedTimeout = EmDuration(0, 1, 0), 
+                        const char* logContext=nullptr,
+                        EmLogLevel logLevel=EmLogLevel::global) : 
+        EmAppTaskInterfaces(name, nullptr, coreId, blockedTimeout, logContext, logLevel) {}
+
+    EmAppTaskInterfaces(const char* name,
+                        EmList<EmAppInterface>* interfaces,
+                        EmCoreId coreId = EmCoreId::core1,
+                        const EmDuration& blockedTimeout = EmDuration(0, 1, 0), 
+                        const char* logContext=nullptr,
+                        EmLogLevel logLevel=EmLogLevel::global) : 
+       EmAppInterface(interfaces, blockedTimeout, logContext ? logContext : name, logLevel),
+       EmAppInterfaces(),
+       m_name(name),
+       m_task(this, EmAppTaskInterfaces::loop_) {
+
+    }
+
+    // NOTE: these methods should be overridden.
+    // Those are NOT set as pure virtual since EmApp interfaces list requires concrete classes.
+    virtual const char* name() const { return m_name; }
+
+    virtual EmIntOperationResult setup() { 
+        // TODO
+        return EmIntOperationResult::canContinue; 
+    }
+
+    virtual EmIntOperationResult loop() { 
+        // TODO
+        return EmIntOperationResult::stopApp; 
+    }
+
+    // Called if interface needs to stop for one of the following reasons
+    // 'EmIntOperationResult::stopInterface', 'EmIntOperationResult::restartApp' or 'EmIntOperationResult::stopApp'
+    virtual void onStop(EmIntOperationResult /*reason*/) { 
+        // Do some cleanup if needed
+    }
+
+protected:
+    static EmTaskFuncRes loop_(EmAppTaskInterfaces* self) {
+        // TODO
+        return EmTaskFuncRes::shouldContinue;
+    }
+
+    const char* m_name;
+    EmTask<EmAppTaskInterfaces> m_task;
+};
+
+#endif
 
 // This interface has a loop call timeout, app will call the 'loop' 
 // method each time timeout elapses
@@ -121,9 +190,17 @@ public:
     EmAppTimeoutInterface(EmDuration loopTimeout, 
                           bool startAsElapsed=true,
                           EmDuration blockedTimeout = EmDuration(0, 1, 0),
-                          const char* logContext = "AppInt",
+                          const char* logContext=nullptr,
+                          EmLogLevel logLevel=EmLogLevel::global) :
+        EmAppTimeoutInterface(loopTimeout, nullptr, startAsElapsed, blockedTimeout, logContext, logLevel) {}
+
+    EmAppTimeoutInterface(EmDuration loopTimeout, 
+                          EmList<EmAppInterface>* interfaces,
+                          bool startAsElapsed=true,
+                          EmDuration blockedTimeout = EmDuration(0, 1, 0),
+                          const char* logContext=nullptr,
                           EmLogLevel logLevel=EmLogLevel::global) 
-     : EmAppInterface(blockedTimeout, logContext, logLevel), 
+     : EmAppInterface(interfaces, blockedTimeout, logContext, logLevel), 
        m_LoopTimeout(loopTimeout, startAsElapsed) {}
 
     virtual bool canCallLoop() { return m_LoopTimeout.isElapsed(true); }
@@ -137,10 +214,16 @@ template <EmUpdatable* updatableObjects[], uint8_t size>
 class EmAppUpdaterInterface: public EmAppInterface, 
                              public EmUpdater<updatableObjects, size> {
 public:
-    EmAppUpdaterInterface(uint32_t runningTimeoutMs = 60000, 
-                          EmLogLevel logLevel=EmLogLevel::none) 
-     : EmAppInterface(runningTimeoutMs, logLevel) {}
+    EmAppUpdaterInterface(const EmDuration& blockedTimeout = EmDuration(0, 1, 0),
+                          const char* logContext=nullptr,
+                          EmLogLevel logLevel=EmLogLevel::none) : 
+        EmAppUpdaterInterface(nullptr, blockedTimeout, logContext, logLevel) {}
 
+    EmAppUpdaterInterface(EmList<EmAppInterface>* interfaces,
+                          const EmDuration& blockedTimeout = EmDuration(0, 1, 0),
+                          const char* logContext=nullptr,
+                          EmLogLevel logLevel=EmLogLevel::none) 
+     : EmAppInterface(interfaces, blockedTimeout, logContext, logLevel) {}
     virtual const char* name() const override {
         return "EmUpdater";
     }
