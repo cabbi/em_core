@@ -152,10 +152,11 @@ public:
 
     // Append an element pointer at the end of the list.
     //
-    // If takeOwnership is true, the list takes ownership of 'item' deleting it when
-    // no longer needed.
-    // If 'takeOwnership' is false, the caller is responsible for freeing 'item' once
-    // it is no longer needed.
+    // If 'takeOwnership' is true, the list takes ownership creating a copy of each 
+    // 'list' item and deleting it when no longer needed.
+    // If 'takeOwnership' is false, the caller is responsible for ensuring that the 
+    // lifetime of 'item' exceeds the lifetime of this list. Use with caution, 
+    // typically for objects with static or global scope.
     void append(T* item, bool takeOwnership) {
         if (item != nullptr) {
             append_(item, takeOwnership);
@@ -186,9 +187,45 @@ public:
         }
     }
 
-    // Sets the list elements to the specified 'list' elements.
+    // Extend this list by appending multiple elements using a variable argument list.
+    // NOTE: last argument MUST be a nullptr.
     //
+    // If 'takeOwnership' is true, the list takes ownership creating a copy of each 
+    // 'list' item and deleting it when no longer needed.
+    // If 'takeOwnership' is false, the caller is responsible for ensuring that the 
+    // lifetime of 'item' exceeds the lifetime of this list. Use with caution, 
+    // typically for objects with static or global scope.
+    void extend(bool takeOwnership, T* item, ...) {
+        va_list args;
+        va_start(args, item);
+        extend(takeOwnership, item, args);
+        va_end(args);
+    }
+
+    // Extend this list by appending multiple elements using a variable argument list.
+    // NOTE: last argument MUST be a nullptr.
+    //
+    // If 'takeOwnership' is true, the list takes ownership creating a copy of each 
+    // 'list' item and deleting it when no longer needed.
+    // If 'takeOwnership' is false, the caller is responsible for ensuring that the 
+    // lifetime of 'item' exceeds the lifetime of this list. Use with caution, 
+    // typically for objects with static or global scope.
+    void extend(bool takeOwnership, T* item, va_list args) {
+        append_(item, takeOwnership);
+        T* nextItem = nullptr;
+        while ((nextItem = va_arg(args, T*)) != nullptr) {
+            append_(nextItem, takeOwnership);
+        }
+    }
+
+    // Sets the list elements to the specified 'list' elements.
     // This is same as calling 'clear' and 'extend'
+    //
+    // If 'takeOwnership' is true, the list takes ownership creating a copy of each 
+    // 'list' item and deleting it when no longer needed.
+    // If 'takeOwnership' is false, the caller is responsible for ensuring that the 
+    // lifetime of 'item' exceeds the lifetime of this list. Use with caution, 
+    // typically for objects with static or global scope.
     void set(EmList<T>& list, bool takeOwnership) {
         clear();
         extend(list, takeOwnership);

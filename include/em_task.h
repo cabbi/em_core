@@ -6,9 +6,9 @@
 #include "em_threading.h"
 
 enum class EmTaskFuncRes: uint8_t {
-    shouldContinue = 0, 
-    shouldPause,
-    shouldKill
+    continueTask = 0, 
+    pauseTask,
+    killTask
 };
 
 template <typename TParam>
@@ -92,10 +92,10 @@ protected:
                 if (pThis->isRunning()) {
                     // Perform user task 
                     EmTaskFuncRes res = pThis->m_taskFunction(pThis->m_pParam);
-                    if (res == EmTaskFuncRes::shouldPause) {
+                    if (res == EmTaskFuncRes::pauseTask) {
                         pThis->pause();
                     }
-                    if (res == EmTaskFuncRes::shouldKill) {
+                    if (res == EmTaskFuncRes::killTask) {
                         pThis->kill();
                     }
                 } else {

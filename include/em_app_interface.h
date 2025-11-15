@@ -6,7 +6,6 @@
 #include "em_defs.h"
 #include "em_log.h"
 #include "em_list.h"
-#include "em_task.h"
 #include "em_threading.h"
 #include "em_duration.h"
 #include "em_timeout.h"
@@ -125,63 +124,6 @@ class EmAppInterfaces: public EmList<EmAppInterface> {
 public:
     EmAppInterfaces() : EmList<EmAppInterface>(&EmAppInterface::match) {}
 };
-
-#if defined(EM_MULTITHREAD) 
-// This interface runs in its own task/thread and can contain more interfaces running within the same task. 
-class EmAppTaskInterfaces: public EmAppInterface, 
-                           public EmAppInterfaces {
-public:
-    EmAppTaskInterfaces(const char* name,
-                        EmCoreId coreId = EmCoreId::core1,
-                        const EmDuration& blockedTimeout = EmDuration(0, 1, 0), 
-                        const char* logContext=nullptr,
-                        EmLogLevel logLevel=EmLogLevel::global) : 
-        EmAppTaskInterfaces(name, nullptr, coreId, blockedTimeout, logContext, logLevel) {}
-
-    EmAppTaskInterfaces(const char* name,
-                        EmList<EmAppInterface>* interfaces,
-                        EmCoreId coreId = EmCoreId::core1,
-                        const EmDuration& blockedTimeout = EmDuration(0, 1, 0), 
-                        const char* logContext=nullptr,
-                        EmLogLevel logLevel=EmLogLevel::global) : 
-       EmAppInterface(interfaces, blockedTimeout, logContext ? logContext : name, logLevel),
-       EmAppInterfaces(),
-       m_name(name),
-       m_task(this, EmAppTaskInterfaces::loop_) {
-
-    }
-
-    // NOTE: these methods should be overridden.
-    // Those are NOT set as pure virtual since EmApp interfaces list requires concrete classes.
-    virtual const char* name() const { return m_name; }
-
-    virtual EmIntOperationResult setup() { 
-        // TODO
-        return EmIntOperationResult::canContinue; 
-    }
-
-    virtual EmIntOperationResult loop() { 
-        // TODO
-        return EmIntOperationResult::stopApp; 
-    }
-
-    // Called if interface needs to stop for one of the following reasons
-    // 'EmIntOperationResult::stopInterface', 'EmIntOperationResult::restartApp' or 'EmIntOperationResult::stopApp'
-    virtual void onStop(EmIntOperationResult /*reason*/) { 
-        // Do some cleanup if needed
-    }
-
-protected:
-    static EmTaskFuncRes loop_(EmAppTaskInterfaces* self) {
-        // TODO
-        return EmTaskFuncRes::shouldContinue;
-    }
-
-    const char* m_name;
-    EmTask<EmAppTaskInterfaces> m_task;
-};
-
-#endif
 
 // This interface has a loop call timeout, app will call the 'loop' 
 // method each time timeout elapses

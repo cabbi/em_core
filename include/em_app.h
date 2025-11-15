@@ -29,6 +29,15 @@ public:
         m_appInterfaces.appendUnowned(interface);
     }
 
+    // Add multiple interfaces to the application using a variable argument list. 
+    // NOTE: last argument MUST be a nullptr.
+    void addInterfaces(EmAppInterface* interface, ...) {
+        va_list args;
+        va_start(args, interface);
+        m_appInterfaces.extend(false, interface, args);
+        va_end(args);
+    }
+
     virtual void setup() { setup_(); }
     virtual void loop() { loop_(); }
 
