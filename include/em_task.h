@@ -5,12 +5,14 @@
 #include <task.h>
 #include "em_threading.h"
 
+// Possible return codes from the task function
 enum class EmTaskFuncRes: uint8_t {
-    continueTask = 0, 
-    pauseTask,
-    killTask
+    continueTask = 0,  // Task continue normal execution
+    pauseTask,         // Task to be paused
+    killTask           // Task to be killed
 };
 
+// Type definition for the task function
 template <typename TParam>
 using TaskFunctionType = EmTaskFuncRes (*)(TParam*);
 
@@ -24,7 +26,7 @@ using TaskFunctionType = EmTaskFuncRes (*)(TParam*);
 // - Pausing the task will not suspend it, it will only pause the execution of the task function.
 //   This ensures task function is always executed till the end and not suspended in the middle.
 // - Paused task will still consume some CPU resources due to the delay in the task loop.
-
+// - A killed task cannot be resumed!
 template <typename TParam>
 class EmTask {
 public:
@@ -35,13 +37,13 @@ public:
            uint8_t priority=1,
            const char* taskName="EmTask") :
         m_pParam(pParam),
+        m_handleMutex(),
         m_taskHandle(nullptr),
-        m_taskFunction(taskFunction),
         m_isRunning(false) {
-        BaseType_t res = xTaskCreatePinnedToCore(EmTask::taskLoop,
+        BaseType_t res = xTaskCreatePinnedToCore(EmTask::taskLoop_,
                                                  taskName,
                                                  stackSize,
-                                                 pParam,
+                                                 this,
                                                  static_cast<UBaseType_t>(priority),
                                                  &m_taskHandle,
                                                  static_cast<BaseType_t>(coreId));
@@ -50,26 +52,35 @@ public:
         }                                                    
     }
     
-    void start() {
+    bool start() {
+        if (isKilled()) {
+            return false;
+        }
         m_isRunning = true;
+        return true;
     }
 
-    void pause() {
+    bool pause() {
+        if (isKilled()) {
+            return false;
+        }
         m_isRunning = false;
+        return true;
     }
 
     bool kill() {
         // TODO: add a timeout to try to pause it and the kill the task
         if (isNotKilled()) {
-            vTaskDelete(m_taskHandle);
-            m_taskHandle = nullptr;
+            vTaskDelete(getTaskHandle_());
+            setTaskHandle_(nullptr);
+            m_isRunning = false;
             return true;
         }
         return false;
     }
 
     bool isRunning() const {
-        return isNotKilled() && m_isRunning;
+        return m_isRunning;
     }
 
     bool isNotRunning() const {
@@ -77,7 +88,7 @@ public:
     }
 
     bool isKilled() const {
-        return m_taskHandle == nullptr;
+        return getTaskHandle_() == nullptr;
     }
 
     bool isNotKilled() const {
@@ -85,7 +96,24 @@ public:
     }
 
 protected:
-    static void taskLoop(void* taskParam) {
+    TaskHandle_t getTaskHandle_() const {
+        EmMutexLock lock(m_handleMutex);
+        return m_taskHandle;
+    }
+
+    void setTaskHandle_(TaskHandle_t handle) {
+        EmMutexLock lock(m_handleMutex);
+        m_taskHandle = handle;
+    }   
+
+    void killInternal_() {
+        // NOTE: killing from within the task loop will get stuck if using vTaskDelete(m_taskHandle);
+        setTaskHandle_(nullptr);
+        vTaskDelete(nullptr);
+        m_isRunning = false;
+    }
+
+    static void taskLoop_(void* taskParam) {
         EmTask* pThis = static_cast<EmTask*>(taskParam);
         if (pThis != nullptr && pThis->m_taskFunction != nullptr) {
             while (true) {
@@ -96,10 +124,10 @@ protected:
                         pThis->pause();
                     }
                     if (res == EmTaskFuncRes::killTask) {
-                        pThis->kill();
+                        pThis->killInternal_();
                     }
                 } else {
-                    // Relax the stopped task
+                    // Relax the paused task
                     vTaskDelay(10 / portTICK_PERIOD_MS);
                 }
             }
@@ -108,8 +136,9 @@ protected:
 
     // Member vars
     TParam* m_pParam;
-    TaskHandle_t m_taskHandle;
     TaskFunctionType<TParam> m_taskFunction;
+    mutable EmMutex m_handleMutex;
+    TaskHandle_t m_taskHandle;
     ts_bool m_isRunning;
 };
 
