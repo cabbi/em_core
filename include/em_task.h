@@ -30,7 +30,7 @@ class EmTask {
 public:
     EmTask(TParam* pParam, 
            TaskFunctionType<TParam> taskFunction,
-           EmCoreId coreId=EmCoreId::core0,
+           EmCoreId coreId=EmCoreId::coreUserTask,
            uint16_t stackSize=8192,
            uint8_t priority=1,
            const char* taskName="EmTask") :

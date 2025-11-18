@@ -10,25 +10,32 @@
 
 // This interface runs in its own task/thread.
 //
-// Assign your own interface and 'EmAppTaskInterface' instance to your application interfaces list.
+// Assign your own interface and 'EmAppTaskInterface' instance to your 
+// application interfaces list.
+// By setting 'runSetupOnTask' to true, the owned interface 'setup' 
+// method will be called within the task context. 
 class EmAppTaskInterface: public EmAppInterface {
 public:
     EmAppTaskInterface(EmAppInterface& taskInterface,
-                       EmCoreId coreId = EmCoreId::core1,
+                       bool runSetupOnTask,
+                       EmCoreId coreId = EmCoreId::coreUserTask,
                        const EmDuration& blockedTimeout = EmDuration(0, 1, 0), 
                        const char* logContext=nullptr,
                        EmLogLevel logLevel=EmLogLevel::global) : 
-        EmAppTaskInterface(taskInterface, nullptr, coreId, blockedTimeout, logContext, logLevel) {}
+        EmAppTaskInterface(taskInterface, runSetupOnTask, nullptr, 
+                           coreId, blockedTimeout, logContext, logLevel) {}
 
     EmAppTaskInterface(EmAppInterface& taskInterface,
-                       EmList<EmAppInterface>* interfaces,
-                       EmCoreId coreId = EmCoreId::core1,
+                       bool runSetupOnTask,  
+                       EmList<EmAppInterface>* appInterfaces,
+                       EmCoreId coreId = EmCoreId::coreUserTask,
                        const EmDuration& blockedTimeout = EmDuration(0, 1, 0), 
                        const char* logContext=nullptr,
                        EmLogLevel logLevel=EmLogLevel::global) : 
-       EmAppInterface(interfaces, blockedTimeout, logContext ? logContext : taskInterface.name(), logLevel),
+       EmAppInterface(appInterfaces, blockedTimeout, logContext ? logContext : taskInterface.name(), logLevel),
        m_task(this, EmAppTaskInterface::loop_),
        m_taskInterface(taskInterface),
+       m_runSetupOnTask(runSetupOnTask),
        m_taskOperationResult(EmIntOperationResult::canContinue) {
 
     }
@@ -41,9 +48,16 @@ public:
         return m_taskInterface.name(); 
     }
 
-    // Setup of all task interfaces is done on the application task.
-    virtual EmIntOperationResult setup() { 
-        return m_taskInterface.setup(); 
+    // Setup teh task interfaces
+    virtual EmIntOperationResult setup() {
+        m_task.start();
+        if (m_runSetupOnTask) {
+            // Setup will be done on the task context
+            return m_taskOperationResult;
+        } else {
+            // Setup on the application context
+            return m_taskInterface.setup();
+        } 
     }
 
     // Real loop of each task interface is performed in the task.
@@ -60,7 +74,13 @@ public:
 
 protected:
     static EmTaskFuncRes loop_(EmAppTaskInterface* self) {
-        EmIntOperationResult opRes = self->m_taskInterface.loop();
+        EmIntOperationResult opRes;
+        if (self->m_runSetupOnTask && 
+            !self->m_taskInterface.isInitialized()) {
+            opRes = self->m_taskInterface.setup();
+        } else {
+            opRes = self->m_taskInterface.loop();
+        }
         self->m_taskOperationResult = opRes;
         return opRes == EmIntOperationResult::canContinue ? 
                         EmTaskFuncRes::continueTask : EmTaskFuncRes::pauseTask;
@@ -68,34 +88,57 @@ protected:
 
     // Member vars
     EmTask<EmAppTaskInterface> m_task;
+    const bool m_runSetupOnTask;
     EmAppInterface& m_taskInterface;
     std::atomic<EmIntOperationResult> m_taskOperationResult;
 };
 
 // This interface runs in its own task/thread and can contain more interfaces running within the same task. 
 //
-// Assign your own interfaces and 'EmAppTaskInterfaces' instance to your application interfaces list.
+// Assign your own interfaces and 'EmAppTaskInterface' instance to your 
+// application interfaces list.
+// By setting 'runSetupOnTask' to true, the owned interface 'setup' 
+// method will be called within the task context. 
 class EmAppTaskInterfaces: public EmAppInterface, 
                            public EmAppInterfaces {
 public:
     EmAppTaskInterfaces(const char* name,
-                        EmCoreId coreId = EmCoreId::core1,
+                        bool runSetupOnTask = false,
+                        EmCoreId coreId = EmCoreId::coreUserTask,
                         const EmDuration& blockedTimeout = EmDuration(0, 1, 0), 
                         const char* logContext=nullptr,
                         EmLogLevel logLevel=EmLogLevel::global) : 
-        EmAppTaskInterfaces(name, nullptr, coreId, blockedTimeout, logContext, logLevel) {}
+        EmAppTaskInterfaces(name, runSetupOnTask, nullptr, coreId, blockedTimeout, logContext, logLevel) {}
 
     EmAppTaskInterfaces(const char* name,
-                        EmList<EmAppInterface>* interfaces,
-                        EmCoreId coreId = EmCoreId::core1,
+                        bool runSetupOnTask,
+                        EmList<EmAppInterface>* appInterfaces,
+                        EmCoreId coreId = EmCoreId::coreUserTask,
                         const EmDuration& blockedTimeout = EmDuration(0, 1, 0), 
                         const char* logContext=nullptr,
                         EmLogLevel logLevel=EmLogLevel::global) : 
-       EmAppInterface(interfaces, blockedTimeout, logContext ? logContext : name, logLevel),
-       EmAppInterfaces(),
-       m_name(name),
-       m_task(this, EmAppTaskInterfaces::loop_),
-       m_taskOperationResult(EmIntOperationResult::canContinue) {
+        EmAppTaskInterfaces(name, runSetupOnTask, appInterfaces, 
+                            coreId, 8192, 1, blockedTimeout, logContext, logLevel) {}
+
+    EmAppTaskInterfaces(const char* name,
+                        bool runSetupOnTask,
+                        EmList<EmAppInterface>* appInterfaces,
+                        EmCoreId taskCoreId,
+                        uint16_t taskStackSize,
+                        uint8_t taskPriority,
+                        const EmDuration& blockedTimeout = EmDuration(0, 1, 0), 
+                        const char* logContext=nullptr,
+                        EmLogLevel logLevel=EmLogLevel::global) : 
+        EmAppInterface(appInterfaces, blockedTimeout, logContext ? logContext : name, logLevel),
+        EmAppInterfaces(),
+        m_name(name),
+        m_task(this, EmAppTaskInterfaces::loop_, 
+               taskCoreId,
+               taskStackSize,
+               taskPriority,
+               name),
+        m_runSetupOnTask(runSetupOnTask),
+        m_taskOperationResult(EmIntOperationResult::canContinue) {
 
     }
 
@@ -121,23 +164,16 @@ public:
 
     virtual const char* name() const { return m_name; }
 
-    // Setup of all task interfaces is done on the application task.
-    virtual EmIntOperationResult setup() { 
-        // Set all task interfaces as running 
-        m_runningInterfaces.set(m_taskInterfaces, false);
-        EmIntOperationResult opRes = EmIntOperationResult::canContinue;
-        // Setup each task interface
-        m_runningInterfaces.forEach<EmIntOperationResult>(
-            [](EmAppInterface& interface, bool, bool, EmIntOperationResult* pOpRes) -> EmIterResult {
-                *pOpRes = interface.setup();
-                if (*pOpRes == EmIntOperationResult::stopInterface) {
-                    return EmIterResult::removeMoveNext;
-                } else if (*pOpRes != EmIntOperationResult::canContinue) {
-                    return EmIterResult::stopSucceed;
-                }
-                return EmIterResult::moveNext;
-            }, &opRes);
-        return opRes; 
+    virtual EmIntOperationResult setup() {
+        m_task.start();
+        if (m_runSetupOnTask) {
+            // Setup will be done on the task context
+            return m_taskOperationResult;
+        } else {
+            // Setup by calling the task loop function the first time
+            loop_(this);
+            return m_taskOperationResult;
+        } 
     }
 
     // Real loop of each task interface is performed in the task.
@@ -163,7 +199,11 @@ protected:
         // Loop each running task interface
         self->m_runningInterfaces.forEach<EmIntOperationResult>(
             [](EmAppInterface& interface, bool, bool, EmIntOperationResult* pOpRes) -> EmIterResult {
-                *pOpRes = interface.loop();
+                if (!interface.isInitialized()) {
+                    *pOpRes = interface.setup();
+                } else {
+                    *pOpRes = interface.loop();
+                }
                 if (*pOpRes == EmIntOperationResult::stopInterface) {
                     return EmIterResult::removeMoveNext;
                 } else if (*pOpRes != EmIntOperationResult::canContinue) {
@@ -179,6 +219,7 @@ protected:
     // Member vars
     const char* m_name;
     EmTask<EmAppTaskInterfaces> m_task;
+    bool m_runSetupOnTask;
     EmAppInterfaces m_taskInterfaces;
     EmAppInterfaces m_runningInterfaces;
     std::atomic<EmIntOperationResult> m_taskOperationResult;

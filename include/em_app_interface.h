@@ -46,15 +46,15 @@ public:
                    EmLogLevel logLevel=EmLogLevel::global) : 
         EmAppInterface(nullptr, blockedTimeout, logContext, logLevel) {}
 
-    EmAppInterface(EmList<EmAppInterface>* interfaces,
+    EmAppInterface(EmList<EmAppInterface>* appInterfaces,
                    const EmDuration& blockedTimeout = EmDuration(0, 1, 0), 
                    const char* logContext=nullptr,
                    EmLogLevel logLevel=EmLogLevel::global)
      : EmLog(logContext ? logContext : "AppInt", logLevel),
        m_interfaceStatus(EmInterfaceStatusFlag::none),
        m_blockedTimeout(blockedTimeout) { 
-        if (interfaces != nullptr) {
-            interfaces->appendUnowned(*this);
+        if (appInterfaces != nullptr) {
+            appInterfaces->appendUnowned(*this);
         }   
         clear_();
     }

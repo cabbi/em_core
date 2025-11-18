@@ -18,13 +18,18 @@
 
     enum class EmCoreId: uint8_t {
         core0 = 0, 
-        core1 = 1
+        core1 = 1,
+        // In general, system tasks are pinned to core 0 and user tasks to core 1
+        coresystemTask = 0,
+        coreUserTask = 1,
     };
 
 #else
     #define EM_CORES_COUNT 1
     enum class EmCoreId: uint8_t {
         core0 = 0, 
+        coresystemTask = 0,
+        coreUserTask = 0,
     };
 #endif
 
