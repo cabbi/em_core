@@ -3,13 +3,24 @@
 #ifdef EM_MULTITHREAD
 #include <FreeRTOS.h>
 #include <task.h>
+#include "em_duration.h"
+#include "em_timeout.h"
 #include "em_threading.h"
 
 // Possible return codes from the task function
 enum class EmTaskFuncRes: uint8_t {
     continueTask = 0,  // Task continue normal execution
-    pauseTask,         // Task to be paused
-    killTask           // Task to be killed
+    pauseTask,         // Task to be paused (i.e. task not deleted)
+    stopTask           // Task to be stopped (i.e. task deleted)
+};
+
+// Task statuses
+enum class EmTaskStatus: uint8_t {
+    running = 0,    // Task is running
+    pausing,        // Task is pausing, waiting to be paused
+    paused,         // Task is paused
+    stopping,       // Task is stopping, waiting to be stopped
+    stopped         // Task is stopped or killed (i.e. no background task)
 };
 
 // Type definition for the task function
@@ -23,10 +34,10 @@ using TaskFunctionType = EmTaskFuncRes (*)(TParam*);
 // 
 // NOTES:
 // ------
-// - Pausing the task will not suspend it, it will only pause the execution of the task function.
-//   This ensures task function is always executed till the end and not suspended in the middle.
+// - Pausing or stopping the task will not suspend or delete the background task, it will wait 
+//   the task function to exit (i.e. function execution not suspended or killed in the middle).
 // - Paused task will still consume some CPU resources due to the delay in the task loop.
-// - A killed task cannot be resumed!
+// - Calling 'kill' will stop execution of the task function immediately.
 template <typename TParam>
 class EmTask {
 public:
@@ -34,100 +45,171 @@ public:
            TaskFunctionType<TParam> taskFunction,
            EmCoreId coreId=EmCoreId::coreUserTask,
            uint16_t stackSize=8192,
-           uint8_t priority=1,
-           const char* taskName="EmTask") :
+           uint8_t priority=1) :
         m_pParam(pParam),
-        m_handleMutex(),
+        m_taskFunction(taskFunction),
+        m_coreId(coreId),
+        m_stackSize(stackSize),
+        m_priority(priority),
         m_taskHandle(nullptr),
-        m_isRunning(false) {
-        BaseType_t res = xTaskCreatePinnedToCore(EmTask::taskLoop_,
-                                                 taskName,
-                                                 stackSize,
-                                                 this,
-                                                 static_cast<UBaseType_t>(priority),
-                                                 &m_taskHandle,
-                                                 static_cast<BaseType_t>(coreId));
-        if (res != pdPASS) {
-            m_taskHandle = nullptr;
-        }                                                    
+        m_status(EmTaskStatus::stopped) {
     }
-    
+
+    // Starts the task if it is not already running.
+    // Returns false if task is not stopped.
     bool start() {
-        if (isKilled()) {
-            return false;
-        }
-        m_isRunning = true;
-        return true;
-    }
-
-    bool pause() {
-        if (isKilled()) {
-            return false;
-        }
-        m_isRunning = false;
-        return true;
-    }
-
-    bool kill() {
-        // TODO: add a timeout to try to pause it and the kill the task
-        if (isNotKilled()) {
-            vTaskDelete(getTaskHandle_());
-            setTaskHandle_(nullptr);
-            m_isRunning = false;
+        // Is task in pause mode?
+        if (status() == EmTaskStatus::paused) {
+            m_status.store(EmTaskStatus::running);
             return true;
         }
-        return false;
+        // We will start a new task so previous task, if any, must be stopped
+        if (status() != EmTaskStatus::stopped) {
+            return false;
+        }
+        TaskHandle_t taskHandle;
+        BaseType_t res = xTaskCreatePinnedToCore(EmTask::taskLoop_,
+                                                 "",
+                                                 m_stackSize,
+                                                 this,
+                                                 static_cast<UBaseType_t>(m_priority),
+                                                 &taskHandle,
+                                                 static_cast<BaseType_t>(m_coreId));
+        if (res == pdPASS) {
+            m_status.store(EmTaskStatus::running);
+            m_taskHandle.store(taskHandle);
+        }     
+        return true;
+    }
+
+    // Triggers the task to be paused and exits immediately.
+    // Returns false if task is not running.
+    bool pause() {
+        if (isNotRunning()) {
+            return false;
+        }
+        m_status.store(EmTaskStatus::pausing);
+        return true;
+    }
+
+    // Waits for the task to be paused up to 'timeoutMs' milliseconds duration.
+    // Returns true if the task is paused, false if task is not running or timeout occurred.
+    bool pause(uint32_t timeoutMs) {
+        return pause(EmDuration(timeoutMs));
+    }
+
+    // Waits for the task to be paused up to 'timeout' duration.
+    // Returns true if the task is paused, false if task is not running or timeout occurred.
+    bool pause(EmDuration timeout) {
+        if (!pause()) {
+            return false;
+        }
+        EmTimeout timeout_(timeout);
+        while (status()==EmTaskStatus::pausing && !timeout_.isElapsed(true)) {
+            delay(1);
+        }        
+        return status() == EmTaskStatus::paused;
+    }
+
+    // Triggers the task to be stopped and exits immediately.
+    // Returns false if task is not running.
+    bool stop() {
+        if (isNotRunning()) {
+            return false;
+        }
+        m_status.store(EmTaskStatus::stopping);
+        return true;
+    }
+
+    // Waits for the task to be stopped up to 'timeoutMs' milliseconds duration.
+    // Returns true if the task is stopped, false if task is not running or timeout occurred.
+    bool stop(uint32_t timeoutMs) {
+        return stop(EmDuration(timeoutMs));
+    }
+
+    // Waits for the task to be stopped up to 'timeout' duration.
+    // Returns true if the task is stopped, false if task is not running or timeout occurred.
+    bool stop(EmDuration timeout) {
+        if (!stop()) {
+            return false;
+        }
+        EmTimeout timeout_(timeout);
+        while (status()==EmTaskStatus::stopping && !timeout_.isElapsed(true)) {
+            delay(1);
+        }        
+        return status() == EmTaskStatus::stopped;
+    }
+
+    // Brutally kills the task immediately. 
+    // Task function execution is stopped immediately.
+    void kill() {
+        TaskHandle_t handle = m_taskHandle.load();
+        if (handle != nullptr) {
+            kill_(handle);
+        }
+    }
+
+    EmTaskStatus status() const {
+        return m_status.load();
     }
 
     bool isRunning() const {
-        return m_isRunning;
+        return status() == EmTaskStatus::running;
     }
 
     bool isNotRunning() const {
         return !isRunning();
     }
 
-    bool isKilled() const {
-        return getTaskHandle_() == nullptr;
+    bool isPaused() const {
+        return status() == EmTaskStatus::paused;
     }
 
-    bool isNotKilled() const {
-        return !isKilled();
+    bool isNotPaused() const {
+        return !isPaused();
+    }
+
+    bool isStopped() const {
+        return status() == EmTaskStatus::stopped;
+    }
+
+    bool isNotStopped() const {
+        return !isStopped();
     }
 
 protected:
-    TaskHandle_t getTaskHandle_() const {
-        EmMutexLock lock(m_handleMutex);
-        return m_taskHandle;
-    }
-
-    void setTaskHandle_(TaskHandle_t handle) {
-        EmMutexLock lock(m_handleMutex);
-        m_taskHandle = handle;
-    }   
-
-    void killInternal_() {
-        // NOTE: killing from within the task loop will get stuck if using vTaskDelete(m_taskHandle);
-        setTaskHandle_(nullptr);
-        vTaskDelete(nullptr);
-        m_isRunning = false;
+    void kill_(TaskHandle_t taskHandle) {
+        m_taskHandle.store(nullptr);
+        // NOTE: keep setting stopped status after setting handle to nullptr!
+        m_status.store(EmTaskStatus::stopped);
+        // NOTE: keep the task deleting at end because it will not do anything after this line!
+        vTaskDelete(taskHandle);
     }
 
     static void taskLoop_(void* taskParam) {
         EmTask* pThis = static_cast<EmTask*>(taskParam);
         if (pThis != nullptr && pThis->m_taskFunction != nullptr) {
             while (true) {
+                // Perform user task and check requested action
                 if (pThis->isRunning()) {
-                    // Perform user task 
                     EmTaskFuncRes res = pThis->m_taskFunction(pThis->m_pParam);
                     if (res == EmTaskFuncRes::pauseTask) {
                         pThis->pause();
                     }
-                    if (res == EmTaskFuncRes::killTask) {
-                        pThis->killInternal_();
+                    if (res == EmTaskFuncRes::stopTask) {
+                        pThis->stop();
                     }
-                } else {
-                    // Relax the paused task
+                } 
+                // Check task status. 
+                // This might have changed during task function execution or user request.
+                if (pThis->status() == EmTaskStatus::pausing) {
+                    pThis->m_status.store(EmTaskStatus::paused);
+                }
+                if (pThis->status() == EmTaskStatus::stopping) {
+                    pThis->kill_(nullptr);
+                }
+                // Relax the paused task
+                if (pThis->isPaused()) {
                     vTaskDelay(10 / portTICK_PERIOD_MS);
                 }
             }
@@ -137,9 +219,11 @@ protected:
     // Member vars
     TParam* m_pParam;
     TaskFunctionType<TParam> m_taskFunction;
-    mutable EmMutex m_handleMutex;
-    TaskHandle_t m_taskHandle;
-    ts_bool m_isRunning;
+    EmCoreId m_coreId;
+    uint16_t m_stackSize;
+    uint8_t m_priority;
+    std::atomic<TaskHandle_t> m_taskHandle;
+    std::atomic<EmTaskStatus> m_status;
 };
 
 #endif // EM_MULTITHREAD
