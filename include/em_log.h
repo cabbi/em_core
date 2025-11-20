@@ -236,6 +236,10 @@ public:
         return (m_Level == EmLogLevel::global ? g_Level : m_Level) >= level; 
     }
 
+    const char* getContext() const {
+        return m_Context;
+    }
+    
     void setLevel(EmLogLevel level) { 
         m_Level = level; 
     }

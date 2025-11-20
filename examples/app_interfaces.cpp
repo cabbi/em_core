@@ -1,77 +1,70 @@
+#include <Arduino.h>
+
+#include "em_defs.h"
+#include "em_log_print.h"
+
 #include "em_app.h"
+#include "em_app_interface.h"
+#include "em_app_task_interface.h"
 
-uint8_t appRestartCounter = 0;
-
-class Int1: public EmAppTimeoutInterface {
+// A dummy application interface class for demonstration.
+class MyInterface : public EmAppInterface {
 public:
-    Int1(EmDuration runningTimeout, EmLogLevel logLevel)
-     : EmAppTimeoutInterface(EmDuration(0,0,1), true, runningTimeout, logLevel), 
-       m_Counter(0) {}
+    MyInterface(const char* name,
+                uint16_t loopDelayMs,
+                EmList<EmAppInterface>* appInterfaces=nullptr) : 
+        EmAppInterface(appInterfaces, EmDuration(0, 1, 0), name, EmLogLevel::info),
+        m_loopDelayMs(loopDelayMs) {}
 
-    virtual const char* name() const {
-        return "int1";
-    }
+    virtual const char* name() const { return getContext(); }
 
-    virtual EmIntOperationResult setup() {
-        m_Counter = 0;
+    virtual EmIntOperationResult setup() override {
+        logInfo("setup...");
+        delay(1000); // Simulate work in setup
         return EmIntOperationResult::canContinue;
     }
 
-    virtual EmIntOperationResult loop() {
-        m_Counter++;
-        printf("Counter 1: %d\n", m_Counter);
-        if (m_Counter >= 10) {
-            printf("Interface 1 is exiting!\n");
-            return EmIntOperationResult::stopInterface;    
-        }
-        return EmIntOperationResult::canContinue;    
-    }
-
-private:
-    int m_Counter;
-};
-
-class Int2: public EmAppTimeoutInterface {
-public:
-    Int2(EmDuration runningTimeout, EmLogLevel logLevel)
-     : EmAppTimeoutInterface(EmDuration(0,0,2), true, runningTimeout, logLevel), 
-       m_Counter(0) {}
-    
-    virtual const char* name() const {
-        return "int2";
-    }
-
-    virtual EmIntOperationResult setup() {
-        m_Counter = 0;
+    virtual EmIntOperationResult loop() override {
+        logInfo("task loop...");
+        delay(m_loopDelayMs); // Simulate work in loop
         return EmIntOperationResult::canContinue;
     }
 
-    virtual EmIntOperationResult loop() {
-        m_Counter++;
-        printf("Counter 2: %d\n", m_Counter);
-        if (m_Counter >= 10) {
-            appRestartCounter++;
-            if (appRestartCounter>=2) {
-                printf("This is enough, exiting app!\n");
-                return EmIntOperationResult::stopApp;    
-            }
-            printf("Interface 2 restarting app!\n");
-            return EmIntOperationResult::restartApp;    
-        }
-        return EmIntOperationResult::canContinue;    
-    }
-
-private:
-    int m_Counter;
+protected:
+    uint16_t m_loopDelayMs;
 };
 
+// The application object thar will own top level interfaces.
 EmApp app;
 
+// A top level application interface. This interface will run in the application loop.
+// We pass the app interfaces list since this interface will be owned by the app.
+MyInterface myAppInterface("Interface 1", 2000, &app.interfaces());
+
+// A single task interface class
+MyInterface singleTaskInterface("Single Task Interface", 1000);
+
+// The task interface that will own the single task interface
+// We pass the app interfaces list since this interface will be owned by the app.
+EmAppTaskInterface taskInterface(singleTaskInterface, false, &app.interfaces());
+
+// A multi-task interfaces class. 
+// This interface will run all its owned interfaces in its own task.
+// We pass the app interfaces list since this interface will be owned by the app.
+EmAppTaskInterfaces taskInterfaces("MultiTaskInterfaces", true, &app.interfaces());
+
+// The two interfaces that will be owned by the multi-task interfaces
+MyInterface myTask1Interface("Multi Task Interface 1", 500, &taskInterfaces);
+MyInterface myTask2Interface("Multi Task Interface 2", 250, &taskInterfaces);
+
+// Log target using the USB Serial port
+EmLogPrintTarget<USB_SERIAL_CLASS> logPrint(Serial);
+
 void setup() {
-    Int1 int1(EmDuration(0,1,0), EmLogLevel::info);
-    Int2 int2(EmDuration(0,1,0), EmLogLevel::info);
-    app.addInterface(int1);
-    app.addInterface(int2);
+    delay(3000); // Wait for user's serial monitor to open
+    Serial.begin(115200);
+    Serial.println("Initializing...");
+    EmLog::init(logPrint, EmLogLevel::info);
     app.setup();
 }
 

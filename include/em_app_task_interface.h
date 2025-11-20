@@ -50,14 +50,14 @@ public:
 
     // Setup teh task interfaces
     virtual EmIntOperationResult setup() {
-        m_task.start();
-        if (m_runSetupOnTask) {
-            // Setup will be done on the task context
-            return m_taskOperationResult;
-        } else {
-            // Setup on the application context
-            return m_taskInterface.setup();
+        EmIntOperationResult res = EmIntOperationResult::canContinue;
+        if (!m_runSetupOnTask) {
+            // Setup by calling the task loop function the first time
+            loop_(this);
+            res = m_taskOperationResult;
         } 
+        m_task.start();
+        return res;
     }
 
     // Real loop of each task interface is performed in the task.
@@ -75,9 +75,11 @@ public:
 protected:
     static EmTaskFuncRes loop_(EmAppTaskInterface* self) {
         EmIntOperationResult opRes;
-        if (self->m_runSetupOnTask && 
-            !self->m_taskInterface.isInitialized()) {
+        if (!self->m_taskInterface.isInitialized()) {
             opRes = self->m_taskInterface.setup();
+            if (opRes == EmIntOperationResult::canContinue) {
+                self->m_taskInterface.setInitialized(true);
+            }   
         } else {
             opRes = self->m_taskInterface.loop();
         }
@@ -97,7 +99,7 @@ protected:
 //
 // Assign your own interfaces and 'EmAppTaskInterface' instance to your 
 // application interfaces list.
-// By setting 'runSetupOnTask' to true, the owned interface 'setup' 
+// By setting 'runSetupOnTask' to true, the owned interfaces 'setup' 
 // method will be called within the task context. 
 class EmAppTaskInterfaces: public EmAppInterface, 
                            public EmAppInterfaces {
@@ -135,22 +137,19 @@ public:
         m_task(this, EmAppTaskInterfaces::loop_, 
                taskCoreId,
                taskStackSize,
-               taskPriority,
-               name),
+               taskPriority),
         m_runSetupOnTask(runSetupOnTask),
-        m_taskOperationResult(EmIntOperationResult::canContinue) {
-
-    }
+        m_taskOperationResult(EmIntOperationResult::canContinue) {}
 
     virtual ~EmAppTaskInterfaces() {
-        m_task.kill();
-        m_taskInterfaces.clear();
+        m_task.stop();
+        clear();
         m_runningInterfaces.clear();
     }
 
     // Add an interface to the task
     virtual void addInterface(EmAppInterface& interface) {
-        m_taskInterfaces.appendUnowned(interface);
+        appendUnowned(interface);
     }
 
     // Add multiple interfaces to the task using a variable argument list. 
@@ -158,22 +157,22 @@ public:
     virtual void addInterfaces(EmAppInterface* interface, ...) {
         va_list args;
         va_start(args, interface);
-        m_taskInterfaces.extend(false, interface, args);
+        extend(false, interface, args);
         va_end(args);
     }
 
     virtual const char* name() const { return m_name; }
 
     virtual EmIntOperationResult setup() {
-        m_task.start();
-        if (m_runSetupOnTask) {
-            // Setup will be done on the task context
-            return m_taskOperationResult;
-        } else {
+        EmIntOperationResult res = EmIntOperationResult::canContinue;
+        m_runningInterfaces.set(*this, false);
+        if (!m_runSetupOnTask) {
             // Setup by calling the task loop function the first time
             loop_(this);
-            return m_taskOperationResult;
+            res = m_taskOperationResult;
         } 
+        m_task.start();
+        return res;
     }
 
     // Real loop of each task interface is performed in the task.
@@ -201,6 +200,9 @@ protected:
             [](EmAppInterface& interface, bool, bool, EmIntOperationResult* pOpRes) -> EmIterResult {
                 if (!interface.isInitialized()) {
                     *pOpRes = interface.setup();
+                    if (*pOpRes == EmIntOperationResult::canContinue) {
+                        interface.setInitialized(true);
+                    }
                 } else {
                     *pOpRes = interface.loop();
                 }
@@ -220,7 +222,6 @@ protected:
     const char* m_name;
     EmTask<EmAppTaskInterfaces> m_task;
     bool m_runSetupOnTask;
-    EmAppInterfaces m_taskInterfaces;
     EmAppInterfaces m_runningInterfaces;
     std::atomic<EmIntOperationResult> m_taskOperationResult;
 };
