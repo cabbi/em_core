@@ -2,7 +2,7 @@
 
 
 void EmApp::setup_() {
-    m_runningInterfaces.set(m_appInterfaces, false);
+    m_runningInterfaces.set(*this, false);
     beforeInterfacesSetup();
     loop();  // This will call the 'setup' method of each interface until
              // interface returns tro to 'isInitialized' method
@@ -19,18 +19,8 @@ void EmApp::loop_() {
     LoopContext context = { this, EmIntOperationResult::canContinue };
 
     m_runningInterfaces.forEach<LoopContext>([](EmAppInterface& interface, bool, bool, LoopContext* pCtx) -> EmIterResult {
-            if (!interface.isInitialized()) {
-                pCtx->res = interface.setup();
-                if (pCtx->res == EmIntOperationResult::canContinue) {
-                    interface.setInitialized(true);
-                }
-            } else {
-                if (interface.canCallLoop()) {
-                    pCtx->res = interface.loop();
-                } else {
-                    pCtx->res = EmIntOperationResult::canContinue;
-                }
-            }
+            bool failed = false;
+            pCtx->res = interface.loopStep_(failed);
             switch (pCtx->res) {
                 case EmIntOperationResult::stopInterface:
                     return EmIterResult::removeMoveNext;
@@ -63,7 +53,7 @@ void EmApp::stop_(EmIntOperationResult reason) {
     // No more running interfaces
     m_runningInterfaces.clear();
     // Notify all interfaces about stop event
-    m_appInterfaces.forEach<LoopContext>(
+    forEach<LoopContext>(
         [](EmAppInterface& interface, bool, bool, LoopContext* pCtx) -> EmIterResult {
             interface.onStop(pCtx->reason);
             interface.setInitialized(false);

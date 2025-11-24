@@ -7,18 +7,24 @@
 
 // This is the application class you can run withing your code.
 //
-// By using this EmApp object you can manage multiple application interfaces. 
+// By using an EmApp object you can manage multiple application interfaces. 
 // Each interface will setup and run the main loop. Interfaces can drive the application
-// workflow by removing themselves and restarting or stopping the application.
-class EmApp: public EmLog
+// workflow by removing themselves and stopping or restarting the application.
+//
+// Setup of each assigned interface is called until it return without failure.
+// Once setup of interface is successful, its loop function is called.
+//
+// Use 'EmAppTaskInterface' or 'EmAppTaskInterfaces' to have interfaces running in a 
+// separate task (i.e. not the application main loop.)
+class EmApp: public EmAppInterfaces, public EmLog
 {
 public:
     EmApp(const char* logContext = "App", 
-          EmLogLevel logLevel = EmLogLevel::global) 
-     : EmLog(logContext, logLevel), m_appInterfaces() {};
+          EmLogLevel logLevel = EmLogLevel::global) : 
+        EmAppInterfaces(), 
+        EmLog(logContext, logLevel) {};
     
     virtual ~EmApp() {
-        m_appInterfaces.clear();
         m_runningInterfaces.clear();
     }
 
@@ -26,7 +32,7 @@ public:
     // NOTE that the object will NOT be owned by the application 
     // so it must outlive the application.
     virtual void addInterface(EmAppInterface& interface) {
-        m_appInterfaces.appendUnowned(interface);
+        appendUnowned(interface);
     }
 
     // Add multiple interfaces to the application using a variable argument list. 
@@ -34,7 +40,7 @@ public:
     void addInterfaces(EmAppInterface* interface, ...) {
         va_list args;
         va_start(args, interface);
-        m_appInterfaces.extend(false, interface, args);
+        extend(false, interface, args);
         va_end(args);
     }
 
@@ -68,16 +74,11 @@ public:
         return !m_runningInterfaces.isEmpty();
     }
 
-    EmAppInterfaces& interfaces() {
-        return m_appInterfaces;
-    }
-
 protected:
     virtual void setup_();
     virtual void loop_();
     virtual void stop_(EmIntOperationResult reason);
 
-    EmAppInterfaces m_appInterfaces;
     EmAppInterfaces m_runningInterfaces;
 };
 
