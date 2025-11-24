@@ -84,7 +84,7 @@ public:
         // This calculation is safe against millis_() rollover.
         // Using >= ensures that a timeout of N milliseconds is considered elapsed
         // once exactly N milliseconds have passed, and aligns with getRemainingMillis().
-        return (millis_() - m_startMillis) >= m_timeoutMillis;
+        return static_cast<T>(millis_() - m_startMillis) >= m_timeoutMillis;
     }
 
     // Checks if the timeout has elapsed and optionally restarts the timer if it has.
@@ -98,7 +98,7 @@ public:
 
     // Gets the remaining time in milliseconds. Returns 0 if the timeout has already elapsed.
     T getRemainingMillis() const {
-        const T elapsed = millis_() - m_startMillis;
+        const T elapsed = static_cast<T>(millis_() - m_startMillis);
         if (elapsed >= m_timeoutMillis) {
             return 0;
         }
