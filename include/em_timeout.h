@@ -18,7 +18,7 @@ using EmTimeoutLong = EmTimeout_<uint64_t, ts_uint64>;
 
 // The millis() function that returns the number of milliseconds since system start.
 extern "C" {
-    extern unsigned long millis();
+    unsigned long millis();
 }
 
 // EmTimeout implementation

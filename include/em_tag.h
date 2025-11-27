@@ -222,7 +222,7 @@ public:
     }
     
     EmRealType asReal() const {
-        return (m_type == EmTagValueType::vt_real) ? m_value.as_real : 0.0;
+        return (m_type == EmTagValueType::vt_real) ? m_value.as_real : static_cast<EmRealType>(0.0);
     }
     
     EmStringType* asStringPtr() const {
@@ -563,6 +563,8 @@ public:
     }
 };
 
+class EmTags;
+
 // A tag implementation. 
 class EmTag: public EmTagBase {
 protected:
@@ -572,6 +574,8 @@ protected:
 public:
     EmTag(const char* id, EmSyncFlags flags)
       : EmTagBase(flags), m_id(id) {}
+
+    EmTag(const char* id, EmSyncFlags flags, EmTags& tags);
 
     EmTag(const char* id, 
           const EmTagValue& initValue,
@@ -632,6 +636,13 @@ public:
         m_value = value;
         return true;
     }
+};
+
+// This class provides 'EmStorageValue' plus an 'onSetValue' callback.
+template<EmOnSetValueCallbackType<EmTag, EmTagValue> OnSetValue>
+class EmTagEx: public EmValueEx<EmTag, EmTagValue, OnSetValue> {
+public:
+    using EmValueEx<EmTag, EmTagValue, OnSetValue>::EmValueEx;
 };
 
 // A group of tags with the same ID that are synchronized together.
@@ -825,4 +836,8 @@ protected:
     EmList<EmTagSyncGroupBase> m_groups;
 };
 
+inline EmTag::EmTag(const char* id, EmSyncFlags flags, EmTags& tags)
+  : EmTagBase(flags), m_id(id) {
+    tags.add(*this);
+}
 #endif // _EM_TAG_H__

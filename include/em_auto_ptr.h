@@ -14,7 +14,9 @@ public:
 
     // Destructor deletes the managed object.
     ~EmAutoPtr() {
-        delete m_ptr;
+        if (m_ptr) {
+            delete m_ptr;
+        }
     }
 
     // Forbid copying and assignment to prevent multiple ownership.

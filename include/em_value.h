@@ -12,6 +12,7 @@
 #include "em_iterator.h"
 #include "em_auto_ptr.h"
 
+
 // The get methods result.
 enum class EmGetValueResult: uint8_t {    
     // Operation failed
@@ -40,28 +41,37 @@ public:
     virtual bool setValue(const T& /*value*/) = 0;
 };
 
-// The 'onSetValue' callback prototype
 template <class T>
-using EmOnSetValueCallbackType = void (*)(T&);
+class EmValue<T*> {
+public:
+    virtual ~EmValue() = default;
+
+    virtual EmGetValueResult getValue(T* /*value*/) const = 0;
+    virtual bool setValue(const T* /*value*/) = 0;
+};
+
+
+// The 'onSetValue' callback prototype
+template <class ThisClass, class T>
+using EmOnSetValueCallbackType = bool (*)(ThisClass&, const T&);
+
 
 // This class provides an 'onSetValue' callback.
 // 
 // The aim is to define this class with any implementation of an 'EmValue' subclass.
-template <class EmValueOfT, class T>
+template <class EmValueOfT,
+          class T,
+          EmOnSetValueCallbackType<EmValueOfT, T> OnSetValue>
 class EmValueEx: public EmValueOfT {
-protected:
-    EmOnSetValueCallbackType<T> m_onSetValue;
-
+//static_assert(std::is_base_of<EmValue<T>, EmValueOfT>::value, "EmValueOfT must derive from 'EmValue'");
 public:
-    EmValueEx(EmOnSetValueCallbackType<T> onSetValue = nullptr) : 
-       m_onSetValue(onSetValue) {}
+    using EmValueOfT::EmValueOfT;
 
     virtual bool setValue(const T& value) override {
-        bool res = EmValueOfT::setValue(value);
-        if (res && m_onSetValue != nullptr) {
-            m_onSetValue(value);
+        if (EmValueOfT::setValue(value)) {
+            return OnSetValue(*this, value);
         }
-        return res;
+        return false;
     }
 };
 

@@ -7,7 +7,7 @@
 
 #include <cstring>
 #include <WString.h>
-#include "nvs.h"
+#include <nvs.h>
 
 #include "em_log.h"
 #include "em_value.h"
@@ -24,14 +24,14 @@ public:
     EmStorage(const char* logContext="EmStorage", 
               EmLogLevel logLevel = EmLogLevel::global)
      : EmLog(logContext, logLevel),
-       m_handle(-1) {}
+       m_handle(nullptr) {}
 
     ~EmStorage() {
         end();
     }
 
     bool isInitialized() const {
-        return m_handle != -1;
+        return m_handle != nullptr;
     }
     bool isNotInitialized() const {
         return !isInitialized();
@@ -170,18 +170,11 @@ class EmStorageValue: public EmStorageValueBase<EmValue<T>, T, tStorage> {
 
 
 // This class provides 'EmStorageValue' plus an 'onSetValue' callback.
-template<typename T, const EmStorage& tStorage>
-class EmStorageValueEx: public EmValueEx<EmStorageValue<T, tStorage>, T> {
+template<typename T, const EmStorage& tStorage,
+         EmOnSetValueCallbackType<EmStorageValue<T, tStorage>, EmTagValue> OnSetValue>
+class EmStorageValueEx: public EmValueEx<EmStorageValue<T, tStorage>, EmTagValue, OnSetValue> {
 public:
-    /// @brief The class constructor
-    /// @param key The storage value key
-    /// @param flags The sync flags
-    EmStorageValueEx(const char* key, 
-                     EmOnSetValueCallbackType<T> onSetValue)
-     : EmValueEx<EmStorageValue<T, tStorage>, T>(onSetValue),
-       EmStorageValue<T, tStorage>(key) {}
-
-    virtual ~EmStorageValueEx() = default;
+    using EmValueEx<EmStorageValue<T, tStorage>, EmTagValue, OnSetValue>::EmValueEx;
 };
 
 
@@ -218,30 +211,11 @@ class EmStorageSyncValue: public EmStorageValueBase<EmSyncValue<ValueOfT, T>, T,
 
 
 // This class provides 'EmStorageSyncValue' plus an 'onSetValue' callback.
-template<typename ValueOfT, typename T, const EmStorage& tStorage>
-class EmStorageSyncValueEx: public EmValueEx<EmStorageSyncValue<ValueOfT, T, tStorage>, T> {
+template<typename ValueOfT, typename T, const EmStorage& tStorage,
+         EmOnSetValueCallbackType<EmStorageSyncValue<ValueOfT, T, tStorage>, EmTagValue> OnSetValue>
+class EmStorageSyncValueEx: public EmValueEx<EmStorageSyncValue<ValueOfT, T, tStorage>, EmTagValue, OnSetValue> {
 public:
-    /// @brief The class constructor
-    /// @param key The storage/sync value key/id
-    /// @param flags The sync flags
-    EmStorageSyncValueEx(const char* key, 
-                         EmSyncFlags flags,
-                         EmOnSetValueCallbackType<T> onSetValue)
-     : EmValueEx<EmStorageSyncValue<ValueOfT, T, tStorage>, T>(onSetValue),
-       EmStorageSyncValue<ValueOfT, T, tStorage>(key, flags) {}
-
-    /// @brief The class constructor
-    /// @param key The sync value key
-    /// @param flags The sync flags
-    /// @param tags The tags object olding all tags that will be synchronized by them ids.
-    EmStorageSyncValueEx(const char* key, 
-                         EmSyncFlags flags,
-                         EmOnSetValueCallbackType<T> onSetValue,
-                         EmTags& tags)
-     : EmValueEx<EmStorageSyncValue<ValueOfT, T, tStorage>, T>(onSetValue),
-       EmStorageSyncValue<ValueOfT, T, tStorage>(key, flags) {
-        tags.add(*this);
-     }
+    using EmValueEx<EmStorageSyncValue<ValueOfT, T, tStorage>, EmTagValue, OnSetValue>::EmValueEx;
 };
 
 
@@ -266,30 +240,12 @@ public:
 
 
 // This class provides 'EmStorageTag' plus an 'onSetValue' callback.
-template<const EmStorage& tStorage>
-class EmStorageTagEx: public EmValueEx<EmStorageTag<tStorage>, EmTagValue> {
+template<const EmStorage& tStorage,
+         EmOnSetValueCallbackType<EmStorageTag<tStorage>, EmTagValue> OnSetValue>
+class EmStorageTagEx: public EmValueEx<EmStorageTag<tStorage>, EmTagValue, OnSetValue> {
 public:
-    /// @brief The class constructor
-    /// @param key The storage/sync value key/id
-    /// @param flags The sync flags
-    EmStorageTagEx(const char* key, 
-                   EmSyncFlags flags,
-                   EmOnSetValueCallbackType<EmTagValue> onSetValue)
-     : EmValueEx<EmStorageTag<tStorage>, EmTagValue>(onSetValue),
-       EmStorageTag<tStorage>(key, flags) {}
-
-    /// @brief The class constructor
-    /// @param key The sync value key
-    /// @param flags The sync flags
-    /// @param tags The tags object olding all tags that will be synchronized by them ids.
-    EmStorageTagEx(const char* key, 
-                   EmSyncFlags flags,
-                   EmOnSetValueCallbackType<EmTagValue> onSetValue,
-                   EmTags& tags)
-     : EmValueEx<EmStorageTag<tStorage>, EmTagValue>(onSetValue),
-       EmStorageTag<tStorage>(key, flags) {
-        tags.add(*this);
-     }
+public:
+    using EmValueEx<EmStorageTag<tStorage>, EmTagValue, OnSetValue>::EmValueEx;
 };
 
 #endif

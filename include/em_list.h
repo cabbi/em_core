@@ -2,6 +2,7 @@
 #define __EM_LIST_H__
 
 #include <stdint.h>
+#include <stdarg.h>
 #include "em_iterator.h"
 
 template<class T> class _EmListElement;
