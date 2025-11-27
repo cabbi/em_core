@@ -37,6 +37,8 @@ using TaskFunctionType = EmTaskFuncRes (*)(TParam*);
 // - Pausing or stopping the task will not suspend or delete the background task, it will wait 
 //   the task function to exit (i.e. function execution not suspended or killed in the middle).
 // - Paused task will still consume some CPU resources due to the delay in the task loop.
+// - Difference between Pausing or Stopping the task is that Stopping will delete the task.
+//   Call stop if you do not want to use the task anymore, pause if you want to start it again.
 // - Calling 'kill' will stop execution of the task function immediately.
 template <typename TParam>
 class EmTask {

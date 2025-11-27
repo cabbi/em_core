@@ -26,7 +26,7 @@
 - Added 'EmOptional' class as lightweight alternative to std::optional in AVR development
 - Added "EmDuration" for a more clear time duration definition 
 - Added 'EmTime" time handling classes (ESP only)
-- Added 'EmStore' and 'EmStoreValue' classes for persistent storage in NVS (ESP only)
+- Added 'EmStorage' and 'EmStorageValue' classes for persistent storage in NVS (ESP only)
 
 # 2.1.0
 - 'EmApp' added 'beforeInterfacesSetup', 'afterInterfacesSetup, 'beforeInterfacesLoop' and 'afterInterfacesLoop' to provide app customization flexibility.

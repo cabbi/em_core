@@ -26,17 +26,17 @@ template<typename T, typename I>
 class EmTimeout_
 {
 public:
-    EmTimeout_(const EmDuration_<T, I>& timeout, bool startAsElapsed = false) noexcept
+    EmTimeout_(const EmDuration_<T, I>& timeout, bool startAsExpired = false) noexcept
      : EmTimeout_(timeout.milliseconds(),
-                 startAsElapsed) {}
+                 startAsExpired) {}
 
     // Using 'explicit' prevents unintentional conversions from integer types.
     // For example, it would prevent `EmTimeout t = 1000;` which might be ambiguous.
     // The user would have to be explicit: `EmTimeout t(1000);`
-    explicit EmTimeout_(T timeoutMs, bool startAsElapsed = false) noexcept
+    explicit EmTimeout_(T timeoutMs, bool startAsExpired = false) noexcept
      : m_timeoutMillis(timeoutMs) {
-        if (startAsElapsed) {
-            setElapsed();
+        if (startAsExpired) {
+            setExpired();
         } else {
             restart();
         }
@@ -46,8 +46,8 @@ public:
         m_timeoutMillis(static_cast<T>(other.m_timeoutMillis)),
         m_startMillis(static_cast<T>(other.m_startMillis)) {}
 
-    // Forces the timeout to be considered elapsed.
-    void setElapsed() {
+    // Forces the timeout to be considered expired.
+    void setExpired() {
         m_startMillis = millis_() - m_timeoutMillis - 1;
     }
 
@@ -79,30 +79,42 @@ public:
         m_startMillis = millis_();
     }
     
-    // Checks if the timeout has elapsed.
-    bool isElapsed() const {
+    // Checks if the timeout has expired.
+    bool isExpired() const {
         // This calculation is safe against millis_() rollover.
-        // Using >= ensures that a timeout of N milliseconds is considered elapsed
+        // Using >= ensures that a timeout of N milliseconds is considered expired
         // once exactly N milliseconds have passed, and aligns with getRemainingMillis().
         return static_cast<T>(millis_() - m_startMillis) >= m_timeoutMillis;
     }
-
-    // Checks if the timeout has elapsed and optionally restarts the timer if it has.
-    bool isElapsed(bool restartIfElapsed) {
-        const bool elapsed = isElapsed();
-        if (restartIfElapsed && elapsed) {
+    
+    // Checks if the timeout has expired and optionally restarts the timer if it has.
+    bool isExpired(bool restartIfExpired) {
+        const bool expired = isExpired();
+        if (restartIfExpired && expired) {
             restart();
         }
-        return elapsed;
+        return expired;
     }
 
-    // Gets the remaining time in milliseconds. Returns 0 if the timeout has already elapsed.
+    
+    DEPRECATED_MSG("Use 'isExpired' instead!")
+    bool isElapsed() const {
+        return isExpired();
+    }
+
+    DEPRECATED_MSG("Use 'isExpired' instead!")
+    bool isElapsed(bool restartIfExpired) {
+        return isExpired(restartIfExpired);
+    }
+
+
+    // Gets the remaining time in milliseconds. Returns 0 if the timeout has already expired.
     T getRemainingMillis() const {
-        const T elapsed = static_cast<T>(millis_() - m_startMillis);
-        if (elapsed >= m_timeoutMillis) {
+        const T expired = static_cast<T>(millis_() - m_startMillis);
+        if (expired >= m_timeoutMillis) {
             return 0;
         }
-        return m_timeoutMillis - elapsed;
+        return m_timeoutMillis - expired;
     }
 
 protected:

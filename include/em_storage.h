@@ -10,7 +10,8 @@
 #include "nvs.h"
 
 #include "em_log.h"
-#include "em_sync_value.h"
+#include "em_value.h"
+#include "em_value_sync.h"
 #include "em_tag.h"
 
 
@@ -20,8 +21,9 @@ private:
     nvs_handle_t m_handle;
 
 public:
-    EmStorage(EmLogLevel logLevel = EmLogLevel::global)
-     : EmLog("EmStorage", logLevel),
+    EmStorage(const char* logContext="EmStorage", 
+              EmLogLevel logLevel = EmLogLevel::global)
+     : EmLog(logContext, logLevel),
        m_handle(-1) {}
 
     ~EmStorage() {
@@ -114,17 +116,18 @@ public:
     size_t freeEntries() const;
 };
 
-template<typename T, const EmStorage& tStorage>
-class EmStorageValue: virtual public EmValue<T> {
+// A storage value that can be read and write within the provided 'tStorage' NVM storage.
+//
+// This base class has the templated 'ValueOfT' which should be derived from 'EmValue<T>'.
+template<typename ValueOfT, typename T, const EmStorage& tStorage>
+class EmStorageValueBase: public ValueOfT {
 protected:
     const char* m_key;
 
 public:
-    EmStorageValue(const char* key)
-     : EmValue<T>(), 
-       m_key(key) {}
+    EmStorageValueBase(const char* key) : m_key(key) {}
 
-    virtual ~EmStorageValue() = default;
+    virtual ~EmStorageValueBase() = default;
 
     virtual const char* getKey() const { return m_key; }
 
@@ -157,36 +160,101 @@ public:
     }
 };
 
+
+// A storage value that can be read and write within the provided 'tStorage' NVM storage.
+//
+// This class is a simplified templated class deriving directly from 'EmValue<T>'
 template<typename T, const EmStorage& tStorage>
-class EmStorageValueEx: public EmStorageValue<T, tStorage> {
-protected:
-    void (*m_onSetValue)(const T&);
-
-public:
-    EmStorageValueEx(const char* key, 
-                     void (*onSetValue)(const T&))
-     : EmStorageValue<T, tStorage>(key), 
-       m_onSetValue(onSetValue) {}
-
-    virtual ~EmStorageValueEx() = default;
-
-    virtual bool setValue(const T& value) override {
-        bool res = EmStorageValue<T, tStorage>::setValue(value);
-        if (res && m_onSetValue != nullptr) {
-            m_onSetValue(value);
-        }
-        return res;
-    }
+class EmStorageValue: public EmStorageValueBase<EmValue<T>, T, tStorage> {
 };
 
+
+// This class provides 'EmStorageValue' plus an 'onSetValue' callback.
+template<typename T, const EmStorage& tStorage>
+class EmStorageValueEx: public EmValueEx<EmStorageValue<T, tStorage>, T> {
+public:
+    /// @brief The class constructor
+    /// @param key The storage value key
+    /// @param flags The sync flags
+    EmStorageValueEx(const char* key, 
+                     EmOnSetValueCallbackType<T> onSetValue)
+     : EmValueEx<EmStorageValue<T, tStorage>, T>(onSetValue),
+       EmStorageValue<T, tStorage>(key) {}
+
+    virtual ~EmStorageValueEx() = default;
+};
+
+
+// A storage value that can be read and write within the provided 'tStorage' NVM storage.
+//
+// This class supports value synch between other 'EmSnycValue<T> values with the same key/id.
+template<typename ValueOfT, typename T, const EmStorage& tStorage>
+class EmStorageSyncValue: public EmStorageValueBase<EmSyncValue<ValueOfT, T>, T, tStorage> {
+    
+    /// @brief The class constructor
+    /// @param key The storage/sync value key/id
+    /// @param flags The sync flags
+    EmStorageSyncValue(const char* key, 
+                       EmSyncFlags flags)
+     : EmStorageValueBase<EmSyncValue<ValueOfT, T>, T, tStorage>(key),
+       EmSyncValue<ValueOfT, T>(flags) {}
+
+    /// @brief The class constructor
+    /// @param key The sync value key
+    /// @param flags The sync flags
+    /// @param tags The tags object olding all tags that will be synchronized by them ids.
+    EmStorageSyncValue(const char* key, 
+                       EmSyncFlags flags,
+                       EmTags& tags)
+     : EmStorageValueBase<EmSyncValue<ValueOfT, T>, T, tStorage>(key),
+       EmSyncValue<ValueOfT, T>(flags)  {
+        tags.add(*this);
+     }
+
+     virtual const char* getId() const override { 
+        return this->getKey(); 
+    }     
+};
+
+
+// This class provides 'EmStorageSyncValue' plus an 'onSetValue' callback.
+template<typename ValueOfT, typename T, const EmStorage& tStorage>
+class EmStorageSyncValueEx: public EmValueEx<EmStorageSyncValue<ValueOfT, T, tStorage>, T> {
+public:
+    /// @brief The class constructor
+    /// @param key The storage/sync value key/id
+    /// @param flags The sync flags
+    EmStorageSyncValueEx(const char* key, 
+                         EmSyncFlags flags,
+                         EmOnSetValueCallbackType<T> onSetValue)
+     : EmValueEx<EmStorageSyncValue<ValueOfT, T, tStorage>, T>(onSetValue),
+       EmStorageSyncValue<ValueOfT, T, tStorage>(key, flags) {}
+
+    /// @brief The class constructor
+    /// @param key The sync value key
+    /// @param flags The sync flags
+    /// @param tags The tags object olding all tags that will be synchronized by them ids.
+    EmStorageSyncValueEx(const char* key, 
+                         EmSyncFlags flags,
+                         EmOnSetValueCallbackType<T> onSetValue,
+                         EmTags& tags)
+     : EmValueEx<EmStorageSyncValue<ValueOfT, T, tStorage>, T>(onSetValue),
+       EmStorageSyncValue<ValueOfT, T, tStorage>(key, flags) {
+        tags.add(*this);
+     }
+};
+
+
+// A storage value that can be read and write tags within the provided 'tStorage' NVM storage.
+//
+// This class supports value synch between other 'EmSnycValue<T> values with the same key/id.
 template<const EmStorage& tStorage>
-class EmStorageTag: public EmTagBase,
-                    public EmStorageValue<EmTagValue, tStorage> {
+class EmStorageTag: public EmStorageValue<EmTag, tStorage> {
 public:
     EmStorageTag(const char* key, 
                  EmSyncFlags flags)
-     : EmTagBase(flags),
-       EmStorageValue<EmTagValue, tStorage>(key) {}
+     : EmStorageValueBase<EmTag, EmTagValue, tStorage>(key),
+       EmTag(key, flags) {}
 
     EmStorageTag(const char* key, 
                  EmSyncFlags flags,
@@ -194,67 +262,34 @@ public:
      : EmStorageTag(key, flags) {
         tags.add(*this);
      }
-
-    virtual const char* getId() const override { return this->getKey(); }     
-    virtual EmTagValue getValue() const {
-        EmTagValue val;
-        tStorage.getValue(this->getKey(), val);
-        return val;
-    }
-
-    virtual EmGetValueResult getValue(EmTagValue& value) const override {
-        return EmStorageValue<EmTagValue, tStorage>::getValue(value);
-    }
-
-    virtual bool setValue(const EmTagValue& value) override {
-        return EmStorageValue<EmTagValue, tStorage>::setValue(value);
-    }
-
-    template<typename T>
-    T as() const {
-        T value;
-        EmTagValue tagVal;
-        if (getValue(tagVal) != EmGetValueResult::failed) {
-            return tagVal.as<T>();
-        }
-        return T();
-    }
 };
 
+
+// This class provides 'EmStorageTag' plus an 'onSetValue' callback.
 template<const EmStorage& tStorage>
-class EmStorageTagEx: public EmStorageValueEx<EmTagValue, tStorage>, 
-                      public EmTagBase {
+class EmStorageTagEx: public EmValueEx<EmStorageTag<tStorage>, EmTagValue> {
 public:
+    /// @brief The class constructor
+    /// @param key The storage/sync value key/id
+    /// @param flags The sync flags
     EmStorageTagEx(const char* key, 
                    EmSyncFlags flags,
-                   void (*onSetValue)(const EmTagValue&) = nullptr)
-     : EmStorageValueEx<EmTagValue, tStorage>(key, onSetValue),
-       EmTagBase(flags) {}
+                   EmOnSetValueCallbackType<EmTagValue> onSetValue)
+     : EmValueEx<EmStorageTag<tStorage>, EmTagValue>(onSetValue),
+       EmStorageTag<tStorage>(key, flags) {}
 
-    virtual const char* getId() const override { return this->getKey(); }     
-    virtual EmTagValue getValue() const {
-        EmTagValue val;
-        tStorage.getValue(this->getKey(), val);
-        return val;
-    }
-
-    virtual EmGetValueResult getValue(EmTagValue& value) const override {
-        return EmStorageValueEx<EmTagValue, tStorage>::getValue(value);
-    }
-
-    virtual bool setValue(const EmTagValue& value) override {
-        return EmStorageValueEx<EmTagValue, tStorage>::setValue(value);
-    }
-
-    template<typename T>
-    T as() const {
-        T value;
-        EmTagValue tagVal;
-        if (getValue(tagVal) != EmGetValueResult::failed) {
-            return tagVal.as<T>();
-        }
-        return T();
-    }
+    /// @brief The class constructor
+    /// @param key The sync value key
+    /// @param flags The sync flags
+    /// @param tags The tags object olding all tags that will be synchronized by them ids.
+    EmStorageTagEx(const char* key, 
+                   EmSyncFlags flags,
+                   EmOnSetValueCallbackType<EmTagValue> onSetValue,
+                   EmTags& tags)
+     : EmValueEx<EmStorageTag<tStorage>, EmTagValue>(onSetValue),
+       EmStorageTag<tStorage>(key, flags) {
+        tags.add(*this);
+     }
 };
 
 #endif

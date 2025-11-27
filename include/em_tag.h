@@ -1,12 +1,12 @@
-#ifndef _EM_TAG_H_
-#define _EM_TAG_H_
+#ifndef _EM_TAG_H__
+#define _EM_TAG_H__
 
 #include <WString.h>
 #include <type_traits>
 
 #include "em_list.h"
 #include "em_string.h"
-#include "em_sync_value.h"
+#include "em_value_sync.h"
 
 // The tag value type
 enum class EmTagValueType: uint8_t {
@@ -84,8 +84,8 @@ private:
     };
 };
 
-// The tag value bytes structure used to read and write an EmTagValue object in case 'EmTagValue' 
-// will have virtual functions in the future.
+// The tag value data structure used to read and write an EmTagValue objects.
+// We keep tag data non virtual in order to allow memory copy of tags.
 struct EmTagValueStruct {
     EmTagValueStruct() 
      : m_type(EmTagValueType::vt_undefined), m_value{0} {}
@@ -479,8 +479,8 @@ protected:
 
 // A tag definition that provides synchronizable value identified by a string.
 // Tags are synchable and updatable. Sync and Update is called from a tag list on its update. 
-class EmTagBase: public virtual EmSyncValue<EmValue<EmTagValue>, EmTagValue>, 
-                 public virtual EmUpdatable {
+class EmTagBase: public EmSyncValue<EmValue<EmTagValue>, EmTagValue>, 
+                 public EmUpdatable {
 public:
     EmTagBase(EmSyncFlags flags)
      : EmSyncValue<EmValue<EmTagValue>, EmTagValue>(flags) {}
@@ -550,6 +550,16 @@ public:
     }
     virtual bool setValue(const char* value, bool forceType) {
         return getValue().setValue(value, forceType);
+    }
+
+    template<typename T>
+    T as() const {
+        T value;
+        EmTagValue tagVal;
+        if (getValue(tagVal) != EmGetValueResult::failed) {
+            return tagVal.as<T>();
+        }
+        return T();
     }
 };
 
@@ -815,4 +825,4 @@ protected:
     EmList<EmTagSyncGroupBase> m_groups;
 };
 
-#endif // _EM_TAG_H_
+#endif // _EM_TAG_H__

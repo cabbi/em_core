@@ -43,6 +43,14 @@
     #define USB_SERIAL_CLASS HardwareSerial
 #endif    
 
+#if __cplusplus >= 201402L
+    #define DEPRECATED          [[deprecated]]
+    #define DEPRECATED_MSG(msg) [[deprecated(msg)]]
+#else
+    #define DEPRECATED
+    #define DEPRECATED_MSG(msg)
+#endif
+
 #define SIZE_OF(x) (sizeof((x))/sizeof((x[0])))
 
 #define MIN(x, y) ((x)<(y) ? (x) : (y))
