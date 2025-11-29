@@ -648,6 +648,10 @@ public:
 // A group of tags with the same ID that are synchronized together.
 class EmTagSyncGroupBase: public EmUpdatable {
     public: 
+    EmTagSyncGroupBase() = default;
+    virtual ~EmTagSyncGroupBase() = default;
+
+    // Base methods to be implemented by derived classes
     virtual const char* getId() const = 0; 
 
     static bool match(const EmTagSyncGroupBase& item1, const EmTagSyncGroupBase& item2) {
@@ -709,7 +713,13 @@ public:
 class EmTags: public EmUpdatable {
 public:
     EmTags() : m_groups(&EmTagSyncGroupBase::match) {}
-    virtual ~EmTags() = default;
+    virtual ~EmTags() {
+        clear();
+    }
+
+    virtual void clear() {
+        m_groups.clear();
+    }
 
     virtual void update() override {
         // Do the groups synch and update

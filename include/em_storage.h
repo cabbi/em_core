@@ -125,7 +125,8 @@ protected:
     const char* m_key;
 
 public:
-    EmStorageValueBase(const char* key) : m_key(key) {}
+    //EmStorageValueBase(const char* key) : m_key(key) {}
+    using ValueOfT::ValueOfT;
 
     virtual ~EmStorageValueBase() = default;
 
@@ -183,14 +184,15 @@ public:
 // This class supports value synch between other 'EmSnycValue<T> values with the same key/id.
 template<typename ValueOfT, typename T, const EmStorage& tStorage>
 class EmStorageSyncValue: public EmStorageValueBase<EmSyncValue<ValueOfT, T>, T, tStorage> {
-    
+public:    
     /// @brief The class constructor
     /// @param key The storage/sync value key/id
     /// @param flags The sync flags
     EmStorageSyncValue(const char* key, 
                        EmSyncFlags flags)
-     : EmStorageValueBase<EmSyncValue<ValueOfT, T>, T, tStorage>(key),
-       EmSyncValue<ValueOfT, T>(flags) {}
+     : EmStorageValueBase<EmSyncValue<ValueOfT, T>, T, tStorage>(key) {
+        EmSyncValue<ValueOfT, T>::m_flags = flags;
+    }
 
     /// @brief The class constructor
     /// @param key The sync value key
@@ -199,8 +201,7 @@ class EmStorageSyncValue: public EmStorageValueBase<EmSyncValue<ValueOfT, T>, T,
     EmStorageSyncValue(const char* key, 
                        EmSyncFlags flags,
                        EmTags& tags)
-     : EmStorageValueBase<EmSyncValue<ValueOfT, T>, T, tStorage>(key),
-       EmSyncValue<ValueOfT, T>(flags)  {
+     : EmStorageSyncValue<ValueOfT, T, tStorage>(key, flags) {
         tags.add(*this);
      }
 
@@ -223,17 +224,18 @@ public:
 //
 // This class supports value synch between other 'EmSnycValue<T> values with the same key/id.
 template<const EmStorage& tStorage>
-class EmStorageTag: public EmStorageValue<EmTag, tStorage> {
+class EmStorageTag: public EmStorageValueBase<EmTag, EmTagValue, tStorage> {
 public:
     EmStorageTag(const char* key, 
                  EmSyncFlags flags)
-     : EmStorageValueBase<EmTag, EmTagValue, tStorage>(key),
-       EmTag(key, flags) {}
+     : EmStorageValueBase<EmTag, EmTagValue, tStorage>(key, flags) {
+        EmStorageValueBase<EmTag, EmTagValue, tStorage>::m_key = key;
+     }
 
     EmStorageTag(const char* key, 
                  EmSyncFlags flags,
                  EmTags& tags)
-     : EmStorageTag(key, flags) {
+     : EmStorageTag<tStorage>(key, flags) {
         tags.add(*this);
      }
 };
