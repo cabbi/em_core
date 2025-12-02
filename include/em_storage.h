@@ -121,20 +121,14 @@ public:
 // This base class has the templated 'ValueOfT' which should be derived from 'EmValue<T>'.
 template<typename ValueOfT, typename T, const EmStorage& tStorage>
 class EmStorageValueBase: public ValueOfT {
-protected:
-    const char* m_key;
-
 public:
-    //EmStorageValueBase(const char* key) : m_key(key) {}
     using ValueOfT::ValueOfT;
 
-    virtual ~EmStorageValueBase() = default;
-
-    virtual const char* getKey() const { return m_key; }
+    virtual const char* getKey() const = 0;
 
     virtual EmGetValueResult getValue(T& value) const override {
         T curVal;
-        if (tStorage.getValue(m_key, curVal) != sizeof(value)) {
+        if (tStorage.getValue(getKey(), curVal) != sizeof(value)) {
             return EmGetValueResult::failed;
         }
         if (value == curVal) {
@@ -145,12 +139,12 @@ public:
     }
 
     virtual bool setValue(const T& value) override {
-        return tStorage.putValue(m_key, value) == sizeof(value);
+        return tStorage.putValue(getKey(), value) == sizeof(value);
     }
     
     virtual T getValue() const {
         T value;
-        if (tStorage.getBytes(m_key, &value, sizeof(value)) == sizeof(value)) {
+        if (tStorage.getBytes(getKey(), &value, sizeof(value)) == sizeof(value)) {
             return value;
         }
         return T();
@@ -167,6 +161,13 @@ public:
 // This class is a simplified templated class deriving directly from 'EmValue<T>'
 template<typename T, const EmStorage& tStorage>
 class EmStorageValue: public EmStorageValueBase<EmValue<T>, T, tStorage> {
+protected:
+    const char* m_key;
+
+public:    
+    EmStorageValue(const char* key) : m_key(key) {}
+
+    virtual const char* getKey() const { return m_key; }
 };
 
 
@@ -229,7 +230,6 @@ public:
     EmStorageTag(const char* key, 
                  EmSyncFlags flags)
      : EmStorageValueBase<EmTag, EmTagValue, tStorage>(key, flags) {
-        EmStorageValueBase<EmTag, EmTagValue, tStorage>::m_key = key;
      }
 
     EmStorageTag(const char* key, 
@@ -238,6 +238,10 @@ public:
      : EmStorageTag<tStorage>(key, flags) {
         tags.add(*this);
      }
+
+    virtual const char* getKey() const { 
+        return EmTag::getId(); 
+    }
 };
 
 

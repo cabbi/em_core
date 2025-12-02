@@ -48,12 +48,39 @@ protected:
 };
 */
 
-class EmComSerial: public EmComDevice
+class EmComSerial: public EmComDevice, public EmSerialStream
 {
 public:
-    EmComSerial(Stream& serial)
+    EmComSerial(EmSerialStream& serial)
      : m_serial(serial)
     {}
+
+	virtual void begin(unsigned long baud) {
+        m_serial.begin(baud);
+        m_IsAvailable = true;
+    }
+
+	virtual void begin(unsigned long baud, 
+                       uint32_t config, 
+                       int8_t rxPin=-1, 
+                       int8_t txPin=-1, 
+                       bool invert=false, 
+                       unsigned long timeout_ms = 20000UL, 
+                       uint8_t rxfifo_full_thrhd = 112) {
+        m_serial.begin(baud, 
+                        config, 
+                        rxPin, 
+                        txPin, 
+                        invert, 
+                        timeout_ms, 
+                        rxfifo_full_thrhd);
+        m_IsAvailable = true;
+    }
+	
+    virtual void end() {
+        m_serial.end();
+        m_IsAvailable = false;
+    }
 
     int read() {
         return m_serial.read();
@@ -80,7 +107,7 @@ public:
     }
 
 private:
-    Stream& m_serial;
+    EmSerialStream& m_serial;
 };
 
 /* TODO

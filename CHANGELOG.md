@@ -44,3 +44,4 @@
 - Added new 'EmTag' & 'EmTags' classes to have simple synchronization among same values coming from different sources
 - Added new 'EmAutoPtr' class as a lightweight alternative to std::auto_ptr for environments where the standard library is not available or desired
 - Removed 'SoftwareSerial' as dependency since its not more used. 
+- Added abstract 'EmSerialStream' and concrete implementation of 'EmHardwareSerial' to virtualize serial ports

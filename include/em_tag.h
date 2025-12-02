@@ -477,7 +477,7 @@ protected:
     }
 };
 
-// A tag definition that provides synchronizable value identified by a string.
+// The abstract tag class that provides synchronizable value identified by a string.
 // Tags are synchable and updatable. Sync and Update is called from a tag list on its update. 
 class EmTagBase: public EmSyncValue<EmValue<EmTagValue>, EmTagValue>, 
                  public EmUpdatable {
@@ -487,11 +487,16 @@ public:
     
     // Base methods to be implemented by derived classes
     virtual const char* getId() const = 0;
-    virtual EmTagValue getValue() const = 0;
 
     // 'EmValue' interface to be implemented by derived classes
     virtual EmGetValueResult getValue(EmTagValue& value) const = 0;
     virtual bool setValue(const EmTagValue& value) = 0;
+
+    virtual EmTagValue getValue() const {
+        EmTagValue value;
+        getValue(value);
+        return value;
+    }
 
     virtual void update() override {
         // Default update doing nothing.

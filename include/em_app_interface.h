@@ -72,6 +72,9 @@ public:
                    const EmDuration& blockedTimeout = EmDuration(0, 1, 0), 
                    EmLogLevel logLevel=EmLogLevel::global)
      : EmLog(name, logLevel),
+    #ifdef EM_NO_LOG
+        m_name(name),
+    #endif
        m_interfaceStatus(EmInterfaceStatusFlag::none),
        m_blockedTimeout(blockedTimeout) { 
         clear_();
@@ -97,9 +100,16 @@ public:
     virtual EmIntOperationResult setup() = 0;
     virtual EmIntOperationResult loop() = 0;
 
+#ifdef EM_NO_LOG
+    virtual const char* name() const {
+        return m_name;
+    };
+#else
     virtual const char* name() const {
         return getContext();
     };
+#endif
+
 
     // Override this in case app should not call interface 'loop' method all the times
     virtual bool canCallLoop() { return true; }
@@ -163,6 +173,9 @@ protected:
         memset(m_errorMsg, 0, sizeof(m_errorMsg));
     }
 
+#ifdef EM_NO_LOG
+    const char* m_name;
+#endif
     EmInterfaceStatusFlag::TypeInternal m_interfaceStatus; 
     mutable EmTimeout m_blockedTimeout;
     char m_warningMsg[MAX_INTERFACE_MSG_LEN+1];
