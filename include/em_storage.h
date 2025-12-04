@@ -119,7 +119,7 @@ public:
 // A storage value that can be read and write within the provided 'tStorage' NVM storage.
 //
 // This base class has the templated 'ValueOfT' which should be derived from 'EmValue<T>'.
-template<typename ValueOfT, typename T, const EmStorage& tStorage>
+template<typename ValueOfT, typename T, EmStorage& tStorage>
 class EmStorageValueBase: public ValueOfT {
 public:
     using ValueOfT::ValueOfT;
@@ -159,7 +159,7 @@ public:
 // A storage value that can be read and write within the provided 'tStorage' NVM storage.
 //
 // This class is a simplified templated class deriving directly from 'EmValue<T>'
-template<typename T, const EmStorage& tStorage>
+template<typename T, EmStorage& tStorage>
 class EmStorageValue: public EmStorageValueBase<EmValue<T>, T, tStorage> {
 protected:
     const char* m_key;
@@ -172,8 +172,8 @@ public:
 
 
 // This class provides 'EmStorageValue' plus an 'onSetValue' callback.
-template<typename T, const EmStorage& tStorage,
-         EmOnSetValueCallbackType<EmStorageValue<T, tStorage>, EmTagValue> OnSetValue>
+template<typename T, EmStorage& tStorage,
+         EmOnSetValueCallbackType<EmTagValue> OnSetValue>
 class EmStorageValueEx: public EmValueEx<EmStorageValue<T, tStorage>, EmTagValue, OnSetValue> {
 public:
     using EmValueEx<EmStorageValue<T, tStorage>, EmTagValue, OnSetValue>::EmValueEx;
@@ -183,7 +183,7 @@ public:
 // A storage value that can be read and write within the provided 'tStorage' NVM storage.
 //
 // This class supports value synch between other 'EmSnycValue<T> values with the same key/id.
-template<typename ValueOfT, typename T, const EmStorage& tStorage>
+template<typename ValueOfT, typename T, EmStorage& tStorage>
 class EmStorageSyncValue: public EmStorageValueBase<EmSyncValue<ValueOfT, T>, T, tStorage> {
 public:    
     /// @brief The class constructor
@@ -213,8 +213,8 @@ public:
 
 
 // This class provides 'EmStorageSyncValue' plus an 'onSetValue' callback.
-template<typename ValueOfT, typename T, const EmStorage& tStorage,
-         EmOnSetValueCallbackType<EmStorageSyncValue<ValueOfT, T, tStorage>, EmTagValue> OnSetValue>
+template<typename ValueOfT, typename T, EmStorage& tStorage,
+         EmOnSetValueCallbackType<EmTagValue> OnSetValue>
 class EmStorageSyncValueEx: public EmValueEx<EmStorageSyncValue<ValueOfT, T, tStorage>, EmTagValue, OnSetValue> {
 public:
     using EmValueEx<EmStorageSyncValue<ValueOfT, T, tStorage>, EmTagValue, OnSetValue>::EmValueEx;
@@ -224,7 +224,7 @@ public:
 // A storage value that can be read and write tags within the provided 'tStorage' NVM storage.
 //
 // This class supports value synch between other 'EmSnycValue<T> values with the same key/id.
-template<const EmStorage& tStorage>
+template<EmStorage& tStorage>
 class EmStorageTag: public EmStorageValueBase<EmTag, EmTagValue, tStorage> {
 public:
     EmStorageTag(const char* key, 
@@ -246,8 +246,8 @@ public:
 
 
 // This class provides 'EmStorageTag' plus an 'onSetValue' callback.
-template<const EmStorage& tStorage,
-         EmOnSetValueCallbackType<EmStorageTag<tStorage>, EmTagValue> OnSetValue>
+template<EmStorage& tStorage,
+         EmOnSetValueCallbackType<EmTagValue> OnSetValue>
 class EmStorageTagEx: public EmValueEx<EmStorageTag<tStorage>, EmTagValue, OnSetValue> {
 public:
 public:

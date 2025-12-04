@@ -281,6 +281,14 @@ public:
         return m_type != type; 
     }
 
+    bool isUndefinedType() const { 
+        return m_type == EmTagValueType::vt_undefined;  
+    }
+
+    bool isNotUndefinedType() const { 
+        return !isUndefinedType();  
+    }
+
     void toStruct(EmTagValueStruct& out) const {
         out.m_type = m_type;
         out.m_value = m_value;
@@ -443,6 +451,10 @@ public:
         clear_();
         copyFrom_(value);
         return true;
+    }
+    
+    bool setValue(const EmTagValue& value) {
+        return setValue(value, false);
     }
 
 protected:
@@ -643,8 +655,15 @@ public:
     }
 };
 
-// This class provides 'EmStorageValue' plus an 'onSetValue' callback.
-template<EmOnSetValueCallbackType<EmTag, EmTagValue> OnSetValue>
+// This class provides 'EmTagBase' plus an 'onSetValue' callback.
+template<EmOnSetValueCallbackType<EmTagValue> OnSetValue>
+class EmTagBaseEx: public EmValueEx<EmTagBase, EmTagValue, OnSetValue> {
+public:
+    using EmValueEx<EmTagBase, EmTagValue, OnSetValue>::EmValueEx;
+};
+
+// This class provides 'EmTag' plus an 'onSetValue' callback.
+template<EmOnSetValueCallbackType<EmTagValue> OnSetValue>
 class EmTagEx: public EmValueEx<EmTag, EmTagValue, OnSetValue> {
 public:
     using EmValueEx<EmTag, EmTagValue, OnSetValue>::EmValueEx;
