@@ -655,19 +655,22 @@ public:
     }
 };
 
+
 // This class provides 'EmTagBase' plus an 'onSetValue' callback.
-template<EmOnSetValueCallbackType<EmTagValue> OnSetValue>
-class EmTagBaseEx: public EmValueEx<EmTagBase, EmTagValue, OnSetValue> {
+template<EmOnSetValueCallbackType<EmTagBase, EmTagValue> OnSetValue>
+class EmTagBaseEx: public EmValueEx<EmTagBase, EmTagBase, EmTagValue, OnSetValue> {
 public:
-    using EmValueEx<EmTagBase, EmTagValue, OnSetValue>::EmValueEx;
+    using EmValueEx<EmTagBase, EmTagBase, EmTagValue, OnSetValue>::EmValueEx;
 };
 
+
 // This class provides 'EmTag' plus an 'onSetValue' callback.
-template<EmOnSetValueCallbackType<EmTagValue> OnSetValue>
-class EmTagEx: public EmValueEx<EmTag, EmTagValue, OnSetValue> {
+template<EmOnSetValueCallbackType<EmTag, EmTagValue> OnSetValue>
+class EmTagEx: public EmValueEx<EmTag, EmTag, EmTagValue, OnSetValue> {
 public:
-    using EmValueEx<EmTag, EmTagValue, OnSetValue>::EmValueEx;
+    using EmValueEx<EmTag, EmTag, EmTagValue, OnSetValue>::EmValueEx;
 };
+
 
 // A group of tags with the same ID that are synchronized together.
 class EmTagSyncGroupBase: public EmUpdatable {

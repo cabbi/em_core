@@ -52,24 +52,24 @@ public:
 
 
 // The 'onSetValue' callback prototype
-template <class T>
-using EmOnSetValueCallbackType = bool (*)(void* self, const T& value);
+template <class SelfT, class ValueT>
+using EmOnSetValueCallbackType = bool (*)(SelfT& self, const ValueT& value);
 
 
 // This class provides an 'onSetValue' callback.
 // 
 // The aim is to define this class with any implementation of an 'EmValue' subclass.
 template <class EmValueOfT,
-          class T,
-          EmOnSetValueCallbackType<T> OnSetValue>
+          class SelfT, class ValueT,
+          EmOnSetValueCallbackType<SelfT, ValueT> OnSetValue>
 class EmValueEx: public EmValueOfT {
 //static_assert(std::is_base_of<EmValue<T>, EmValueOfT>::value, "EmValueOfT must derive from 'EmValue'");
 public:
     using EmValueOfT::EmValueOfT;
 
-    virtual bool setValue(const T& value) override {
+    virtual bool setValue(const ValueT& value) override {
         if (EmValueOfT::setValue(value)) {
-            return OnSetValue(this, value);
+            return OnSetValue(static_cast<SelfT&>(*this), static_cast<const ValueT&>(value));
         }
         return false;
     }

@@ -172,11 +172,11 @@ public:
 
 
 // This class provides 'EmStorageValue' plus an 'onSetValue' callback.
-template<typename T, EmStorage& tStorage,
-         EmOnSetValueCallbackType<EmTagValue> OnSetValue>
-class EmStorageValueEx: public EmValueEx<EmStorageValue<T, tStorage>, EmTagValue, OnSetValue> {
+template<typename T, class SelfT,  EmStorage& tStorage,
+         EmOnSetValueCallbackType<SelfT, EmTagValue> OnSetValue>
+class EmStorageValueEx: public EmValueEx<EmStorageValue<T, tStorage>, SelfT, EmTagValue, OnSetValue> {
 public:
-    using EmValueEx<EmStorageValue<T, tStorage>, EmTagValue, OnSetValue>::EmValueEx;
+    using EmValueEx<EmStorageValue<T, tStorage>, SelfT, EmTagValue, OnSetValue>::EmValueEx;
 };
 
 
@@ -214,10 +214,11 @@ public:
 
 // This class provides 'EmStorageSyncValue' plus an 'onSetValue' callback.
 template<typename ValueOfT, typename T, EmStorage& tStorage,
-         EmOnSetValueCallbackType<EmTagValue> OnSetValue>
-class EmStorageSyncValueEx: public EmValueEx<EmStorageSyncValue<ValueOfT, T, tStorage>, EmTagValue, OnSetValue> {
+         class SelfT,
+         EmOnSetValueCallbackType<SelfT, EmTagValue> OnSetValue>
+class EmStorageSyncValueEx: public EmValueEx<EmStorageSyncValue<ValueOfT, T, tStorage>, SelfT, EmTagValue, OnSetValue> {
 public:
-    using EmValueEx<EmStorageSyncValue<ValueOfT, T, tStorage>, EmTagValue, OnSetValue>::EmValueEx;
+    using EmValueEx<EmStorageSyncValue<ValueOfT, T, tStorage>, SelfT, EmTagValue, OnSetValue>::EmValueEx;
 };
 
 
@@ -247,11 +248,12 @@ public:
 
 // This class provides 'EmStorageTag' plus an 'onSetValue' callback.
 template<EmStorage& tStorage,
-         EmOnSetValueCallbackType<EmTagValue> OnSetValue>
-class EmStorageTagEx: public EmValueEx<EmStorageTag<tStorage>, EmTagValue, OnSetValue> {
+         class SelfT,
+         EmOnSetValueCallbackType<SelfT, EmTagValue> OnSetValue>
+class EmStorageTagEx: public EmValueEx<EmStorageTag<tStorage>, SelfT, EmTagValue, OnSetValue> {
 public:
 public:
-    using EmValueEx<EmStorageTag<tStorage>, EmTagValue, OnSetValue>::EmValueEx;
+    using EmValueEx<EmStorageTag<tStorage>, SelfT, EmTagValue, OnSetValue>::EmValueEx;
 };
 
 #endif
