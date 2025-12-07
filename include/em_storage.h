@@ -14,6 +14,7 @@
 #include "em_value_sync.h"
 #include "em_tag.h"
 
+#define EM_STORAGE_NULL_HANDLE 0
 
 // NVS persistent storage class
 class EmStorage: public EmLog {
@@ -24,14 +25,14 @@ public:
     EmStorage(const char* logContext="EmStorage", 
               EmLogLevel logLevel = EmLogLevel::global)
      : EmLog(logContext, logLevel),
-       m_handle(nullptr) {}
+       m_handle(EM_STORAGE_NULL_HANDLE) {}
 
     ~EmStorage() {
         end();
     }
 
     bool isInitialized() const {
-        return m_handle != nullptr;
+        return m_handle != EM_STORAGE_NULL_HANDLE;
     }
     bool isNotInitialized() const {
         return !isInitialized();
@@ -156,7 +157,7 @@ public:
 };
 
 
-// A storage value that can be read and write within the provided 'tStorage' NVM storage.
+// A storage value that can be read and written within the provided 'tStorage' NVM storage.
 //
 // This class is a simplified templated class deriving directly from 'EmValue<T>'
 template<typename T, EmStorage& tStorage>
@@ -172,11 +173,11 @@ public:
 
 
 // This class provides 'EmStorageValue' plus an 'onSetValue' callback.
-template<typename T, class SelfT,  EmStorage& tStorage,
-         EmOnSetValueCallbackType<SelfT, EmTagValue> OnSetValue>
-class EmStorageValueEx: public EmValueEx<EmStorageValue<T, tStorage>, SelfT, EmTagValue, OnSetValue> {
+template<EmStorage& tStorage, class SelfT, typename T,
+         EmOnSetValueCallbackType<SelfT, T> OnSetValue>
+class EmStorageValueEx: public EmValueEx<EmStorageValue<T, tStorage>, SelfT, T, OnSetValue> {
 public:
-    using EmValueEx<EmStorageValue<T, tStorage>, SelfT, EmTagValue, OnSetValue>::EmValueEx;
+    using EmValueEx<EmStorageValue<T, tStorage>, SelfT, T, OnSetValue>::EmValueEx;
 };
 
 
@@ -230,13 +231,25 @@ class EmStorageTag: public EmStorageValueBase<EmTag, EmTagValue, tStorage> {
 public:
     EmStorageTag(const char* key, 
                  EmSyncFlags flags)
-     : EmStorageValueBase<EmTag, EmTagValue, tStorage>(key, flags) {
-     }
+     : EmStorageValueBase<EmTag, EmTagValue, tStorage>(key, flags) {}
+
+    EmStorageTag(const char* key,
+                 const EmTagValue& initValue, 
+                 EmSyncFlags flags)
+     : EmStorageValueBase<EmTag, EmTagValue, tStorage>(key, initValue, flags) {}
 
     EmStorageTag(const char* key, 
                  EmSyncFlags flags,
                  EmTags& tags)
      : EmStorageTag<tStorage>(key, flags) {
+        tags.add(*this);
+    }
+
+    EmStorageTag(const char* key,
+                 const EmTagValue& initValue, 
+                 EmSyncFlags flags,
+                 EmTags& tags)
+     : EmStorageTag<tStorage>(key, initValue, flags) {
         tags.add(*this);
      }
 

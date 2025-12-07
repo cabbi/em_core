@@ -35,7 +35,7 @@ bool EmStorage::begin(const char * name) {
 void EmStorage::end() {
     if (isInitialized()) {
         nvs_close(m_handle);
-        m_handle = nullptr;
+        m_handle = EM_STORAGE_NULL_HANDLE;
     }
 }
 

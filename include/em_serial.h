@@ -20,9 +20,9 @@ public:
     virtual int available() = 0;
     virtual int read() = 0;
     virtual int peek() = 0;
-	virtual int write(unsigned char byte) = 0;
-	virtual int write(const char* text) = 0;
-	virtual int write(const char *buffer, int buffLen) = 0;
+	virtual size_t write(unsigned char byte) = 0;
+	virtual size_t write(const char* text) = 0;
+	virtual size_t write(const char *buffer, int buffLen) = 0;
 	virtual void flush() = 0;
 };
 
@@ -50,13 +50,13 @@ public:
     int peek() override { 
         return HardwareSerial::peek(); 
     }
-    int write(unsigned char byte) override { 
+    size_t write(unsigned char byte) override { 
         return HardwareSerial::write(byte); 
     }
-    int write(const char* text) override { 
+    size_t write(const char* text) override { 
         return HardwareSerial::write(text);
     }
-    int write(const char *buffer, int buffLen) override { 
+    size_t write(const char *buffer, int buffLen) override { 
         return HardwareSerial::write(buffer, buffLen); 
     }
     void flush() override { 
