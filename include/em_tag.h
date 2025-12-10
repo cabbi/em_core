@@ -94,75 +94,6 @@ struct EmTagValueStruct {
                      EmTagValueUnion value = {0})
      : m_type(type), m_value(value) {}
 
-    template<typename T>
-    bool operator ==(const T& other) const {
-        return this->m_value.as<T>() == other;
-    }
-
-    template<typename P>
-    bool operator ==(const P* other) const {
-        return this->m_value.as<P*>() == other;
-    }
-
-    bool operator ==(const EmTagValueStruct& other) const {
-        if (m_type != other.m_type) {
-            return false;
-        }
-        switch (m_type) {
-            case EmTagValueType::vt_string:
-                // Ensure both pointers are valid before dereferencing
-                if (m_value.as_string && other.m_value.as_string) {
-                    return *m_value.as_string == *other.m_value.as_string;
-                }
-                return m_value.as_string == other.m_value.as_string; // Both are nullptr
-            case EmTagValueType::vt_undefined:    
-                return true; // Two undefined values are considered equal
-            default: 
-                return m_value.as_real == other.m_value.as_real;
-        }
-    }
-
-    bool operator !=(const EmTagValueStruct& other) const {
-        return !(*this == other);
-    }
-
-    bool operator >(const EmTagValueStruct& other) const {
-        if (m_type != other.m_type) {
-            return false;
-        }
-        switch (m_type) {
-            case EmTagValueType::vt_string:
-                // Ensure both pointers are valid before dereferencing
-                if (m_value.as_string && other.m_value.as_string) {
-                    return *m_value.as_string > *other.m_value.as_string;
-                }
-                return m_value.as_string == other.m_value.as_string; // Both are nullptr
-            case EmTagValueType::vt_undefined:    
-                return false; // Two undefined values are considered equal
-            default: 
-                return m_value.as_real > other.m_value.as_real;
-        }
-    }
-
-    bool operator >=(const EmTagValueStruct& other) const {
-        return (*this > other) || (*this != other);
-    }
-
-    bool operator <(const EmTagValueStruct& other) const {
-        return !(*this > other) && (*this != other);
-    }
-
-    bool operator <=(const EmTagValueStruct& other) const {
-        return !(*this > other);
-    }
-
-    const EmTagValueType& getType() const {
-        return m_type;
-    }
-    const EmTagValueUnion& getValue() const {
-        return m_value;
-    }
-
     EmTagValueType m_type;
     EmTagValueUnion m_value;
 };
@@ -205,8 +136,100 @@ public:
         clear_();
     }   
 
+
+    template<typename T>
+    bool operator ==(const T& other) const {
+        return this->m_value.as<T>() == other;
+    }
+
+    template<typename P>
+    bool operator ==(const P* other) const {
+        return this->m_value.as<P*>() == other;
+    }
+
+    bool operator ==(const EmTagValue& other) const {
+        if (m_type != other.m_type) {
+            return false;
+        }
+        switch (m_type) {
+            case EmTagValueType::vt_string:
+                // Ensure both pointers are valid before dereferencing
+                if (m_value.as_string && other.m_value.as_string) {
+                    return *m_value.as_string == *other.m_value.as_string;
+                }
+                return m_value.as_string == other.m_value.as_string; // Both are nullptr
+            case EmTagValueType::vt_undefined:    
+                return true; // Two undefined values are considered equal
+            default: 
+                return m_value.as_real == other.m_value.as_real;
+        }
+    }
+
+    bool operator !=(const EmTagValue& other) const {
+        return !(*this == other);
+    }
+
+    bool operator >(const EmTagValue& other) const {
+        if (m_type != other.m_type) {
+            return false;
+        }
+        switch (m_type) {
+            case EmTagValueType::vt_string:
+                // Ensure both pointers are valid before dereferencing
+                if (m_value.as_string && other.m_value.as_string) {
+                    return *m_value.as_string > *other.m_value.as_string;
+                }
+                return m_value.as_string == other.m_value.as_string; // Both are nullptr
+            case EmTagValueType::vt_undefined:    
+                return false; // Two undefined values are considered equal
+            default: 
+                return m_value.as_real > other.m_value.as_real;
+        }
+    }
+
+    bool operator >=(const EmTagValue& other) const {
+        return (*this > other) || (*this != other);
+    }
+
+    bool operator <(const EmTagValue& other) const {
+        return !(*this > other) && (*this != other);
+    }
+
+    bool operator <=(const EmTagValue& other) const {
+        return !(*this > other);
+    }
+
+    EmTagValue& operator=(const EmTagValue& other) {
+        if (this != &other) {
+            clear_();
+            copyFrom_(other);
+        }
+        return *this;
+    }
+
+    const EmTagValueType& getType() const {
+        return m_type;
+    }
+
     bool isSameType(const EmTagValue& other) const {
         return m_type == other.getType();
+    }
+
+
+    bool isType(EmTagValueType type) const { 
+        return m_type == type; 
+    }
+
+    bool isNotType(EmTagValueType type) const { 
+        return m_type != type; 
+    }
+
+    bool isUndefinedType() const { 
+        return m_type == EmTagValueType::vt_undefined;  
+    }
+
+    bool isNotUndefinedType() const { 
+        return !isUndefinedType();  
     }
 
     EmBoolType asBool() const {
@@ -237,58 +260,6 @@ public:
         return *this;
     }
 
-    EmTagValue& operator=(const EmTagValue& other) {
-        if (this != &other) {
-            clear_();
-            copyFrom_(other);
-        }
-        return *this;
-    }
-
-    bool operator ==(const EmTagValue& other) const {
-        return EmTagValueStruct::operator==(static_cast<const EmTagValueStruct&>(other));
-    }
-
-    bool operator !=(const EmTagValue& other) const {
-        return EmTagValueStruct::operator!=(static_cast<const EmTagValueStruct&>(other));
-    }
-
-    bool operator >(const EmTagValue& other) const {
-        return EmTagValueStruct::operator>(static_cast<const EmTagValueStruct&>(other));
-    }
-
-    bool operator >=(const EmTagValue& other) const {
-        return EmTagValueStruct::operator>=(static_cast<const EmTagValueStruct&>(other));
-    }
-
-    bool operator <(const EmTagValue& other) const {
-        return EmTagValueStruct::operator<(static_cast<const EmTagValueStruct&>(other));
-    }
-
-    bool operator <=(const EmTagValue& other) const {
-        return EmTagValueStruct::operator<=(static_cast<const EmTagValueStruct&>(other));
-    }
-
-    EmTagValueType getType() const { 
-        return m_type; 
-    }
-
-    bool isType(EmTagValueType type) const { 
-        return m_type == type; 
-    }
-
-    bool isNotType(EmTagValueType type) const { 
-        return m_type != type; 
-    }
-
-    bool isUndefinedType() const { 
-        return m_type == EmTagValueType::vt_undefined;  
-    }
-
-    bool isNotUndefinedType() const { 
-        return !isUndefinedType();  
-    }
-
     void toStruct(EmTagValueStruct& out) const {
         out.m_type = m_type;
         out.m_value = m_value;
@@ -299,48 +270,39 @@ public:
         copyFrom_(in);
     }
 
-    EmGetValueResult getValue(bool& value) const {
-        if (m_type != EmTagValueType::vt_boolean) {
-            return EmGetValueResult::failed;
+    template<typename T>
+    EmGetValueResult getValue(T& value) const {
+        if (std::is_same<T, bool>::value) {
+            if (m_type != EmTagValueType::vt_boolean) {
+                return EmGetValueResult::failed;
+            }
+            EmGetValueResult res = (value == m_value.as_bool) 
+                            ? EmGetValueResult::succeedEqualValue 
+                            : EmGetValueResult::succeedNotEqualValue;
+            value = m_value.as_bool;
+            return res;
+        } else
+        if (std::is_integral<T>::value) {
+            if (m_type != EmTagValueType::vt_integer) {
+                return EmGetValueResult::failed;
+            }
+            EmGetValueResult res = (static_cast<EmIntegerType>(value) == m_value.as_integer)
+                                ? EmGetValueResult::succeedEqualValue
+                                : EmGetValueResult::succeedNotEqualValue;
+            value = static_cast<T>(m_value.as_integer);
+            return res;
+        } else
+        if (std::is_floating_point<T>::value) {
+            if (m_type != EmTagValueType::vt_real)  {
+                return EmGetValueResult::failed;
+            }
+            EmGetValueResult res = (static_cast<EmRealType>(value) == m_value.as_real)
+                                ? EmGetValueResult::succeedEqualValue
+                                : EmGetValueResult::succeedNotEqualValue;
+            value = static_cast<T>(m_value.as_real);
+            return res;
         }
-        EmGetValueResult res = (value == m_value.as_bool) 
-                         ? EmGetValueResult::succeedEqualValue 
-                         : EmGetValueResult::succeedNotEqualValue;
-        value = m_value.as_bool;
-        return res;
-    }
-
-    EmGetValueResult getValue(int32_t& value) const {
-        if (m_type != EmTagValueType::vt_integer) {
-            return EmGetValueResult::failed;
-        }
-        EmGetValueResult res = (static_cast<EmIntegerType>(value) == m_value.as_integer)
-                               ? EmGetValueResult::succeedEqualValue
-                               : EmGetValueResult::succeedNotEqualValue;
-        value = m_value.as_integer;
-        return res;
-    }
-
-    EmGetValueResult getValue(float& value) const {
-        if (m_type != EmTagValueType::vt_real)  {
-            return EmGetValueResult::failed;
-        }
-        EmGetValueResult res = (static_cast<EmRealType>(value) == m_value.as_real)
-                               ? EmGetValueResult::succeedEqualValue
-                               : EmGetValueResult::succeedNotEqualValue;
-        value = static_cast<float>(m_value.as_real);
-        return res;
-    }
-
-    EmGetValueResult getValue(double& value) const {
-        if (m_type != EmTagValueType::vt_real)  {
-            return EmGetValueResult::failed;
-        }
-        EmGetValueResult res = (static_cast<EmRealType>(value) == m_value.as_real)
-                               ? EmGetValueResult::succeedEqualValue
-                               : EmGetValueResult::succeedNotEqualValue;
-        value = m_value.as_real;
-        return res;
+        return EmGetValueResult::failed;
     }
 
     EmGetValueResult getValue(EmStringType& value) const {
@@ -504,12 +466,6 @@ public:
     virtual EmGetValueResult getValue(EmTagValue& value) const = 0;
     virtual bool setValue(const EmTagValue& value) = 0;
 
-    virtual EmTagValue getValue() const {
-        EmTagValue value;
-        getValue(value);
-        return value;
-    }
-
     virtual void update() override {
         // Default update doing nothing.
         // This method is called by EmTagList::update.
@@ -517,7 +473,10 @@ public:
 
     // Base operators
     virtual bool operator==(const EmTagBase& other) const {
-        return match(*this, other) && getValue() == other.getValue();
+        EmTagValue thisValue, otherValue;
+        getValue(thisValue);
+        other.getValue(otherValue);
+        return match(*this, other) && thisValue == otherValue;
     }
 
     virtual bool operator!=(const EmTagBase& other) const {
@@ -533,40 +492,56 @@ public:
     }
 
     // Convenience getValue overloads
-    virtual EmGetValueResult getValue(bool& value) const {
-        return getValue().getValue(value);
+    template<typename T>
+    EmGetValueResult getValue(T& value) const {
+        EmTagValue v;
+        getValue(v);
+        return v.getValue<T>(value);
     }
-    virtual EmGetValueResult getValue(int32_t& value) const {
-        return getValue().getValue(value);
+
+    EmGetValueResult getValue(EmStringType& value) const {
+        EmTagValue v;
+        getValue(v);
+        return v.getValue(value);
     }
-    virtual EmGetValueResult getValue(float& value) const {
-        return getValue().getValue(value);
-    }
-    virtual EmGetValueResult getValue(double& value) const {
-        return getValue().getValue(value);
-    }
-    virtual EmGetValueResult getValue(String& value) const {
-        return getValue().getValue(value);
+
+    template<size_t size>
+    EmGetValueResult getValue(EmString<size>& value) const {
+        EmTagValue v;
+        getValue(v);
+        return v.getValue(value);
     }
 
     // Convenience setValue overloads
     virtual bool setValue(const bool value, bool forceType) {
-        return getValue().setValue(value, forceType);
+        EmTagValue v;
+        getValue(v);
+        return v.setValue(value, forceType);
     }
     virtual bool setValue(int32_t value, bool forceType) {
-        return getValue().setValue(value, forceType);
+        EmTagValue v;
+        getValue(v);
+        return v.setValue(value, forceType);
     }
     virtual bool setValue(float value, bool forceType) {
-        return getValue().setValue(value, forceType);
+        EmTagValue v;
+        getValue(v);
+        return v.setValue(value, forceType);
     }
     virtual bool setValue(double value, bool forceType) {
-        return getValue().setValue(value, forceType);
+        EmTagValue v;
+        getValue(v);
+        return v.setValue(value, forceType);
     }
     virtual bool setValue(const String& value, bool forceType) {
-        return getValue().setValue(value, forceType);
+        EmTagValue v;
+        getValue(v);
+        return v.setValue(value, forceType);
     }
     virtual bool setValue(const char* value, bool forceType) {
-        return getValue().setValue(value, forceType);
+        EmTagValue v;
+        getValue(v);
+        return v.setValue(value, forceType);
     }
 
     template<typename T>
