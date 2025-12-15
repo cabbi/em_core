@@ -8,9 +8,8 @@
 class EmSerialStream 
 {
 public:
-	virtual void begin(unsigned long baud) = 0;
 	virtual void begin(unsigned long baud, 
-                       uint32_t config, 
+                       uint32_t config=SERIAL_8N1, 
                        int8_t rxPin=-1, 
                        int8_t txPin=-1, 
                        bool invert=false, 
@@ -32,10 +31,13 @@ public:
     using HardwareSerial::HardwareSerial;
 
     // Explicitly implement the pure virtual methods from EmSerialStream/Stream
-    void begin(unsigned long baud) override { 
-        HardwareSerial::begin(baud); 
-    }
-    void begin(unsigned long baud, uint32_t config, int8_t rxPin, int8_t txPin, bool invert, unsigned long timeout_ms, uint8_t rxfifo_full_thrhd) override {
+    void begin(unsigned long baud, 
+               uint32_t config=SERIAL_8N1, 
+               int8_t rxPin=-1, 
+               int8_t txPin=-1, 
+               bool invert=false, 
+               unsigned long timeout_ms = 20000UL, 
+               uint8_t rxfifo_full_thrhd = 112) override {
         HardwareSerial::begin(baud, config, rxPin, txPin, invert, timeout_ms, rxfifo_full_thrhd);
     }
     void end() override { 

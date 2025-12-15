@@ -33,6 +33,10 @@
     };
 #endif
 
+#ifndef F
+    #define F(x) (x)  
+#endif
+
 #if defined(AVR)
     #define EM_EEPROM
 #endif
