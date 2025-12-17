@@ -82,7 +82,9 @@ public:
     }   
     size_t putValue(const char* key, const EmTagValue& value, bool commit=true) const;
     size_t putString(const char* key, const char* value, bool commit=true) const;
-    size_t putString(const char* key, const String& value, bool commit=true) const;
+    size_t putString(const char* key, const String& value, bool commit=true) const {
+        return putString(key, value.c_str(), commit);
+    }
     size_t putBytes(const char* key, const void* value, size_t len, bool commit=true) const;
 
     template<typename T>
@@ -104,6 +106,17 @@ public:
 
     size_t getBytesLength(const char* key) const;
     size_t getStringLength(const char* key) const;
+
+    template<typename T>
+    bool isSameValue(const char* key, const T& value) const {
+        return sameBytes(key, &value, sizeof(value));
+    }
+    bool isSameValue(const char* key, EmTagValue& value) const;
+    bool isSameString(const char* key, const String& value) const {
+        return isSameString(key, value.c_str());
+    }
+    bool isSameString(const char* key, const char* value) const;
+    bool isSameBytes(const char* key, const void * buf, size_t len) const;
 
     #if ESP_IDF_VERSION_MAJOR >= 5
     bool hasKey(const char* key) const { return nvm_find_key(m_handle, key, nullptr) == ESP_OK; }
@@ -140,7 +153,10 @@ public:
     }
 
     virtual bool setValue(const T& value) override {
-        return tStorage.putValue(getKey(), value) == sizeof(value);
+        if (tStorage.putValue(getKey(), value) == sizeof(value)) {
+            return ValueOfT::setValue(value);
+        }
+        return false;
     }
     
     virtual T getValue() const {

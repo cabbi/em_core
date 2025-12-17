@@ -68,18 +68,9 @@ size_t EmStorage::putValue(const char* key, const EmTagValue& value, bool commit
     if (value.getType() == EmTagValueType::vt_undefined) {
         return 0;
     }
-    // String special handling!?
+    // String special handling!
     if (value.getType() == EmTagValueType::vt_string) {
-        String str;
-        EmGetValueResult res = value.getValue(str);
-        if (res == EmGetValueResult::succeedNotEqualValue) {
-            return putString(key, str, commit);
-        } else 
-        if (res == EmGetValueResult::succeedEqualValue) {
-            // Avoid writing the same value again
-            return str.length();
-        }
-        return 0;
+        return putString(key, value.asString(), commit);
     }
     // Not a string, lets write the value bytes
     const EmTagValueStruct& valueBytes = value.asStruct();
@@ -89,7 +80,12 @@ size_t EmStorage::putValue(const char* key, const EmTagValue& value, bool commit
 size_t EmStorage::putString(const char* key, const char* value, bool commit) const {
     if (!isInitialized() || !key || !value) {
         return 0;
+    }    
+    // Avoid writing the same value again
+    if (isSameString(key, value)) {
+        return strlen(value); 
     }
+    // Write the new value
     esp_err_t err = nvs_set_str(m_handle, key, value);
     if (err) {
         logError<50>("nvs_set_str fail: %s %s", key, nvs_error(err));
@@ -101,14 +97,15 @@ size_t EmStorage::putString(const char* key, const char* value, bool commit) con
     return strlen(value);
 }
 
-size_t EmStorage::putString(const char* key, const String& value, bool commit) const {
-    return putString(key, value.c_str(), commit);
-}
-
 size_t EmStorage::putBytes(const char* key, const void* value, size_t len, bool commit) const {
     if (!isInitialized() || !key || !value || !len) {
         return 0;
+    }    
+    // Avoid writing the same value again
+    if (isSameBytes(key, value, len)) {
+        return len; 
     }
+    // Write the new value
     esp_err_t err = nvs_set_blob(m_handle, key, value, len);
     if (err) {
         logError<50>("nvs_set_blob fail: %s %s", key, nvs_error(err));
@@ -123,12 +120,18 @@ size_t EmStorage::putBytes(const char* key, const void* value, size_t len, bool 
 size_t EmStorage::getValue(const char* key, EmTagValue& value) const {
     // String special handling!?
     if (value.getType() == EmTagValueType::vt_string) {
-        String str;
-        EmGetValueResult res = value.getValue(str);
-        if (res == EmGetValueResult::succeedNotEqualValue) {
-            return value.setValue(str, false);
+        size_t len = getStringLength(key);
+        if (len > 0) {
+            EmAutoPtr<char> buf(new char[len+1]);
+            if (ESP_OK == nvs_get_str(m_handle, key, buf.get(), &len) && 
+                value.setValue(buf.get(), false)) {
+                return len;
+            }
+        } else {
+            // Key does not exist, set to empty string
+            value.setValue("", false);
         }
-        return str.length();
+        return 0;
     }
     // Not a string, lets read the value bytes
     EmTagValueStruct valueBytes;
@@ -221,6 +224,46 @@ size_t EmStorage::getBytes(const char* key, void * buf, size_t maxLen) const {
         return 0;
     }
     return len;
+}
+
+bool EmStorage::isSameValue(const char* key, EmTagValue& value) const {
+    // String special handling!?
+    if (value.getType() == EmTagValueType::vt_string) {
+        return isSameString(key, value.asString());
+    }
+    // Not a string, check the bytes
+    return isSameBytes(key, &value.asStruct(), sizeof(EmTagValueStruct));
+}
+
+bool EmStorage::isSameString(const char* key, const char* value) const {
+    // Check the size before allocating heap memory
+    size_t len = strlen(value);
+    size_t currLen = getStringLength(key);
+    if (currLen != len) {
+        return false;
+    }
+    // Check the actual string
+    EmAutoPtr<char> currBuf(new char[len+1]);
+    esp_err_t err = nvs_get_str(m_handle, key, currBuf.get(), &len);
+    if (err) {
+        return false;
+    }
+    return memcmp(value, currBuf.get(), len);
+}
+
+bool EmStorage::isSameBytes(const char* key, const void * buf, size_t len) const {
+    // Check the size before allocating heap memory
+    size_t currLen = getBytesLength(key);
+    if (currLen != len) {
+        return false;
+    }
+    // Check the actual bytes
+    EmAutoPtr<char> currBuf(new char[len]);
+    esp_err_t err = nvs_get_blob(m_handle, key, currBuf.get(), &len);
+    if (err) {
+        return false;
+    }
+    return memcmp(buf, currBuf.get(), len);
 }
 
 size_t EmStorage::freeEntries() const {

@@ -124,7 +124,7 @@ public:
     virtual bool isInitialized() const { return getStatusFlag_(EmInterfaceStatusFlag::isInitialized); }
     virtual bool hasWarning()    const { return getStatusFlag_(EmInterfaceStatusFlag::hasWarning); }
     virtual bool hasError()      const { return getStatusFlag_(EmInterfaceStatusFlag::hasError); }
-    virtual bool isBlocked()     const { return m_blockedTimeout.isElapsed(false); }
+    virtual bool isBlocked()     const { return m_blockedTimeout.isExpired(false); }
     // Initialized and no errors
     virtual bool isOk()          const { return isInitialized() && !hasError(); }
 
@@ -222,7 +222,7 @@ public:
      : EmAppInterface(name, interfaces, blockedTimeout, logLevel), 
        m_LoopTimeout(loopTimeout, startAsElapsed) {}
 
-    virtual bool canCallLoop() { return m_LoopTimeout.isElapsed(true); }
+    virtual bool canCallLoop() { return m_LoopTimeout.isExpired(true); }
 
 private:
     mutable EmTimeout m_LoopTimeout;

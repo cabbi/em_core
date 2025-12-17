@@ -136,7 +136,6 @@ public:
         clear_();
     }   
 
-
     template<typename T>
     bool operator ==(const T& other) const {
         return this->m_value.as<T>() == other;
@@ -214,7 +213,6 @@ public:
     bool isSameType(const EmTagValue& other) const {
         return m_type == other.getType();
     }
-
 
     bool isType(EmTagValueType type) const { 
         return m_type == type; 
@@ -344,7 +342,20 @@ public:
 
     template<typename T>
     T as() const {
-        return static_cast<T>(m_value);
+        switch (m_type) {
+            case EmTagValueType::vt_boolean:
+                return static_cast<T>(m_value.as_bool);
+            case EmTagValueType::vt_integer:
+                return static_cast<T>(m_value.as_integer);
+            case EmTagValueType::vt_real:
+                return static_cast<T>(m_value.as_real);
+            case EmTagValueType::vt_string:
+                // TODO: handle string to numeric conversion?
+                return static_cast<T>(0);
+            case EmTagValueType::vt_undefined:
+            default:
+                return static_cast<T>(0);
+        }
     }
 
     bool setValue(bool value, bool forceType) {
