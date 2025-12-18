@@ -109,7 +109,7 @@ public:
 
     template<typename T>
     bool isSameValue(const char* key, const T& value) const {
-        return sameBytes(key, &value, sizeof(value));
+        return isSameBytes(key, &value, sizeof(value));
     }
     bool isSameValue(const char* key, EmTagValue& value) const;
     bool isSameString(const char* key, const String& value) const {
