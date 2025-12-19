@@ -121,7 +121,7 @@ public:
     #if ESP_IDF_VERSION_MAJOR >= 5
     bool hasKey(const char* key) const { return nvm_find_key(m_handle, key, nullptr) == ESP_OK; }
     #else
-    bool hasKey(const char* key) const { return hasValue(key); }
+    bool hasKey(const char* key) const { return hasValue(key) || hasString(key); }
     #endif
     bool hasValue(const char* key) const { return hasBytes(key); }
     bool hasBytes(const char* key) const { return getBytesLength(key) > 0;}
@@ -252,7 +252,11 @@ public:
     EmStorageTag(const char* key,
                  const EmTagValue& initValue, 
                  EmSyncFlags flags)
-     : EmStorageValueBase<EmTag, EmTagValue, tStorage>(key, initValue, flags) {}
+     : EmStorageValueBase<EmTag, EmTagValue, tStorage>(key, initValue, flags) {
+        if (tStorage.isNotInitialized()) {
+            tStorage.initValue(key, initValue, true);
+        }
+     }
 
     EmStorageTag(const char* key, 
                  EmSyncFlags flags,
@@ -272,6 +276,10 @@ public:
     virtual const char* getKey() const { 
         return EmTag::getId(); 
     }
+
+    // Base class overloads
+    using EmTag::getValue;
+    using EmTag::setValue;
 };
 
 

@@ -149,7 +149,7 @@ size_t EmStorage::getString(const char* key, char* value, const size_t maxLen) c
     }
     esp_err_t err = nvs_get_str(m_handle, key, NULL, &len);
     if (err) {
-        logError<50>("nvs_get_str len fail: %s %s", key, nvs_error(err));
+        logDebug<50>("nvs_get_str len fail: %s %s", key, nvs_error(err));
         return 0;
     }
     if (len > maxLen) {
@@ -171,7 +171,7 @@ String EmStorage::getString(const char* key, const char* defaultValue) const {
     }
     esp_err_t err = nvs_get_str(m_handle, key, nullptr, &len);
     if (err) {
-        logError<50>("nvs_get_str len fail: %s %s", key, nvs_error(err));
+        logDebug<50>("nvs_get_str len fail: %s %s", key, nvs_error(err));
         return String(defaultValue);
     }
     EmAutoPtr<char> buf(new char[len+1]);
@@ -190,7 +190,7 @@ size_t EmStorage::getBytesLength(const char* key) const {
     }
     esp_err_t err = nvs_get_blob(m_handle, key, NULL, &len);
     if (err) {
-        logError<50>("nvs_get_blob len fail: %s %s", key, nvs_error(err));
+        logDebug<50>("nvs_get_blob len fail: %s %s", key, nvs_error(err));
         return 0;
     }
     return len;
@@ -203,7 +203,7 @@ size_t EmStorage::getStringLength(const char* key) const {
     }
     esp_err_t err = nvs_get_str(m_handle, key, NULL, &len);
     if (err) {
-        logError<50>("nvs_get_str len fail: %s %s", key, nvs_error(err));
+        logDebug<50>("nvs_get_str len fail: %s %s", key, nvs_error(err));
         return 0;
     }
     return len;

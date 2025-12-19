@@ -44,6 +44,11 @@ public:
         return TCapacity;
     }
 
+    // Returns true if string is empty
+    bool isEmpty() const {
+        return length() == 0;
+    }
+
     // Returns true if string has reached its capacity
     bool isFull() const {
         return length() == capacity();

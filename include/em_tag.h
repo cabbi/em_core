@@ -622,9 +622,13 @@ public:
         m_id(id), 
         m_value(initValue) {}
 
-    virtual EmTagValue getValue() const { return m_value; };
-    
+ 
     virtual const char* getId() const override { return m_id; }
+
+    using EmTagBase::getValue;
+    using EmTagBase::setValue;
+
+    virtual EmTagValue getValue() const { return m_value; };
 
     virtual EmGetValueResult getValue(EmTagValue& value) const override {
         EmGetValueResult res = (value == m_value) ? EmGetValueResult::succeedEqualValue
