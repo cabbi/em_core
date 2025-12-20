@@ -142,7 +142,7 @@ public:
 
     virtual EmGetValueResult getValue(T& value) const override {
         T curVal;
-        if (tStorage.getValue(getKey(), curVal) != sizeof(value)) {
+        if (tStorage.getValue(getKey(), curVal) == 0) {
             return EmGetValueResult::failed;
         }
         if (value == curVal) {
@@ -170,6 +170,29 @@ public:
     virtual operator T() const {
         return getValue();
     }
+
+    // Initialization methods (i.e. value is set only if key does not exist)
+    template<typename T>
+    size_t initValue(const T& value, bool commit=true) const {
+        return tStorage.initValue<T>(getKey(), value, commit);
+    }   
+
+    size_t initValue(const EmTagValue& value, bool commit=true) const {
+        return tStorage.initValue(getKey(), value, commit);
+    }
+
+    size_t initString(const char* value, bool commit=true) const {
+        return tStorage.initString(getKey(), value, commit);
+    }
+
+    size_t initString(const String& value, bool commit=true) const {
+        return tStorage.initString(getKey(), value, commit);
+    }
+
+    size_t initBytes(const void* value, size_t len, bool commit=true) const {
+        return tStorage.initBytes(getKey(), value, commit);
+    }   
+
 };
 
 
