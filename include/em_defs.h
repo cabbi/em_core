@@ -7,6 +7,7 @@
 #include <math.h>
 
 #if defined(ESP32) || defined(ESP8266)
+    #define EM_ESP
     #define EM_STD_LIB  // Use of standard library (AVR arduinos does not have it!)
     #define EM_WIFI
     #define EM_BLE

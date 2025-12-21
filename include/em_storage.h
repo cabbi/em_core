@@ -172,9 +172,9 @@ public:
     }
 
     // Initialization methods (i.e. value is set only if key does not exist)
-    template<typename T>
-    size_t initValue(const T& value, bool commit=true) const {
-        return tStorage.initValue<T>(getKey(), value, commit);
+    template<typename V>
+    size_t initValue(const V& value, bool commit=true) const {
+        return tStorage.initValue<V>(getKey(), value, commit);
     }   
 
     size_t initValue(const EmTagValue& value, bool commit=true) const {
