@@ -1,11 +1,12 @@
 #ifndef __EM_OTA_UPDATER_H__
 #define __EM_OTA_UPDATER_H__
 
+#include <Stream.h>
 #include "em_defs.h"
 
 class EmOtaUpdater {
 public:
-    virtual bool writeStream(size_t contentLength, Stream& client) = 0;
+    virtual bool update(Stream& client, size_t contentLength) = 0;
 };
 
 #ifdef EM_ESP
@@ -14,7 +15,7 @@ public:
 
 class Esp32OtaUpdater: public EmOtaUpdater {
 public:
-    virtual bool writeStream(size_t contentLength, Stream& client) override {
+    virtual bool update(Stream& client, size_t contentLength) override {
         if (!::Update.begin(contentLength)) {
             logError("Esp32OtaUpdater", "Not enough space to begin OTA");
             return false;

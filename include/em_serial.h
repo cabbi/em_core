@@ -23,6 +23,8 @@ public:
 	virtual size_t write(const char* text) = 0;
 	virtual size_t write(const char *buffer, int buffLen) = 0;
 	virtual void flush() = 0;
+    virtual uint32_t baudRate() = 0;
+
 };
 
 // The hardware serial implementation
@@ -63,6 +65,9 @@ public:
     }
     void flush() override { 
         HardwareSerial::flush(); 
+    }
+    virtual uint32_t baudRate() override {
+        return HardwareSerial::baudRate();
     }
 };
 
