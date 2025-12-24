@@ -136,7 +136,11 @@ public:
 
     virtual const char* getWarningMsg() const { return m_warningMsg; }
     virtual const char* getErrorMsg() const { return m_errorMsg; }
-    
+
+    virtual void printStatus() const {
+        // Override this so any interfaces handler (e.g. an "EmApp' instance") can print the interface status
+    }
+
     // Used to match two interfaces (by name) in a EmList.
     static bool match(const EmAppInterface& int1, const EmAppInterface& int2) {
         return 0==strcmp(int1.name(), int2.name());

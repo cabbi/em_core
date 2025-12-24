@@ -2,8 +2,12 @@
 #define _EM_SERIAL_H__
 
 #include <Arduino.h>
-#include "em_defs.h"
+#include <HardwareSerial.h>
+#ifndef EM_HW_SERIAL_AVR
+#include "driver/uart.h"
+#endif
 
+#include "em_defs.h"
 
 // The abstract serial stream class used by devices that need a serial communication
 class EmSerialStream 
@@ -27,9 +31,9 @@ public:
 	virtual size_t write(unsigned char byte) = 0;
 	virtual size_t write(const char* text) = 0;
 	virtual size_t write(const char *buffer, int buffLen) = 0;
-	virtual void flush() = 0;
+	virtual void flush(bool txOnly=true) = 0;
+    virtual void flushRxBuffer() = 0;
     virtual uint32_t baudRate() = 0;
-    virtual void clearRxBuffer() = 0;
 };
 
 // The hardware serial implementation
@@ -80,7 +84,15 @@ public:
         HardwareSerial::flush(); 
     }
 
-    void clearRxBuffer() override {
+#ifdef EM_HW_SERIAL_AVR
+    void flush(bool txOnly) override { 
+        HardwareSerial::flush(); 
+        if (!txOnly) {
+            flushRxBuffer();
+        }   
+    }
+
+    void flushRxBuffer() override {
         // macro to guard critical sections when needed for large RX buffer sizes
         #if (SERIAL_RX_BUFFER_SIZE>256)
         #define RX_BUFFER_ATOMIC ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
@@ -90,11 +102,23 @@ public:
         RX_BUFFER_ATOMIC {_rx_buffer_head = _rx_buffer_tail;}
     }    
 
-#ifdef EM_HW_SERIAL_AVR
     virtual uint32_t baudRate() override {
         return m_baud;
     }
 #else
+    void flush(bool txOnly) override { 
+        HardwareSerial::flush(txOnly); 
+    }
+
+    void flushRxBuffer() override {
+        // NOTE: tried to use 'uart_flush_input' but it goes too deep into esp32 implementation!
+        int x;
+        while (x = Serial.available() > 0)
+        {
+            while (x--) Serial.read();
+        }
+    }
+
     virtual uint32_t baudRate() override {
         return HardwareSerial::baudRate();
     }
