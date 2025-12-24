@@ -3,11 +3,12 @@
 
 #include <Arduino.h>
 #include <HardwareSerial.h>
-#ifndef EM_HW_SERIAL_AVR
-#include "driver/uart.h"
-#endif
 
 #include "em_defs.h"
+
+#ifdef EM_ESP
+#include "driver/uart.h"
+#endif
 
 // The abstract serial stream class used by devices that need a serial communication
 class EmSerialStream 
@@ -112,10 +113,9 @@ public:
 
     void flushRxBuffer() override {
         // NOTE: tried to use 'uart_flush_input' but it goes too deep into esp32 implementation!
-        int x;
-        while (x = Serial.available() > 0)
-        {
-            while (x--) Serial.read();
+        int n;
+        while (n = available() > 0){
+            while (n--) read();
         }
     }
 
