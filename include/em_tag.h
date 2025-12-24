@@ -1,6 +1,10 @@
 #ifndef _EM_TAG_H__
 #define _EM_TAG_H__
 
+#include "em_defs.h"
+
+#ifdef EM_STD_LIB // Need standard library 
+
 #include <WString.h>
 #include <type_traits>
 
@@ -867,4 +871,6 @@ inline EmTag::EmTag(const char* id, EmSyncFlags flags, EmTags& tags)
   : EmTagBase(flags), m_id(id) {
     tags.add(*this);
 }
+#endif // EM_STD_LIB
+
 #endif // _EM_TAG_H__

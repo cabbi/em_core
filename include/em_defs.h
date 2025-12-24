@@ -40,6 +40,7 @@
 
 #if defined(AVR)
     #define EM_EEPROM
+    #define EM_HW_SERIAL_AVR
 #endif
 
 #if defined(ARDUINO_NANO_ESP32)

@@ -2,12 +2,16 @@
 #define _EM_SERIAL_H__
 
 #include <Arduino.h>
+#include "em_defs.h"
 
 
 // The abstract serial stream class used by devices that need a serial communication
 class EmSerialStream 
 {
 public:
+#ifdef EM_HW_SERIAL_AVR
+	virtual void begin(unsigned long baud, uint32_t config=SERIAL_8N1) = 0;
+#else
 	virtual void begin(unsigned long baud, 
                        uint32_t config=SERIAL_8N1, 
                        int8_t rxPin=-1, 
@@ -15,6 +19,7 @@ public:
                        bool invert=false, 
                        unsigned long timeout_ms = 20000UL, 
                        uint8_t rxfifo_full_thrhd = 112) = 0;
+#endif        
 	virtual void end() = 0;
     virtual int available() = 0;
     virtual int read() = 0;
@@ -24,7 +29,7 @@ public:
 	virtual size_t write(const char *buffer, int buffLen) = 0;
 	virtual void flush() = 0;
     virtual uint32_t baudRate() = 0;
-
+    virtual void clearRxBuffer() = 0;
 };
 
 // The hardware serial implementation
@@ -33,6 +38,12 @@ public:
     using HardwareSerial::HardwareSerial;
 
     // Explicitly implement the pure virtual methods from EmSerialStream/Stream
+#ifdef EM_HW_SERIAL_AVR
+    void begin(unsigned long baud, uint32_t config=SERIAL_8N1) override {
+        m_baud = baud;
+        HardwareSerial::begin(baud, config);
+    }
+#else
     void begin(unsigned long baud, 
                uint32_t config=SERIAL_8N1, 
                int8_t rxPin=-1, 
@@ -42,6 +53,8 @@ public:
                uint8_t rxfifo_full_thrhd = 112) override {
         HardwareSerial::begin(baud, config, rxPin, txPin, invert, timeout_ms, rxfifo_full_thrhd);
     }
+#endif    
+
     void end() override { 
         HardwareSerial::end(); 
     }
@@ -66,9 +79,31 @@ public:
     void flush() override { 
         HardwareSerial::flush(); 
     }
+
+    void clearRxBuffer() override {
+        // macro to guard critical sections when needed for large RX buffer sizes
+        #if (SERIAL_RX_BUFFER_SIZE>256)
+        #define RX_BUFFER_ATOMIC ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+        #else
+        #define RX_BUFFER_ATOMIC
+        #endif
+        RX_BUFFER_ATOMIC {_rx_buffer_head = _rx_buffer_tail;}
+    }    
+
+#ifdef EM_HW_SERIAL_AVR
+    virtual uint32_t baudRate() override {
+        return m_baud;
+    }
+#else
     virtual uint32_t baudRate() override {
         return HardwareSerial::baudRate();
     }
+#endif        
+
+#ifdef EM_HW_SERIAL_AVR
+protected:
+    unsigned long m_baud;
+#endif
 };
 
 #endif
