@@ -29,6 +29,36 @@ bool EmStorage::begin(const char * name) {
         logError<50>("begin failed: %s", nvs_error(err));
         return false;
     }
+
+    // Process pending initializations
+    if (m_initHead) {
+        bool commitNeeded = false;
+        InitItem_* cur = m_initHead;
+        while (cur) {
+            if (!hasKey(cur->key)) {
+                switch (cur->type) {
+                    case InitItemType_::bytes:
+                        putBytes(cur->key, cur->bytes, cur->len, false);
+                        break;
+                    case InitItemType_::string:
+                        putString(cur->key, cur->bytes, false);
+                        break;
+                    case InitItemType_::tag:
+                        EmTagValueStruct tagStruct;
+                        memcpy(&tagStruct, cur->bytes, sizeof(EmTagValueStruct));
+                        putValue(cur->key, tagStruct, false);
+                        break;
+                }
+                commitNeeded = true;
+            }
+            cur = cur->next;
+        }
+        if (commitNeeded) {
+            commit();
+        }
+        clearInitItems_();
+    }
+
     return true;
 }
 
@@ -63,18 +93,17 @@ bool EmStorage::commit() const {
     return true;
 }
 
-size_t EmStorage::putValue(const char* key, const EmTagValue& value, bool commit) const {
+size_t EmStorage::putValue(const char* key, const EmTagValueStruct& value, bool commit) const {
     // We do not store undefined type!
-    if (value.getType() == EmTagValueType::vt_undefined) {
+    if (value.m_type == EmTagValueType::vt_undefined) {
         return 0;
     }
     // String special handling!
-    if (value.getType() == EmTagValueType::vt_string) {
-        return putString(key, value.asString(), commit);
+    if (value.m_type == EmTagValueType::vt_string) {
+        return putString(key, value.m_value.as_string->c_str(), commit);
     }
     // Not a string, lets write the value bytes
-    const EmTagValueStruct& valueBytes = value.asStruct();
-    return putBytes(key, &valueBytes, sizeof(valueBytes), commit);
+    return putBytes(key, &value, sizeof(value), commit);
 }
 
 size_t EmStorage::putString(const char* key, const char* value, bool commit) const {

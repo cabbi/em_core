@@ -17,18 +17,21 @@
 #define EM_STORAGE_NULL_HANDLE 0
 
 // NVS persistent storage class
+//
+// This class handles "post" initializations when begin() is called, this 
+// allows to setup initial values before the storage is actually initialized.
+// This is usefull when using EmStorageValue classes in global objects providing an 'initValue'.
 class EmStorage: public EmLog {
-private:
-    nvs_handle_t m_handle;
-
 public:
     EmStorage(const char* logContext="EmStorage", 
               EmLogLevel logLevel = EmLogLevel::global)
      : EmLog(logContext, logLevel),
-       m_handle(EM_STORAGE_NULL_HANDLE) {}
+       m_handle(EM_STORAGE_NULL_HANDLE),
+       m_initHead(nullptr) {}
 
     ~EmStorage() {
         end();
+        clearInitItems_();
     }
 
     bool isInitialized() const {
@@ -46,30 +49,50 @@ public:
     // Initialization methods (i.e. value is set only if key does not exist)
     template<typename T>
     size_t initValue(const char* key, const T& value, bool commit=true) const {
+        if (isNotInitialized()) {
+            addToInitBytes_(key, &value, sizeof(T));
+            return sizeof(value);            
+        }
         if (!hasKey(key)) {
             return putValue(key, value, commit);
         }
         return 0;
     }   
     size_t initValue(const char* key, const EmTagValue& value, bool commit=true) const {
+        if (isNotInitialized()) {
+            addToInitTags_(key, value);
+            return sizeof(value);            
+        }
         if (!hasKey(key)) {
             return putValue(key, value, commit);
         }
         return 0;
     }   
     size_t initString(const char* key, const char* value, bool commit=true) const {
+        if (isNotInitialized()) {
+            addToInitStrings_(key, value);
+            return strlen(value);            
+        }
         if (!hasKey(key)) {
             return putString(key, value, commit);
         }
         return 0;
     }   
     size_t initString(const char* key, const String& value, bool commit=true) const {
+        if (isNotInitialized()) {
+            addToInitStrings_(key, value.c_str());
+            return value.length();            
+        }
         if (!hasKey(key)) {
             return putString(key, value, commit);
         }
         return 0;
     }   
     size_t initBytes(const char* key, const void* value, size_t len, bool commit=true) const {
+        if (isNotInitialized()) {
+            addToInitBytes_(key, value, len);
+            return len;            
+        }
         if (!hasKey(key)) {
             return putBytes(key, value, len, commit);
         }
@@ -80,7 +103,10 @@ public:
     size_t putValue(const char* key, const T& value, bool commit=true) const {
         return putBytes(key, &value, sizeof(value), commit);
     }   
-    size_t putValue(const char* key, const EmTagValue& value, bool commit=true) const;
+    size_t putValue(const char* key, const EmTagValue& value, bool commit=true) const {
+        return putValue(key, value.asStruct(), commit);
+    }
+    size_t putValue(const char* key, const EmTagValueStruct& value, bool commit=true) const;
     size_t putString(const char* key, const char* value, bool commit=true) const;
     size_t putString(const char* key, const String& value, bool commit=true) const {
         return putString(key, value.c_str(), commit);
@@ -128,6 +154,77 @@ public:
     bool hasString(const char* key) const { return getStringLength(key) > 0; }
 
     size_t freeEntries() const;
+
+protected:
+    void addToInitBytes_(const char* key, const void* value, size_t len) const {
+        addInitItem_(new InitItem_(key, value, len));
+    }
+    void addToInitStrings_(const char* key, const char* value) const {
+        addInitItem_(new InitItem_(key, value));
+    }
+    void addToInitTags_(const char* key, const EmTagValue& value) const {
+        addInitItem_(new InitItem_(key, value));
+    }
+
+private:
+    // The storage nvs handle
+    nvs_handle_t m_handle;
+
+    // Initialization items linked list
+    enum class InitItemType_: uint8_t { bytes, string, tag };
+    struct InitItem_ {
+        const char* key;
+        InitItemType_ type;
+        char* bytes = nullptr;
+        size_t len = 0;
+        InitItem_* next = nullptr;
+
+        InitItem_(const char* key, const void* value, size_t len) {
+            this->next = nullptr;
+            this->key = key;
+            this->type = InitItemType_::bytes;
+            this->bytes = new char[len];
+            memcpy(this->bytes, value, len);
+            this->len = len;
+        }
+        InitItem_(const char* key, const char* value) {
+            this->next = nullptr;
+            this->key = key;
+            this->type = InitItemType_::string;
+            this->len = strlen(value)+1;
+            this->bytes = new char[this->len];
+            memcpy(this->bytes, value, this->len);
+        }
+        InitItem_(const char* key, const EmTagValue& value) {
+            this->next = nullptr;
+            this->key = key;
+            this->type = InitItemType_::tag;
+            this->len = sizeof(EmTagValueStruct);
+            this->bytes = new char[this->len];
+            memcpy(this->bytes, &value.asStruct(), this->len);
+        }
+        ~InitItem_() { if (bytes) delete[] bytes; }
+    };
+
+    void addInitItem_(InitItem_* item) const {
+        if (!m_initHead) {
+            m_initHead = item;
+        } else {
+            InitItem_* cur = m_initHead;
+            while (cur->next) cur = cur->next;
+            cur->next = item;
+        }
+    }
+
+    void clearInitItems_() const {
+        while (m_initHead) {
+            InitItem_* next = m_initHead->next;
+            delete m_initHead;
+            m_initHead = next;
+        }
+    }
+
+    mutable InitItem_* m_initHead;
 };
 
 // A storage value that can be read and write within the provided 'tStorage' NVM storage.
@@ -206,6 +303,9 @@ protected:
 
 public:    
     EmStorageValue(const char* key) : m_key(key) {}
+    EmStorageValue(const char* key, T initValue) : m_key(key) {
+        tStorage.initValue<T>(key, initValue, true);
+    }
 
     virtual const char* getKey() const { return m_key; }
 };
@@ -276,9 +376,7 @@ public:
                  const EmTagValue& initValue, 
                  EmSyncFlags flags)
      : EmStorageValueBase<EmTag, EmTagValue, tStorage>(key, initValue, flags) {
-        if (tStorage.isNotInitialized()) {
-            tStorage.initValue(key, initValue, true);
-        }
+        tStorage.initValue(key, initValue, true);
      }
 
     EmStorageTag(const char* key, 
