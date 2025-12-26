@@ -41,7 +41,7 @@ public:
         return !isInitialized();
     }
 
-    bool begin(const char* name);
+    bool begin(const char* name, bool clearExisting=false);
     void end();
     bool clear() const;
     bool commit() const;

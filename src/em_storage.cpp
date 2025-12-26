@@ -19,15 +19,27 @@ const char* nvs_errors[] = { "UNDEFINED ERROR",
 #define nvs_error(e) (((e)>ESP_ERR_NVS_BASE)?nvs_errors[(e)&~(ESP_ERR_NVS_BASE)]:nvs_errors[0])
 
 
-bool EmStorage::begin(const char * name) {
+bool EmStorage::begin(const char * name, bool clearExisting) {
+    // Already initialized?
     if (isInitialized()) {
         return false;
     }
+
+    // Open ths nvs handle
     esp_err_t err = ESP_OK;
     err = nvs_open(name, NVS_READWRITE, &m_handle);
     if (err) {
         logError<50>("begin failed: %s", nvs_error(err));
         return false;
+    }
+
+    // Clear existing values?
+    if (clearExisting) {
+        if (!clear()) {
+            nvs_close(m_handle);
+            m_handle = EM_STORAGE_NULL_HANDLE;
+            return false;
+        }
     }
 
     // Process pending initializations
