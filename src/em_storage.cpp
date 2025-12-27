@@ -304,7 +304,7 @@ bool EmStorage::isSameBytes(const char* key, const void * buf, size_t len) const
     if (err) {
         return false;
     }
-    return memcmp(buf, currBuf.get(), len);
+    return 0==memcmp(buf, currBuf.get(), len);
 }
 
 size_t EmStorage::freeEntries() const {
