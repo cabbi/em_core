@@ -333,7 +333,35 @@ public:
         return last ? last->m_pItem : nullptr;
     }
 
+    // Iterator support
+    class Iterator {
+    public:
+        Iterator(const _EmListElement<T>* ptr) : m_ptr(ptr) {}
+        T& operator*() const { return *(m_ptr->item()); }
+        T* operator->() const { return m_ptr->item(); }
+        Iterator& operator++() { 
+            m_ptr = EmList<T>::_elemNext(m_ptr); 
+            return *this; 
+        }
+        Iterator operator++(int) { 
+            Iterator tmp = *this; 
+            m_ptr = EmList<T>::_elemNext(m_ptr); 
+            return tmp; 
+        }
+        bool operator==(const Iterator& other) const { return m_ptr == other.m_ptr; }
+        bool operator!=(const Iterator& other) const { return m_ptr != other.m_ptr; }
+    private:
+        const _EmListElement<T>* m_ptr;
+    };
+
+    Iterator begin() const { return Iterator(m_pFirst); }
+    Iterator end() const { return Iterator(nullptr); }
+
 protected:
+    static _EmListElement<T>* _elemNext(const _EmListElement<T>* elem) {
+        return elem ? elem->next() : nullptr;
+    }
+
     void append_(T* pItem, bool takeOwnership) {
         _EmListElement<T>* last = last_();
         if (last) {

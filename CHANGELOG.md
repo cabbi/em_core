@@ -39,6 +39,7 @@
 - 'EmTimeout' classes split to 'EmTimeout', 'EmTimeoutShort' and 'EmTimeoutLong' 
 - 'EmDuration' classes split to 'EmDuration', 'EmDurationShort' and 'EmDurationLong'. 
 - 'EmDuration' added 'to' method to get duration days, hours, minutes, seconds and milliseconds.
+- 'EmList' added iterators support to enable for loops (e.g. for (auto& item : itemList))
 - Added 'EmTask' class to start and handle separate task.
 - Added 'EmAppTaskInterfaces' class to allow one or more interfaces to run in a separate task.
 - Added new 'EmTag' & 'EmTags' classes to have simple synchronization among same values coming from different sources

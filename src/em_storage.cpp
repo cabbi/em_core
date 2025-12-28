@@ -205,25 +205,6 @@ size_t EmStorage::getString(const char* key, char* value, const size_t maxLen) c
     return len;
 }
 
-String EmStorage::getString(const char* key, const char* defaultValue) const {
-    size_t len = 0;
-    if (!isInitialized() || !key) {
-        return String(defaultValue);
-    }
-    esp_err_t err = nvs_get_str(m_handle, key, nullptr, &len);
-    if (err) {
-        logDebug<50>("nvs_get_str len fail: %s %s", key, nvs_error(err));
-        return String(defaultValue);
-    }
-    EmAutoPtr<char> buf(new char[len+1]);
-    err = nvs_get_str(m_handle, key, buf.get(), &len);
-    if (err) {
-        logError<50>("nvs_get_str fail: %s %s", key, nvs_error(err));
-        return String(defaultValue);
-    }
-    return String(buf.get());
-}
-
 size_t EmStorage::getBytesLength(const char* key) const {
     size_t len = 0;
     if (!isInitialized() || !key) {

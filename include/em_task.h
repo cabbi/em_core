@@ -108,7 +108,7 @@ public:
         }
         EmTimeout timeout_(timeout);
         while (status()==EmTaskStatus::pausing && !timeout_.isElapsed(true)) {
-            delay(1);
+            vTaskDelay(1 / portTICK_PERIOD_MS);
         }        
         return status() == EmTaskStatus::paused;
     }
@@ -137,7 +137,7 @@ public:
         }
         EmTimeout timeout_(timeout);
         while (status()==EmTaskStatus::stopping && !timeout_.isElapsed(true)) {
-            delay(1);
+            vTaskDelay(1 / portTICK_PERIOD_MS);
         }        
         return status() == EmTaskStatus::stopped;
     }

@@ -117,6 +117,10 @@ public:
         return m_timeoutMillis - expired;
     }
 
+    EmDuration getRemainingTime() const {
+        return EmDuration(getRemainingMillis());
+    }
+
 protected:
     T millis_() const {
         return static_cast<T>(millis());

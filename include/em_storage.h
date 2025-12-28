@@ -5,14 +5,13 @@
 
 #ifdef EM_NVS
 
-#include <cstring>
-#include <WString.h>
 #include <nvs.h>
 
 #include "em_log.h"
 #include "em_value.h"
 #include "em_value_sync.h"
 #include "em_tag.h"
+#include <em_string.h>
 
 #define EM_STORAGE_NULL_HANDLE 0
 
@@ -78,16 +77,6 @@ public:
         }
         return 0;
     }   
-    size_t initString(const char* key, const String& value, bool commit=true) const {
-        if (isNotInitialized()) {
-            addToInitStrings_(key, value.c_str());
-            return value.length();            
-        }
-        if (!hasKey(key)) {
-            return putString(key, value, commit);
-        }
-        return 0;
-    }   
     size_t initBytes(const char* key, const void* value, size_t len, bool commit=true) const {
         if (isNotInitialized()) {
             addToInitBytes_(key, value, len);
@@ -108,9 +97,6 @@ public:
     }
     size_t putValue(const char* key, const EmTagValueStruct& value, bool commit=true) const;
     size_t putString(const char* key, const char* value, bool commit=true) const;
-    size_t putString(const char* key, const String& value, bool commit=true) const {
-        return putString(key, value.c_str(), commit);
-    }
     size_t putBytes(const char* key, const void* value, size_t len, bool commit=true) const;
 
     template<typename T>
@@ -126,8 +112,12 @@ public:
         return T();
     }
     size_t getValue(const char* key, EmTagValue& value) const;
+    template<size_t maxLen>
+    size_t getString(const char* key, EmString<maxLen>& value) const {
+        size_t len = getString(key, value.buffer(), maxLen);
+        return len;
+    }
     size_t getString(const char* key, char* value, const size_t maxLen) const;
-    String getString(const char* key, const char* defaultValue="") const;
     size_t getBytes(const char* key, void * buf, size_t maxLen) const;
 
     size_t getBytesLength(const char* key) const;
@@ -138,9 +128,6 @@ public:
         return isSameBytes(key, &value, sizeof(value));
     }
     bool isSameValue(const char* key, EmTagValue& value) const;
-    bool isSameString(const char* key, const String& value) const {
-        return isSameString(key, value.c_str());
-    }
     bool isSameString(const char* key, const char* value) const;
     bool isSameBytes(const char* key, const void * buf, size_t len) const;
 
@@ -282,14 +269,9 @@ public:
         return tStorage.initString(getKey(), value, commit);
     }
 
-    size_t initString(const String& value, bool commit=true) const {
-        return tStorage.initString(getKey(), value, commit);
-    }
-
     size_t initBytes(const void* value, size_t len, bool commit=true) const {
         return tStorage.initBytes(getKey(), value, commit);
     }   
-
 };
 
 
