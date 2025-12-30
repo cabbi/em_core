@@ -11,7 +11,7 @@
 #include "em_value.h"
 #include "em_value_sync.h"
 #include "em_tag.h"
-#include <em_string.h>
+#include "em_string.h"
 
 #define EM_STORAGE_NULL_HANDLE 0
 

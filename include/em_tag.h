@@ -126,7 +126,7 @@ public:
         m_value.as_bool = value;
     }
     EmTagValue(const char* value) : EmTagValueStruct(EmTagValueType::vt_string) {
-        m_value.as_string = new String(value);
+        m_value.as_string = new EmStringType(value);
     }
     EmTagValue(const EmStringType& value) : EmTagValueStruct(EmTagValueType::vt_string) {
         m_value.as_string = new EmStringType(value);
@@ -402,7 +402,7 @@ public:
         return true;
     }
 
-    bool setValue(const String& value, bool forceType) {
+    bool setValue(const EmStringType& value, bool forceType) {
         if (m_type == EmTagValueType::vt_string) {
             // Already a string, just reassign the value to avoid delete/new cycle.
             *m_value.as_string = value;
@@ -413,12 +413,12 @@ public:
         }
         clear_();
         m_type = EmTagValueType::vt_string;
-        m_value.as_string = new String(value);
+        m_value.as_string = new EmStringType(value);
         return true;
     }
 
     bool setValue(const char* value, bool forceType) {
-        return setValue(String(value), forceType);
+        return setValue(EmStringType(value), forceType);
     }
     
     bool setValue(const EmTagValue& value, bool forceType) {
@@ -456,7 +456,7 @@ protected:
                 m_value.as_real = other.m_value.as_real;
                 break;
             case EmTagValueType::vt_string:
-                m_value.as_string = new String(*other.m_value.as_string);
+                m_value.as_string = new EmStringType(*other.m_value.as_string);
                 break;
             case EmTagValueType::vt_undefined:
             default:
@@ -548,7 +548,7 @@ public:
         getValue(v);
         return v.setValue(value, forceType);
     }
-    virtual bool setValue(const String& value, bool forceType) {
+    virtual bool setValue(const EmStringType& value, bool forceType) {
         EmTagValue v;
         getValue(v);
         return v.setValue(value, forceType);
@@ -620,7 +620,7 @@ public:
         m_value(initValue) {}
 
     EmTag(const char* id, 
-          const String& initValue,
+          const EmStringType& initValue,
           EmSyncFlags flags)
       : EmTagBase(flags), 
         m_id(id), 
@@ -803,8 +803,8 @@ public:
         return getValue_<double>(tagId, value);
     }
 
-    virtual EmGetValueResult getValue(const char* tagId, String& value) const {
-        return getValue_<String>(tagId, value);
+    virtual EmGetValueResult getValue(const char* tagId, EmStringType& value) const {
+        return getValue_<EmStringType>(tagId, value);
     }
 
     virtual EmGetValueResult getValue(const char* tagId, EmTagValue& value) const {
@@ -828,8 +828,8 @@ public:
         return setValue_<double>(tagId, value, doSync);
     }
 
-    virtual bool setValue(const char* tagId, const String& value, bool doSync) {
-        return setValue_<const String>(tagId, value, doSync);
+    virtual bool setValue(const char* tagId, const EmStringType& value, bool doSync) {
+        return setValue_<EmStringType>(tagId, value, doSync);
     }
 
     virtual bool setValue(const char* tagId, const char* value, bool doSync) {

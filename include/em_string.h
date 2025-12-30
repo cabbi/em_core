@@ -17,9 +17,9 @@ enum EmStrResult: uint8_t {
 };
 
 // This tiny string class uses a fixed templated size and no virtual methods to minimize RAM footprint.
-// TCapacity is the number of characters, not including the null terminator.
-// The internal buffer will be TCapacity + 1.
-template<size_t TCapacity>
+// Capacity is the number of characters, not including the null terminator.
+// The internal buffer will be Capacity + 1.
+template<size_t Capacity>
 class EmString {
 public:
     EmString() {
@@ -41,7 +41,7 @@ public:
 
     // Returns the max capacity of this string object.
     size_t capacity() const {
-        return TCapacity;
+        return Capacity;
     }
 
     // Returns true if string is empty
@@ -416,7 +416,7 @@ protected:
     }
 
 private:
-    char m_buf[TCapacity + 1];
+    char m_buf[Capacity+1];
 };
 
 #endif // __EM_STRING__H_

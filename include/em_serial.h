@@ -1,14 +1,9 @@
 #ifndef _EM_SERIAL_H__
 #define _EM_SERIAL_H__
 
-#include <Arduino.h>
 #include <HardwareSerial.h>
 
 #include "em_defs.h"
-
-#ifdef EM_ESP
-#include "driver/uart.h"
-#endif
 
 // The abstract serial stream class used by devices that need a serial communication
 class EmSerialStream 
