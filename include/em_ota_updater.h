@@ -4,9 +4,22 @@
 #include <Stream.h>
 #include "em_defs.h"
 
+// The interface of a generic OTA updater.
+//
+// The split between 'update' and 'finalize' is due to the possibility to perform
+// multiple updates at once and restating the device would break the firmware 
+// updating process. That said, if an update process requires multiple devices update, 
+// we first call 'update' for each device 'EmOtaUpdater' and then all the 'finalize'.  
+// As an example we might have two 'EmOtaUpdater' objects to update a display and the
+// MPU itself. If the updates restarts the MPU we would break the whole update process.
 class EmOtaUpdater {
 public:
+    // Updates the firmware
     virtual bool update(Stream& client, size_t contentLength) = 0;
+
+    // Extra step to finalize the firmware update 
+    // (i.e. if applicable apply/commit/reboot the device)
+    virtual bool finalize() { return true; }
 };
 
 #ifdef EM_ESP
@@ -27,8 +40,12 @@ public:
         } 
         logInfo("Esp32OtaUpdater", "Update successful!");
         ::Update.end();
-        ESP.restart();
         return true;
+    }
+
+    virtual bool finalize() { 
+        ESP.restart();
+        return true; 
     }
 };
 #endif // EM_ESP

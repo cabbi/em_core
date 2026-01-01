@@ -305,7 +305,7 @@ protected:
                 }
                 return EmIterResult::moveNext;
             }, &opRes);
-        self->m_taskOperationResult = opRes;
+        self->m_taskOperationResult.store(opRes);
         return opRes == EmIntOperationResult::canContinue ? 
                         EmTaskFuncRes::continueTask : EmTaskFuncRes::pauseTask;
     }

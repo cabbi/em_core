@@ -32,12 +32,16 @@ public:
     // NOTE that the object will NOT be owned by the application 
     // so it must outlive the application.
     virtual void addInterface(EmAppInterface& interface) {
+        // TODO: add this to 'm_runningInterfaces' if this app is already "running" 
+        //       (i.e. setup already called!) in  thread safe mode!
         appendUnowned(interface);
     }
 
     // Add multiple interfaces to the application using a variable argument list. 
     // NOTE: last argument MUST be a nullptr.
     void addInterfaces(EmAppInterface* interface, ...) {
+        // TODO: add this to 'm_runningInterfaces' if this app is already "running" 
+        //       (i.e. setup already called!) in  thread safe mode!
         va_list args;
         va_start(args, interface);
         extend(false, interface, args);
