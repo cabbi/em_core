@@ -105,25 +105,36 @@ bool EmStorage::commit() const {
     return true;
 }
 
-size_t EmStorage::putValue(const char* key, const EmTagValueStruct& value, bool commit) const {
-    // We do not store undefined type!
-    if (value.m_type == EmTagValueType::vt_undefined) {
+size_t EmStorage::putValue(const char* key, 
+                           const EmTagValue& value, 
+                           bool commit,
+                           bool equalityCheckBeforeWrite) const {
+    // Get the tag type & value
+    EmTagValueType tagType;
+    EmTagValueUnion tagValue;
+    value.get(tagType, tagValue);
+
+        // We do not store undefined type!
+    if (tagType == EmTagValueType::vt_undefined) {
         return 0;
     }
     // String special handling!
-    if (value.m_type == EmTagValueType::vt_string) {
-        return putString(key, value.m_value.as_string->c_str(), commit);
+    if (tagType == EmTagValueType::vt_string) {
+        return putString(key, tagValue.as_string->c_str(), commit, equalityCheckBeforeWrite);
     }
     // Not a string, lets write the value bytes
-    return putBytes(key, &value, sizeof(value), commit);
+    return putBytes(key, &tagValue, sizeof(tagValue), commit, equalityCheckBeforeWrite);
 }
 
-size_t EmStorage::putString(const char* key, const char* value, bool commit) const {
+size_t EmStorage::putString(const char* key, 
+                            const char* value, 
+                            bool commit,
+                            bool equalityCheckBeforeWrite) const {
     if (!isInitialized() || !key || !value) {
         return 0;
     }    
     // Avoid writing the same value again
-    if (isSameString(key, value)) {
+    if (equalityCheckBeforeWrite && isSameString(key, value)) {
         return strlen(value); 
     }
     // Write the new value
@@ -138,12 +149,16 @@ size_t EmStorage::putString(const char* key, const char* value, bool commit) con
     return strlen(value);
 }
 
-size_t EmStorage::putBytes(const char* key, const void* value, size_t len, bool commit) const {
+size_t EmStorage::putBytes(const char* key, 
+                           const void* value, 
+                           size_t len, 
+                           bool commit,
+                           bool equalityCheckBeforeWrite) const {
     if (!isInitialized() || !key || !value || !len) {
         return 0;
     }    
     // Avoid writing the same value again
-    if (isSameBytes(key, value, len)) {
+    if (equalityCheckBeforeWrite && isSameBytes(key, value, len)) {
         return len; 
     }
     // Write the new value

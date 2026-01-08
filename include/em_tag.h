@@ -10,7 +10,27 @@
 
 #include "em_list.h"
 #include "em_string.h"
+#include "em_threading.h"
 #include "em_value_sync.h"
+
+// Mutex parameter in case of multithreading
+#ifdef EM_MULTITHREAD
+#define MUTEX_PARAM0 EmMutex& mutex
+#define MUTEX_PARAM1 EmMutex& mutex,
+#define MUTEX_MEMBER_VAR0 m_mutex
+#define MUTEX_MEMBER_VAR1 m_mutex,
+#define MUTEX_VAR0 mutex
+#define MUTEX_VAR1 mutex,
+#define MUTEX_LOCK EmMutexLock lock(mutex)
+#else
+#define MUTEX_PARAM0
+#define MUTEX_PARAM1
+#define MUTEX_MEMBER_VAR0
+#define MUTEX_MEMBER_VAR1
+#define MUTEX_VAR0
+#define MUTEX_VAR1
+#define MUTEX_LOCK
+#endif
 
 // The tag value type
 enum class EmTagValueType: uint8_t {
@@ -36,6 +56,14 @@ union EmTagValueUnion {
     EmEpochType as_epoch;
     EmRealType as_real;
     EmStringType* as_string;
+
+    EmTagValueUnion() { as_integer = 0; }
+    EmTagValueUnion(EmBoolType value) { as_bool = value; }
+    EmTagValueUnion(EmIntegerType value) { as_integer = value; }
+    EmTagValueUnion(EmEpochType value) { as_epoch = value; }
+    EmTagValueUnion(float value) { as_real = static_cast<EmRealType>(value); }
+    EmTagValueUnion(double value) { as_real = static_cast<EmRealType>(value); }
+    EmTagValueUnion(EmStringType* value) { as_string = value; }
 
     template<typename T>
     typename std::enable_if<!std::is_pointer<T>::value, T>::type as() const {
@@ -88,15 +116,129 @@ private:
     };
 };
 
-// The tag value data structure used to read and write an EmTagValue objects.
-// We keep tag data non virtual in order to allow memory copy of tags.
-struct EmTagValueStruct {
-    EmTagValueStruct() 
-     : m_type(EmTagValueType::vt_undefined), m_value{0} {}
+class EmTagValue;
 
-    EmTagValueStruct(EmTagValueType type, 
-                     EmTagValueUnion value = {0})
-     : m_type(type), m_value(value) {}
+// The tag value data structure used to read and write an EmTagValue object.
+// We keep this tag data struct with basic type members an non virtual methods
+// in order to allow memory copy of it (i.e. a POD with constructors and some base methods).
+// In case of multithreading capability methods get a mutex to avoid concurrency. The mutex
+// is external to keep this struct memory only for its members (i.e. type and value).
+struct EmTagValueStruct {
+    EmTagValueStruct(): m_type(EmTagValueType::vt_undefined), m_value{0} {}
+    EmTagValueStruct(EmBoolType value): m_type(EmTagValueType::vt_boolean), m_value(value) {}
+    EmTagValueStruct(EmIntegerType value): m_type(EmTagValueType::vt_integer), m_value(value) {}
+    EmTagValueStruct(EmEpochType value): m_type(EmTagValueType::vt_epoch), m_value(value) {} 
+    EmTagValueStruct(float value): m_type(EmTagValueType::vt_real), m_value(value) {}
+    EmTagValueStruct(double value): m_type(EmTagValueType::vt_real), m_value(value) {}
+    EmTagValueStruct(EmStringType* value): m_type(EmTagValueType::vt_string), m_value(value) {}
+    EmTagValueStruct(EmTagValueType type, EmTagValueUnion value = {0}): m_type(type), m_value(value) {}
+
+    EmTagValueType getType(MUTEX_PARAM0) const { 
+        MUTEX_LOCK;
+        return m_type; 
+    }
+    
+    EmTagValueUnion getValue(MUTEX_PARAM0) const { 
+        MUTEX_LOCK;
+        return m_value; 
+    }
+    
+    void get(MUTEX_PARAM1 EmTagValueType& type, EmTagValueUnion& value) const { 
+        MUTEX_LOCK;
+        type = m_type;
+        value = m_value; 
+    }
+
+    template<class T>
+    void set(MUTEX_PARAM1 EmTagValueType type, T value) { 
+        MUTEX_LOCK;
+        set_(type, value);
+    }
+
+    void clear(MUTEX_PARAM0) {
+        MUTEX_LOCK;
+        clear_();
+    }
+
+    bool setValue(MUTEX_PARAM1 bool value, bool forceType) {
+        MUTEX_LOCK;
+        if (!forceType && m_type != EmTagValueType::vt_boolean && m_type != EmTagValueType::vt_undefined) {
+            return false;
+        }
+        set_(EmTagValueType::vt_boolean, value);
+        return true;
+    }
+
+    bool setValue(MUTEX_PARAM1 int32_t value, bool forceType) {
+        MUTEX_LOCK;
+        if (!forceType && m_type != EmTagValueType::vt_integer && m_type != EmTagValueType::vt_undefined) {
+            return false;
+        }
+        set_(EmTagValueType::vt_integer, value);
+        return true;
+    }
+
+    bool setValue(MUTEX_PARAM1 float value, bool forceType) {
+        MUTEX_LOCK;
+        if (!forceType && m_type != EmTagValueType::vt_real && m_type != EmTagValueType::vt_undefined) {
+            return false;
+        }
+        set_(EmTagValueType::vt_real, value);
+        return true;
+    }
+
+    bool setValue(MUTEX_PARAM1 double value, bool forceType) {
+        MUTEX_LOCK;
+        if (!forceType && m_type != EmTagValueType::vt_real && m_type != EmTagValueType::vt_undefined) {
+            return false;
+        }
+        set_(EmTagValueType::vt_real, value);
+        return true;
+    }
+
+    bool setValue(MUTEX_PARAM1 const EmStringType& value, bool forceType) {
+        return setValue(MUTEX_VAR1 value.c_str(), forceType);
+    }
+
+    bool setValue(MUTEX_PARAM1 const char* value, bool forceType) {
+        MUTEX_LOCK;
+        if (m_type == EmTagValueType::vt_string) {
+            // Already a string, just reassign the value to avoid delete/new cycle.
+            *m_value.as_string = value;
+            return true;
+        }
+        if (!forceType && m_type != EmTagValueType::vt_undefined) {
+            return false;
+        }
+        set_(EmTagValueType::vt_string, new EmStringType(value));
+        return true;
+    }
+
+    void toStruct(MUTEX_PARAM1 EmTagValueStruct& out) const {
+        MUTEX_LOCK;
+        out.set_(this->m_type, this->m_value);
+    }
+
+    void fromStruct(MUTEX_PARAM1 const EmTagValueStruct& out) {
+        MUTEX_LOCK;
+        set_(out.m_type, out.m_value);
+    }
+
+protected:
+    void clear_() {
+        if (m_type == EmTagValueType::vt_string) {
+            delete m_value.as_string;
+        }
+        m_type = EmTagValueType::vt_undefined;
+        m_value.as_integer = 0; // Zero out the union
+    }
+
+    template<class T>
+    void set_(EmTagValueType type, T value) { 
+        clear_();
+        m_type = type;
+        m_value = value; 
+    }
 
     EmTagValueType m_type;
     EmTagValueUnion m_value;
@@ -106,38 +248,26 @@ struct EmTagValueStruct {
 //
 // NOTE: we need to have a concrete implementation of value since 'EmTag' and "EmTags" 
 //       classes will not support templates.
-class EmTagValue: protected EmTagValueStruct {
+class EmTagValue: public EmTagValueStruct {
     
     // TODO: handle the Epoch type!
     
 public:
     EmTagValue() : EmTagValueStruct(EmTagValueType::vt_undefined) {}
     EmTagValue(EmTagValueType type) : EmTagValueStruct(type) {}
-    EmTagValue(EmIntegerType value) : EmTagValueStruct(EmTagValueType::vt_integer) {
-        m_value.as_integer = value;
-    }
-    EmTagValue(float value) : EmTagValueStruct(EmTagValueType::vt_real) {
-        m_value.as_real = static_cast<EmRealType>(value);
-    }
-    EmTagValue(double value) : EmTagValueStruct(EmTagValueType::vt_real) {
-        m_value.as_real = static_cast<EmRealType>(value);
-    }
-    EmTagValue(EmBoolType value) : EmTagValueStruct(EmTagValueType::vt_boolean) {
-        m_value.as_bool = value;
-    }
-    EmTagValue(const char* value) : EmTagValueStruct(EmTagValueType::vt_string) {
-        m_value.as_string = new EmStringType(value);
-    }
-    EmTagValue(const EmStringType& value) : EmTagValueStruct(EmTagValueType::vt_string) {
-        m_value.as_string = new EmStringType(value);
-    }
+    EmTagValue(EmIntegerType value) : EmTagValueStruct(value) {}
+    EmTagValue(float value) : EmTagValueStruct(value) {}
+    EmTagValue(double value) : EmTagValueStruct(value) {}
+    EmTagValue(EmBoolType value) : EmTagValueStruct(value) {}
+    EmTagValue(const char* value) : EmTagValueStruct(new EmStringType(value)) {}
+    EmTagValue(const EmStringType& value) : EmTagValueStruct(new EmStringType(value)) {}
     EmTagValue(const EmTagValue& other) : EmTagValueStruct(EmTagValueType::vt_undefined) {
-        copyFrom_(other);
+        fromValue(other);
     }
 
     // NOTE: keep destructor and class without virtual functions to limit RAM footprint
     ~EmTagValue() {
-        clear_();
+        clear(MUTEX_MEMBER_VAR0);
     }   
 
     template<typename T>
@@ -151,20 +281,30 @@ public:
     }
 
     bool operator ==(const EmTagValue& other) const {
-        if (m_type != other.m_type) {
+        // Get the other type & value
+        EmTagValueType otherType;
+        EmTagValueUnion otherValue;
+        other.get(otherType, otherValue);
+
+        // Type check
+        EmTagValueType type = getType();
+        if (type != otherType) {
             return false;
         }
-        switch (m_type) {
-            case EmTagValueType::vt_string:
-                // Ensure both pointers are valid before dereferencing
-                if (m_value.as_string && other.m_value.as_string) {
-                    return *m_value.as_string == *other.m_value.as_string;
-                }
-                return m_value.as_string == other.m_value.as_string; // Both are nullptr
+
+        // Value check
+        EmTagValueUnion value = getValue();
+        switch (type) {
             case EmTagValueType::vt_undefined:    
                 return true; // Two undefined values are considered equal
+            case EmTagValueType::vt_string:
+                // Ensure both pointers are valid before dereferencing
+                if (value.as_string && otherValue.as_string) {
+                    return *value.as_string == *otherValue.as_string;
+                }
+                return value.as_string == otherValue.as_string; // Both are nullptr
             default: 
-                return m_value.as_real == other.m_value.as_real;
+                return value.as_real == otherValue.as_real;
         }
     }
 
@@ -173,20 +313,29 @@ public:
     }
 
     bool operator >(const EmTagValue& other) const {
-        if (m_type != other.m_type) {
+        // Get the other type & value
+        EmTagValueType otherType;
+        EmTagValueUnion otherValue;
+        other.get(otherType, otherValue);
+
+        // Type check
+        EmTagValueType type = getType();
+        if (type != otherType) {
             return false;
         }
-        switch (m_type) {
+        // Value check
+        EmTagValueUnion value = getValue();
+        switch (type) {
+            case EmTagValueType::vt_undefined:    
+                return false; // Two undefined values are considered comparable
             case EmTagValueType::vt_string:
                 // Ensure both pointers are valid before dereferencing
-                if (m_value.as_string && other.m_value.as_string) {
-                    return *m_value.as_string > *other.m_value.as_string;
+                if (value.as_string && otherValue.as_string) {
+                    return *value.as_string > *otherValue.as_string;
                 }
-                return m_value.as_string == other.m_value.as_string; // Both are nullptr
-            case EmTagValueType::vt_undefined:    
-                return false; // Two undefined values are considered equal
+                return false;
             default: 
-                return m_value.as_real > other.m_value.as_real;
+                return value.as_real > otherValue.as_real;
         }
     }
 
@@ -204,129 +353,163 @@ public:
 
     EmTagValue& operator=(const EmTagValue& other) {
         if (this != &other) {
-            clear_();
-            copyFrom_(other);
+            fromValue(other);
         }
         return *this;
     }
 
-    const EmTagValueType& getType() const {
-        return m_type;
+    EmTagValueType getType() const {
+        return EmTagValueStruct::getType(MUTEX_MEMBER_VAR0);
+    }
+
+    EmTagValueUnion getValue() const {
+        return EmTagValueStruct::getValue(MUTEX_MEMBER_VAR0);
+    }
+
+    void get(EmTagValueType& type, EmTagValueUnion& value) const { 
+        return EmTagValueStruct::get(MUTEX_MEMBER_VAR1 type, value);
     }
 
     bool isSameType(const EmTagValue& other) const {
-        return m_type == other.getType();
+        return getType() == other.getType();
     }
 
     bool isType(EmTagValueType type) const { 
-        return m_type == type; 
+        return getType() == type; 
     }
 
     bool isNotType(EmTagValueType type) const { 
-        return m_type != type; 
+        return getType() != type; 
     }
 
     bool isUndefinedType() const { 
-        return m_type == EmTagValueType::vt_undefined;  
+        return getType() == EmTagValueType::vt_undefined;  
     }
 
     bool isNotUndefinedType() const { 
         return !isUndefinedType();  
     }
 
+    void setUndefinedType() const { 
+        getType() == EmTagValueType::vt_undefined;  
+    }
+
     EmBoolType asBool() const {
-        return (m_type == EmTagValueType::vt_boolean) ? m_value.as_bool : false;
+        return (getType() == EmTagValueType::vt_boolean) ? getValue().as_bool : false;
     }
     
     EmIntegerType asInteger() const {
-        return (m_type == EmTagValueType::vt_integer) ? m_value.as_integer : 0;
+        return (getType() == EmTagValueType::vt_integer) ? getValue().as_integer : 0;
     }
 
     EmEpochType asEpoch() const {
-        return (m_type == EmTagValueType::vt_epoch) ? m_value.as_epoch : 0;
+        return (getType() == EmTagValueType::vt_epoch) ? getValue().as_epoch : 0;
     }
     
     EmRealType asReal() const {
-        return (m_type == EmTagValueType::vt_real) ? m_value.as_real : static_cast<EmRealType>(0.0);
+        return (getType() == EmTagValueType::vt_real) ? getValue().as_real : static_cast<EmRealType>(0.0);
     }
     
     EmStringType* asStringPtr() const {
-        return (m_type == EmTagValueType::vt_string && m_value.as_string != nullptr) ? m_value.as_string : nullptr;
+        EmTagValueType type;
+        EmTagValueUnion value;
+        get(type, value);
+        return (type == EmTagValueType::vt_string && value.as_string != nullptr) ? value.as_string : nullptr;
     }
     
     const char* asString() const {
-        return (m_type == EmTagValueType::vt_string && m_value.as_string != nullptr) ? m_value.as_string->c_str() : "";
+        EmTagValueType type;
+        EmTagValueUnion value;
+        get(type, value);
+        return (type == EmTagValueType::vt_string && value.as_string != nullptr) ? value.as_string->c_str() : "";
     }
     
     const EmTagValueStruct& asStruct() const {
         return *this;
     }
 
+    void fromValue(const EmTagValue& in) {
+        EmTagValueStruct::fromStruct(MUTEX_MEMBER_VAR1 in);
+    }
+
     void toStruct(EmTagValueStruct& out) const {
-        out.m_type = m_type;
-        out.m_value = m_value;
+        out.fromStruct(MUTEX_MEMBER_VAR1 *this);
     }
 
     void fromStruct(const EmTagValueStruct& in) {
-        clear_();
-        copyFrom_(in);
+        EmTagValueStruct::fromStruct(MUTEX_MEMBER_VAR1 in);
     }
 
     template<typename T>
     EmGetValueResult getValue(T& value) const {
+        // Get type and value 
+        EmTagValueType thisType;
+        EmTagValueUnion thisValue;
+        get(thisType, thisValue);
+        
         if (std::is_same<T, bool>::value) {
-            if (m_type != EmTagValueType::vt_boolean) {
+            if (thisType != EmTagValueType::vt_boolean) {
                 return EmGetValueResult::failed;
             }
-            EmGetValueResult res = (value == m_value.as_bool) 
+            EmGetValueResult res = (value == thisValue.as_bool) 
                             ? EmGetValueResult::succeedEqualValue 
                             : EmGetValueResult::succeedNotEqualValue;
-            value = m_value.as_bool;
+            value = thisValue.as_bool;
             return res;
         } else
         if (std::is_integral<T>::value) {
-            if (m_type != EmTagValueType::vt_integer) {
+            if (thisType != EmTagValueType::vt_integer) {
                 return EmGetValueResult::failed;
             }
-            EmGetValueResult res = (static_cast<EmIntegerType>(value) == m_value.as_integer)
+            EmGetValueResult res = (static_cast<EmIntegerType>(value) == thisValue.as_integer)
                                 ? EmGetValueResult::succeedEqualValue
                                 : EmGetValueResult::succeedNotEqualValue;
-            value = static_cast<T>(m_value.as_integer);
+            value = static_cast<T>(thisValue.as_integer);
             return res;
         } else
         if (std::is_floating_point<T>::value) {
-            if (m_type != EmTagValueType::vt_real)  {
+            if (thisType != EmTagValueType::vt_real)  {
                 return EmGetValueResult::failed;
             }
-            EmGetValueResult res = (static_cast<EmRealType>(value) == m_value.as_real)
+            EmGetValueResult res = (static_cast<EmRealType>(value) == thisValue.as_real)
                                 ? EmGetValueResult::succeedEqualValue
                                 : EmGetValueResult::succeedNotEqualValue;
-            value = static_cast<T>(m_value.as_real);
+            value = static_cast<T>(thisValue.as_real);
             return res;
         }
         return EmGetValueResult::failed;
     }
 
     EmGetValueResult getValue(EmStringType& value) const {
-        if (m_type != EmTagValueType::vt_string) {
+        // Get type and value 
+        EmTagValueType thisType;
+        EmTagValueUnion thisValue;
+        get(thisType, thisValue);
+
+        if (thisType != EmTagValueType::vt_string) {
             return EmGetValueResult::failed;
         }
-        EmGetValueResult res = (value == *m_value.as_string)
+        EmGetValueResult res = (value == *thisValue.as_string)
                                ? EmGetValueResult::succeedEqualValue 
                                : EmGetValueResult::succeedNotEqualValue;
-        value = *m_value.as_string;
+        value = *thisValue.as_string;
         return res;
     }
 
     template<size_t size>
     EmGetValueResult getValue(EmString<size>& value) const {
-        if (m_type != EmTagValueType::vt_string) {
+        // Get type and value 
+        EmTagValueType thisType;
+        EmTagValueUnion thisValue;
+        get(thisType, thisValue);
+
+        if (thisType != EmTagValueType::vt_string) {
             return EmGetValueResult::failed;
         }
-        EmGetValueResult res = (value == m_value.as_string->c_str())
+        EmGetValueResult res = (value == thisValue.as_string->c_str())
                                ? EmGetValueResult::succeedEqualValue 
                                : EmGetValueResult::succeedNotEqualValue;
-        value.set(m_value.as_string->c_str());
+        value.set(thisValue.as_string->c_str());
         return res;
     }
 
@@ -336,23 +519,28 @@ public:
             return EmGetValueResult::succeedEqualValue; 
         }
         // Compatible type?
-        if (!isSameType(value) && value.m_type != EmTagValueType::vt_undefined) {
+        if (!isSameType(value) && value.getType() != EmTagValueType::vt_undefined) {
             return EmGetValueResult::failed;
         }
         // Set new value
-        value.fromStruct(*this);
+        value.fromValue(*this);
         return EmGetValueResult::succeedNotEqualValue;        
     }
 
     template<typename T>
     T as() const {
-        switch (m_type) {
+        // Get type and value 
+        EmTagValueType thisType;
+        EmTagValueUnion thisValue;
+        get(thisType, thisValue);
+
+        switch (thisType) {
             case EmTagValueType::vt_boolean:
-                return static_cast<T>(m_value.as_bool);
+                return static_cast<T>(thisValue.as_bool);
             case EmTagValueType::vt_integer:
-                return static_cast<T>(m_value.as_integer);
+                return static_cast<T>(thisValue.as_integer);
             case EmTagValueType::vt_real:
-                return static_cast<T>(m_value.as_real);
+                return static_cast<T>(thisValue.as_real);
             case EmTagValueType::vt_string:
                 // TODO: handle string to numeric conversion?
                 return static_cast<T>(0);
@@ -363,70 +551,39 @@ public:
     }
 
     bool setValue(bool value, bool forceType) {
-        if (!forceType && m_type != EmTagValueType::vt_boolean && m_type != EmTagValueType::vt_undefined) {
-            return false;
-        }
-        clear_(); // Clear only if we are changing type or it's a string
-        m_type = EmTagValueType::vt_boolean;
-        m_value.as_bool = value;
-        return true;
+        return EmTagValueStruct::setValue(MUTEX_MEMBER_VAR1 value, forceType);
     }
 
     bool setValue(int32_t value, bool forceType) {
-        if (!forceType && m_type != EmTagValueType::vt_integer && m_type != EmTagValueType::vt_undefined) {
-            return false;
-        }
-        clear_();
-        m_type = EmTagValueType::vt_integer;
-        m_value.as_integer = value;
-        return true;
+        return EmTagValueStruct::setValue(MUTEX_MEMBER_VAR1 value, forceType);
     }
 
     bool setValue(float value, bool forceType) {
-        if (!forceType && m_type != EmTagValueType::vt_real && m_type != EmTagValueType::vt_undefined) {
-            return false;
-        }
-        clear_();
-        m_type = EmTagValueType::vt_real;
-        m_value.as_real = static_cast<EmRealType>(value);
-        return true;
+        return EmTagValueStruct::setValue(MUTEX_MEMBER_VAR1 value, forceType);
     }
 
     bool setValue(double value, bool forceType) {
-        if (!forceType && m_type != EmTagValueType::vt_real && m_type != EmTagValueType::vt_undefined) {
-            return false;
-        }
-        clear_();
-        m_type = EmTagValueType::vt_real;
-        m_value.as_real = static_cast<EmRealType>(value);
-        return true;
+        return EmTagValueStruct::setValue(MUTEX_MEMBER_VAR1 value, forceType);
     }
 
     bool setValue(const EmStringType& value, bool forceType) {
-        if (m_type == EmTagValueType::vt_string) {
-            // Already a string, just reassign the value to avoid delete/new cycle.
-            *m_value.as_string = value;
-            return true;
-        }
-        if (!forceType && m_type != EmTagValueType::vt_undefined) {
-            return false;
-        }
-        clear_();
-        m_type = EmTagValueType::vt_string;
-        m_value.as_string = new EmStringType(value);
-        return true;
+        return EmTagValueStruct::setValue(MUTEX_MEMBER_VAR1 value, forceType);
     }
 
     bool setValue(const char* value, bool forceType) {
-        return setValue(EmStringType(value), forceType);
+        return EmTagValueStruct::setValue(MUTEX_MEMBER_VAR1 value, forceType);
     }
     
     bool setValue(const EmTagValue& value, bool forceType) {
-        if (!forceType && m_type != value.m_type && m_type != EmTagValueType::vt_undefined) {
+        EmTagValueType otherType;
+        EmTagValueUnion otherValue;
+        value.get(otherType, otherValue);
+
+        EmTagValueType thisType = getType();
+        if (!forceType && thisType != otherType && thisType != EmTagValueType::vt_undefined) {
             return false;
         }
-        clear_();
-        copyFrom_(value);
+        set(MUTEX_MEMBER_VAR1 otherType, otherValue);
         return true;
     }
     
@@ -435,36 +592,12 @@ public:
     }
 
 protected:
-    void clear_() {
-        if (m_type == EmTagValueType::vt_string) {
-            delete m_value.as_string;
-        }
-        m_type = EmTagValueType::vt_undefined;
-        m_value.as_integer = 0; // Zero out the union
-    }
-
-    void copyFrom_(const EmTagValueStruct& other) {
-        m_type = other.m_type;
-        switch (m_type) {
-            case EmTagValueType::vt_boolean:
-                m_value.as_bool = other.m_value.as_bool;
-                break;
-            case EmTagValueType::vt_integer:
-                m_value.as_integer = other.m_value.as_integer;
-                break;
-            case EmTagValueType::vt_real:
-                m_value.as_real = other.m_value.as_real;
-                break;
-            case EmTagValueType::vt_string:
-                m_value.as_string = new EmStringType(*other.m_value.as_string);
-                break;
-            case EmTagValueType::vt_undefined:
-            default:
-                m_value.as_integer = 0;
-                break;
-        }
-    }
+    // Member vars
+#ifdef EM_MULTITHREAD
+    mutable EmMutex m_mutex;
+#endif
 };
+
 
 // The abstract tag class that provides synchronizable value identified by a string.
 // Tags are synchable and updatable. Sync and Update is called from a tag list on its update. 
@@ -570,7 +703,7 @@ public:
     }
 };
 
-class EmTags;
+class EmTagsAdd;
 
 // A tag implementation. 
 class EmTag: public EmTagBase {
@@ -582,7 +715,7 @@ public:
     EmTag(const char* id, EmSyncFlags flags)
       : EmTagBase(flags), m_id(id) {}
 
-    EmTag(const char* id, EmSyncFlags flags, EmTags& tags);
+    EmTag(const char* id, EmSyncFlags flags, EmTagsAdd& tags);
 
     EmTag(const char* id, 
           const EmTagValue& initValue,
@@ -667,6 +800,10 @@ public:
 
 
 // A group of tags with the same ID that are synchronized together.
+//
+// Tags are added to a 'EmTags' object by grouping tags with the same 'id'.
+// Tags with same 'id' are synchronized (i.e. will get same value) on 
+// each 'EmTags::update' call.
 class EmTagSyncGroupBase: public EmUpdatable {
     public: 
     EmTagSyncGroupBase() = default;
@@ -680,19 +817,8 @@ class EmTagSyncGroupBase: public EmUpdatable {
     }
 };
 
-class EmTagSyncGroupSearch: public EmTagSyncGroupBase {
-public: 
-    EmTagSyncGroupSearch(const char* id) : m_id(id) {}
-    virtual const char* getId() const override {
-        return m_id;
-    } 
 
-    virtual void update() override {} // Nothing to do in a search group
-
-protected:
-    const char* m_id; 
-};
-
+// A basic concrete implementation of 'EmTagSyncGroupBase' class.
 class EmTagSyncGroup: public EmTagSyncGroupBase, 
                       public EmSyncValues<EmTagBase, EmTagValue> {
 protected:
@@ -712,10 +838,8 @@ public:
     }
 
     virtual void update() override {
-        EmListIterator<EmTagBase> iter(m_tagList);
-        EmTagBase* pItem = nullptr;
-        while (iter.next(pItem)) {
-            pItem->update();
+        for(auto& item : m_tagList) {
+            item.update();
         }
     }
 
@@ -728,10 +852,16 @@ public:
     } 
 };
 
+// Abstract class used to define a tag list that allows adding tags.
+class EmTagsAdd {
+public:    
+    virtual void add(EmTagBase& tag) = 0;
+    virtual void add(EmTagBase& tag, EmTagSyncGroup*& group) = 0;
+};
 
 // This class holds a list of tags. Each tag with same id is considered as a group that
 // will be synchronized on each 'update'.
-class EmTags: public EmUpdatable {
+class EmTags: public EmTagsAdd, public EmUpdatable {
 public:
     EmTags() : m_groups(&EmTagSyncGroupBase::match) {}
     virtual ~EmTags() {
@@ -744,20 +874,25 @@ public:
 
     virtual void update() override {
         // Do the groups synch and update
-        EmListIterator<EmTagSyncGroupBase> iter(m_groups);
-        EmTagSyncGroupBase* pItem = nullptr;
-        while (iter.next(pItem)) {
-            static_cast<EmTagSyncGroup*>(pItem)->doSync();
-            pItem->update();
+        for(auto& group : m_groups) {
+            // Synchronize group tags (i.e. setting to same value)
+            static_cast<EmTagSyncGroup&>(group).doSync();
+            // Call 'update' for each tag within this group 
+            group.update();
         }
     }
 
     virtual size_t count() const { return m_groups.count(); }
     
-    virtual void add(EmTagBase& tag) {
+    virtual void add(EmTagBase& tag) override { 
+        EmTagSyncGroup* group;
+        add(tag, group);
+    }
+
+    virtual void add(EmTagBase& tag, EmTagSyncGroup*& group) override {
         // Create a temporary group to search for an existing one.
         EmTagSyncGroupSearch searchGroup(tag.getId());
-        EmTagSyncGroup* group = static_cast<EmTagSyncGroup*>(m_groups.find(searchGroup));
+        group = static_cast<EmTagSyncGroup*>(m_groups.find(searchGroup));
         if (!group) {
             group = new EmTagSyncGroup();
             m_groups.append(group, true); // List takes ownership
@@ -841,6 +976,20 @@ public:
     }
 
 protected: 
+    // A "dummy" class used to seach of existing groups.
+    class EmTagSyncGroupSearch: public EmTagSyncGroupBase {
+    public: 
+        EmTagSyncGroupSearch(const char* id) : m_id(id) {}
+        virtual const char* getId() const override {
+            return m_id;
+        } 
+
+        virtual void update() override {} // Nothing to do in a search group
+
+    protected:
+        const char* m_id; 
+    };
+
     template<typename T>
     EmGetValueResult getValue_(const char* tagId, T& value) const {
         EmTagSyncGroup* pTagGroup = find(tagId);
@@ -867,7 +1016,7 @@ protected:
     EmList<EmTagSyncGroupBase> m_groups;
 };
 
-inline EmTag::EmTag(const char* id, EmSyncFlags flags, EmTags& tags)
+inline EmTag::EmTag(const char* id, EmSyncFlags flags, EmTagsAdd& tags)
   : EmTagBase(flags), m_id(id) {
     tags.add(*this);
 }

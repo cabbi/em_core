@@ -88,16 +88,54 @@ public:
         return 0;
     }   
 
+    // Put a generic value into the NVS storage
+    //
+    // @param key The key name for the value.
+    // @param value The value to be stored.
+    // @param commit If true, commits the change to storage immediately.
+    // @param equalityCheckBeforeWrite If true, checks if the value is different before writing it.
     template<typename T>
-    size_t putValue(const char* key, const T& value, bool commit=true) const {
-        return putBytes(key, &value, sizeof(value), commit);
+    size_t putValue(const char* key, 
+                    const T& value, 
+                    bool commit=true,
+                    bool equalityCheckBeforeWrite=true) const {
+        return putBytes(key, &value, sizeof(value), commit, equalityCheckBeforeWrite);
     }   
-    size_t putValue(const char* key, const EmTagValue& value, bool commit=true) const {
-        return putValue(key, value.asStruct(), commit);
-    }
-    size_t putValue(const char* key, const EmTagValueStruct& value, bool commit=true) const;
-    size_t putString(const char* key, const char* value, bool commit=true) const;
-    size_t putBytes(const char* key, const void* value, size_t len, bool commit=true) const;
+
+    // Put a tag value into the NVS storage
+    //
+    // @param key The key name for the value.
+    // @param value The value to be stored.
+    // @param commit If true, commits the change to storage immediately.
+    // @param equalityCheckBeforeWrite If true, checks if the value is different before writing it.
+    size_t putValue(const char* key, 
+                    const EmTagValue& value, 
+                    bool commit=true,
+                    bool equalityCheckBeforeWrite=true) const;
+
+
+    // Put a string value into the NVS storage
+    //
+    // @param key The key name for the value.
+    // @param value The value to be stored.
+    // @param commit If true, commits the change to storage immediately.
+    // @param equalityCheckBeforeWrite If true, checks if the value is different before writing it.
+    size_t putString(const char* key, 
+                     const char* value, 
+                     bool commit=true,
+                     bool equalityCheckBeforeWrite=true) const;
+
+    // Put generic bytes into the NVS storage
+    //
+    // @param key The key name for the value.
+    // @param value The value to be stored.
+    // @param commit If true, commits the change to storage immediately.
+    // @param equalityCheckBeforeWrite If true, checks if the value is different before writing it.
+    size_t putBytes(const char* key, 
+                    const void* value, 
+                    size_t len, 
+                    bool commit=true,
+                    bool equalityCheckBeforeWrite=true) const;
 
     template<typename T>
     size_t getValue(const char* key, T& value) const {
@@ -237,10 +275,7 @@ public:
     }
 
     virtual bool setValue(const T& value) override {
-        if (tStorage.putValue(getKey(), value) == sizeof(value)) {
-            return ValueOfT::setValue(value);
-        }
-        return false;
+        return tStorage.putValue(getKey(), value) == sizeof(value);
     }
     
     virtual T getValue() const {
@@ -273,7 +308,6 @@ public:
         return tStorage.initBytes(getKey(), value, commit);
     }   
 };
-
 
 // A storage value that can be read and written within the provided 'tStorage' NVM storage.
 //
@@ -320,10 +354,10 @@ public:
     /// @brief The class constructor
     /// @param key The sync value key
     /// @param flags The sync flags
-    /// @param tags The tags object olding all tags that will be synchronized by them ids.
+    /// @param tags The tags object holding all tags that will be synchronized by them ids.
     EmStorageSyncValue(const char* key, 
                        EmSyncFlags flags,
-                       EmTags& tags)
+                       EmTagsAdd& tags)
      : EmStorageSyncValue<ValueOfT, T, tStorage>(key, flags) {
         tags.add(*this);
      }
@@ -347,23 +381,29 @@ public:
 // A storage value that can be read and write tags within the provided 'tStorage' NVM storage.
 //
 // This class supports value synch between other 'EmSnycValue<T> values with the same key/id.
+// It is derived from EmTag in order to have cached value for more performant read & write operations.
 template<EmStorage& tStorage>
 class EmStorageTag: public EmStorageValueBase<EmTag, EmTagValue, tStorage> {
 public:
     EmStorageTag(const char* key, 
                  EmSyncFlags flags)
-     : EmStorageValueBase<EmTag, EmTagValue, tStorage>(key, flags) {}
+     : EmStorageValueBase<EmTag, EmTagValue, tStorage>(key, flags) {
+        // Set the tag as undefined to read it the for the first time
+        EmTag::m_value.setUndefinedType();
+     }
 
     EmStorageTag(const char* key,
                  const EmTagValue& initValue, 
                  EmSyncFlags flags)
      : EmStorageValueBase<EmTag, EmTagValue, tStorage>(key, initValue, flags) {
         tStorage.initValue(key, initValue, true);
+        // Set the tag as undefined to read it the for the first time
+        EmTag::m_value.setUndefinedType();
      }
 
     EmStorageTag(const char* key, 
                  EmSyncFlags flags,
-                 EmTags& tags)
+                 EmTagsAdd& tags)
      : EmStorageTag<tStorage>(key, flags) {
         tags.add(*this);
     }
@@ -371,7 +411,7 @@ public:
     EmStorageTag(const char* key,
                  const EmTagValue& initValue, 
                  EmSyncFlags flags,
-                 EmTags& tags)
+                 EmTagsAdd& tags)
      : EmStorageTag<tStorage>(key, initValue, flags) {
         tags.add(*this);
      }
@@ -380,9 +420,35 @@ public:
         return EmTag::getId(); 
     }
 
-    // Base class overloads
-    using EmTag::getValue;
-    using EmTag::setValue;
+    // Base Tag class overrides
+    virtual EmGetValueResult getValue(EmTagValue& value) const override {
+        // Do we have a value already assigned to this tag object? 
+        if (EmTag::m_value.isNotUndefinedType()) {
+            return EmTag::m_value.getValue(value);
+        }
+        // Get the value from storage
+        EmGetValueResult res = EmStorageValueBase<EmTag, EmTagValue, tStorage>::getValue(value);
+        if (res != EmGetValueResult::failed) {
+            // Cache the current storage value into the tag object
+            const_cast<EmTagValue&>(EmTag::m_value).setValue(value);
+        }
+        return res;
+    }
+
+    virtual bool setValue(const EmTagValue& value) override {
+        // Perform an equality check in case tag value is already available
+        // This is done to avoid NVS reading.
+        if (EmTag::m_value.isNotUndefinedType() && EmTag::m_value == value) {
+            return true;
+        }
+        // Value is different, lets store it!
+        if (EmStorageValueBase<EmTag, EmTagValue, tStorage>::setValue(value)) {
+            return EmTag::setValue(value);
+        }
+        // Storage failed!
+        return false;
+    }
+
 };
 
 
