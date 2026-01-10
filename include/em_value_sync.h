@@ -7,6 +7,7 @@
 
 // The flags assigned to each synchronized item
 enum class EmSyncFlags: uint8_t {
+    none = 0x00,     // No syncing
     canRead  = 0x01, // The item can be read but read can fail and synching moves forward
     mustRead = 0x02, // The item must be read if not, then item synching stops
     canWrite = 0x04, // Item can be written

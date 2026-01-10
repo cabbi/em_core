@@ -51,9 +51,13 @@ public:
 };
 
 
-// The 'onSetValue' callback prototype
+// The 'onSetValue' callback prototype.
+//
+// NOTE: the result of the object's 'setValue' call will be set by this callback result!
 template <class SelfT, class ValueT>
-using EmOnSetValueCallbackType = bool (*)(SelfT& self, const ValueT& value);
+using EmOnSetValueCallbackType = bool (*)(SelfT& self, 
+                                          bool setValueResult,
+                                          const ValueT& value);
 
 
 // This class provides an 'onSetValue' callback.
@@ -68,10 +72,8 @@ public:
     using EmValueOfT::EmValueOfT;
 
     virtual bool setValue(const ValueT& value) override {
-        if (EmValueOfT::setValue(value)) {
-            return OnSetValue(static_cast<SelfT&>(*this), static_cast<const ValueT&>(value));
-        }
-        return false;
+        bool res = EmValueOfT::setValue(value);
+        return OnSetValue(static_cast<SelfT&>(*this), res, static_cast<const ValueT&>(value));
     }
 };
 
