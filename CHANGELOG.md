@@ -37,7 +37,7 @@
 - 'EmStorageValue' has EmStorage as template value to reduce RAM footprint
 - 'EmStorageValueEx' has onSetValue callback (split from 'EmStorageValue' to reduce RAM footprint if callback is not needed)
 - 'EmTimeout' classes split to 'EmTimeout', 'EmTimeoutShort' and 'EmTimeoutLong' 
-- 'EmDuration' classes split to 'EmDuration', 'EmDurationShort' and 'EmDurationLong'. 
+- 'EmDuration' classes split to 'EmDuration', 'EmDurationShort', 'EmDurationLong' and 'EmLowResDuration'. 
 - 'EmDuration' added 'to' method to get duration days, hours, minutes, seconds and milliseconds.
 - 'EmList' added iterators support to enable for loops (e.g. for (auto& item : itemList))
 - Added 'EmTask' class to start and handle separate task.

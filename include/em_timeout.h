@@ -30,7 +30,7 @@ template<typename T, typename I>
 class EmTimeout_
 {
 public:
-    EmTimeout_(const EmDuration_<T, I>& timeout, bool startAsExpired = false) noexcept
+    EmTimeout_(const EmHiResDuration_<T, I>& timeout, bool startAsExpired = false) noexcept
      : EmTimeout_(timeout.milliseconds(),
                  startAsExpired) {}
 
@@ -61,12 +61,12 @@ public:
     } 
 
     // Gets the timeout duration as an EmDuration object.
-    EmDuration_<T, I> getDuration() const {
-        return EmDuration_<T, I>(m_timeoutMillis);
+    EmHiResDuration_<T, I> getDuration() const {
+        return EmHiResDuration_<T, I>(m_timeoutMillis);
     }
 
     // Sets a new timeout duration.
-    void setTimeout(const EmDuration_<T, I>& timeout, bool restartNow = false) {
+    void setTimeout(const EmHiResDuration_<T, I>& timeout, bool restartNow = false) {
         setTimeout(timeout.milliseconds(), restartNow);
     }
 
@@ -121,8 +121,8 @@ public:
         return m_timeoutMillis - expired;
     }
 
-    EmDuration getRemainingTime() const {
-        return EmDuration(getRemainingMillis());
+    EmHiResDuration_<T, I> getRemainingTime() const {
+        return EmHiResDuration_<T, I>(getRemainingMillis());
     }
 
 protected:
