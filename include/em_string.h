@@ -10,11 +10,26 @@
 #include "em_optional.h"
 
 
+// Pre allocated string sizes. 
+//
+// This enables to define EmString objects as parameters without requesting templated parameter.
+template<size_t Capacity> class EmString;
+using EmStringXXS = EmString<8>;
+using EmStringXS = EmString<16>;
+using EmStringS = EmString<32>;
+using EmStringM = EmString<128>;
+using EmStringL = EmString<512>;    
+using EmStringXL = EmString<1024>;    
+using EmStringXXL = EmString<2048>;    
+
+
+// Result codes for EmString operations.
 enum EmStrResult: uint8_t {
     failure = 0,  // Operation failed
     success = 1,  // Succeeded, full string as result
     partial = 2   // Succeeded, a partial string as result (i.e. buffer to small)
 };
+
 
 // This tiny string class uses a fixed templated size and no virtual methods to minimize RAM footprint.
 // Capacity is the number of characters, not including the null terminator.
