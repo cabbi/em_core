@@ -29,6 +29,13 @@
 - Added 'EmStorage' and 'EmStorageValue' classes for persistent storage in NVS (ESP only)
 
 # 2.1.0
+- Added 'EmQueue' class to handle a circular/sized FIFO or LIFO queue.
+- Added 'EmTask' class to start and handle separate task.
+- Added 'EmAppTaskInterfaces' class to allow one or more interfaces to run in a separate task.
+- Added new 'EmTag' & 'EmTags' classes to have simple synchronization among same values coming from different sources
+- Added new 'EmAutoPtr' class as a lightweight alternative to std::auto_ptr for environments where the standard library is not available or desired
+- Removed 'SoftwareSerial' as dependency since its not more used. 
+- Added abstract 'EmSerialStream' and concrete implementation of 'EmHardwareSerial' to virtualize serial ports
 - 'EmApp' added 'beforeInterfacesSetup', 'afterInterfacesSetup, 'beforeInterfacesLoop' and 'afterInterfacesLoop' to provide app customization flexibility.
 - 'EmTime' added logLevel in constructor
 - 'EmString' new methods: startsWith, endsWith, indexOf, substring, getToken, isToken
@@ -40,9 +47,3 @@
 - 'EmDuration' classes split to 'EmDuration', 'EmDurationShort', 'EmDurationLong' and 'EmLowResDuration'. 
 - 'EmDuration' added 'to' method to get duration days, hours, minutes, seconds and milliseconds.
 - 'EmList' added iterators support to enable for loops (e.g. for (auto& item : itemList))
-- Added 'EmTask' class to start and handle separate task.
-- Added 'EmAppTaskInterfaces' class to allow one or more interfaces to run in a separate task.
-- Added new 'EmTag' & 'EmTags' classes to have simple synchronization among same values coming from different sources
-- Added new 'EmAutoPtr' class as a lightweight alternative to std::auto_ptr for environments where the standard library is not available or desired
-- Removed 'SoftwareSerial' as dependency since its not more used. 
-- Added abstract 'EmSerialStream' and concrete implementation of 'EmHardwareSerial' to virtualize serial ports

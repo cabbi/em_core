@@ -24,7 +24,7 @@
         coresystemTask = 0,
         coreUserTask = 1,
     };
-
+ 
 #else
     #define EM_CORES_COUNT 1
     enum class EmCoreId: uint8_t {

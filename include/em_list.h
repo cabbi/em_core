@@ -136,6 +136,17 @@ public:
     // NOTE: keep destructor and class without virtual functions to limit RAM footprint
     ~EmList() { clear(); }
 
+    // Returns the first element in the list or nullptr if list is empty
+    T* first() const { 
+        return m_pFirst ? m_pFirst->m_pItem : nullptr; 
+    }
+
+    // Returns the last element in the list or nullptr if list is empty
+    T* last() const {
+        _EmListElement<T>* last = last_();
+        return last ? last->m_pItem : nullptr;
+    }
+
     // Append an element by creating a copy.
     // 
     // If 'takeOwnership' is true, the list takes ownership creating a copy of 'item'
@@ -172,6 +183,22 @@ public:
     void appendUnowned(T& item) {
         append_(&item, false);
     }
+
+    // Insert an element at the beginning of the list.
+    void insertFirst(T& item, bool takeOwnership) {
+        if (takeOwnership) {
+            insertFirst(new T(item), true);
+        } else {
+            insertFirst(&item, false);
+        }
+    }
+
+    // Insert an element at the beginning of the list.
+    void insertFirst(T* item, bool takeOwnership) {
+        _EmListElement<T>* newElem = new _EmListElement<T>(*this, item, takeOwnership);
+        newElem->m_pNext = m_pFirst;
+        m_pFirst = newElem;
+    }    
 
     // Extend this list by appending all elements from another list.
     //
@@ -250,6 +277,9 @@ public:
         return false;
     }
 
+    // Remove an element from list.
+    //
+    // Returns true if element has been found and removed.
     bool remove(T* item) {
         if (item == nullptr) return false;
         return remove(*item);
@@ -268,6 +298,27 @@ public:
             elem = elem->next();
         }
         return res;
+    }
+
+    // Remove the first element of the list
+    void removeFirst() {
+        if (m_pFirst != nullptr) {
+            remove_(m_pFirst, nullptr);
+        }
+    }
+
+    // Remove the last element of the list
+    void removeLast() {
+        _EmListElement<T>* pPrev = nullptr;
+        _EmListElement<T>* elem = m_pFirst;
+        if (elem == nullptr) {
+            return;
+        }
+        while (elem->m_pNext != nullptr) {
+            pPrev = elem;
+            elem = elem->next();
+        }
+        remove_(elem, pPrev);
     }
 
     // Find the same element of the list. T should have right equality operator.
@@ -320,17 +371,6 @@ public:
     template<class V = void>
     EmIterResult forEach(IterationExCb<T, V> iter, V* pUserData = nullptr) {
         return forEach_<V>((void*)iter, true, pUserData);
-    }
-
-    T* first() { return m_pFirst ? m_pFirst->m_pItem : nullptr; }
-    const T* first() const { return m_pFirst ? m_pFirst->m_pItem : nullptr; }
-    T* last() {
-        _EmListElement<T>* last = last_();
-        return last ? last->m_pItem : nullptr;
-    }
-    const T* last() const {
-        _EmListElement<T>* last = last_();
-        return last ? last->m_pItem : nullptr;
     }
 
     // Iterator support
