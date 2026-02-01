@@ -116,9 +116,9 @@ private:
     };
 };
 
-class EmTagValue;
 
 // The tag value data structure used to read and write an EmTagValue object.
+//
 // We keep this tag data struct with basic type members an non virtual methods
 // in order to allow memory copy of it (i.e. a POD with constructors and some base methods).
 // In case of multithreading capability methods get a mutex to avoid concurrency. The mutex
@@ -600,7 +600,7 @@ protected:
 
 
 // The abstract tag class that provides synchronizable value identified by a string.
-// Tags are synchable and updatable. Sync and Update is called from a tag list on its update. 
+// Tags are syncable and updatable. Sync and Update is called from a tag list on its update. 
 class EmTagBase: public EmSyncValue<EmValue<EmTagValue>, EmTagValue>, 
                  public EmUpdatable {
 public:

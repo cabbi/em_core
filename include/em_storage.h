@@ -252,7 +252,7 @@ private:
     mutable InitItem_* m_initHead;
 };
 
-// A storage value that can be read and write within the provided 'tStorage' NVM storage.
+// A storage value that can read and write within the provided 'tStorage' NVM storage.
 //
 // This base class has the templated 'ValueOfT' which should be derived from 'EmValue<T>'.
 template<typename ValueOfT, typename T, EmStorage& tStorage>
@@ -309,7 +309,7 @@ public:
     }   
 };
 
-// A storage value that can be read and written within the provided 'tStorage' NVM storage.
+// A storage value that can read and written within the provided 'tStorage' NVM storage.
 //
 // This class is a simplified templated class deriving directly from 'EmValue<T>'
 template<typename T, EmStorage& tStorage>
@@ -336,7 +336,7 @@ public:
 };
 
 
-// A storage value that can be read and write within the provided 'tStorage' NVM storage.
+// A storage value that can read and write within the provided 'tStorage' NVM storage.
 //
 // This class supports value synch between other 'EmSnycValue<T> values with the same key/id.
 template<typename ValueOfT, typename T, EmStorage& tStorage>
@@ -378,7 +378,7 @@ public:
 };
 
 
-// A storage value that can be read and write tags within the provided 'tStorage' NVM storage.
+// A storage value that can read and write tags within the provided 'tStorage' NVM storage.
 //
 // This class supports value synch between other 'EmSnycValue<T> values with the same key/id.
 // It is derived from EmTag in order to have cached value for more performant read & write operations.
@@ -431,6 +431,16 @@ public:
         if (res != EmGetValueResult::failed) {
             // Cache the current storage value into the tag object
             const_cast<EmTagValue&>(EmTag::m_value).setValue(value);
+        }
+        return res;
+    }
+
+    template<typename T>
+    EmGetValueResult getValue(T& value) const {
+        EmTagValue tagValue;
+        EmGetValueResult res = this->getValue(tagValue);
+        if (res != EmGetValueResult::failed) {
+            return tagValue.getValue<T>(value);
         }
         return res;
     }
