@@ -463,6 +463,11 @@ public:
         return false;
     }
 
+    template<typename V>
+    bool setValue(const V& value) {
+        EmTagValue tagValue(value);
+        return this->setValue(tagValue);
+    }
 };
 
 
