@@ -106,7 +106,7 @@ public:
     }
 
     T durationUnits() const {
-        return m_durationUnits.load(); 
+        return m_durationUnits; 
     } 
 
     static uint32_t unitxSec() {

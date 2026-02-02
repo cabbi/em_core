@@ -219,9 +219,18 @@ struct EmTagValueStruct {
         out.set_(this->m_type, this->m_value);
     }
 
-    void fromStruct(MUTEX_PARAM1 const EmTagValueStruct& out) {
+    void fromStruct(MUTEX_PARAM1 const EmTagValueStruct& in) {
         MUTEX_LOCK;
-        set_(out.m_type, out.m_value);
+        if (in.m_type == EmTagValueType::vt_string) {
+            if (m_type == EmTagValueType::vt_string) {
+                // Already a string, just reassign the value to avoid delete/new cycle.
+                *m_value.as_string = *(in.m_value.as_string);
+            } else {
+                set_(EmTagValueType::vt_string, new EmStringType(*(in.m_value.as_string)));
+            }
+            return;
+        }
+        set_(in.m_type, in.m_value);
     }
 
 protected:

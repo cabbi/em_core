@@ -275,12 +275,16 @@ public:
     }
 
     virtual bool setValue(const T& value) override {
-        return tStorage.putValue(getKey(), value) == sizeof(value);
+        // NOTE: we do not chext == sizeof(value) since value might be EmTagValue
+        //       and its size might differ from the stored one due to internal allocations.
+        return tStorage.putValue(getKey(), value) > 0;
     }
     
     virtual T getValue() const {
         T value;
-        if (tStorage.getBytes(getKey(), &value, sizeof(value)) == sizeof(value)) {
+        // NOTE: we do not chext == sizeof(value) since value might be EmTagValue
+        //       and its size might differ from the stored one due to internal allocations.
+        if (tStorage.getBytes(getKey(), &value, sizeof(value)) > 0) {
             return value;
         }
         return T();
