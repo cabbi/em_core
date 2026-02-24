@@ -22,6 +22,7 @@
 #define MUTEX_VAR0 mutex
 #define MUTEX_VAR1 mutex,
 #define MUTEX_LOCK EmMutexLock lock(mutex)
+#define MUTEX_UNLOCK m_mutex.unlock()
 #else
 #define MUTEX_PARAM0
 #define MUTEX_PARAM1
@@ -30,6 +31,7 @@
 #define MUTEX_VAR0
 #define MUTEX_VAR1
 #define MUTEX_LOCK
+#define MUTEX_UNLOCK
 #endif
 
 // The tag value type
@@ -138,6 +140,11 @@ struct EmTagValueStruct {
         return m_type; 
     }
     
+    void setType(MUTEX_PARAM1 EmTagValueType type) { 
+        MUTEX_LOCK;
+        m_type = type;
+    }
+
     EmTagValueUnion getValue(MUTEX_PARAM0) const { 
         MUTEX_LOCK;
         return m_value; 
@@ -216,11 +223,20 @@ struct EmTagValueStruct {
 
     void toStruct(MUTEX_PARAM1 EmTagValueStruct& out) const {
         MUTEX_LOCK;
-        out.set_(this->m_type, this->m_value);
+        toStruct_(out);
     }
 
     void fromStruct(MUTEX_PARAM1 const EmTagValueStruct& in) {
         MUTEX_LOCK;
+        fromStruct_(in);
+    }
+
+protected:
+    void toStruct_(EmTagValueStruct& out) const {
+        out.set_(this->m_type, this->m_value);
+    }
+
+    void fromStruct_(const EmTagValueStruct& in) {
         if (in.m_type == EmTagValueType::vt_string) {
             if (m_type == EmTagValueType::vt_string) {
                 // Already a string, just reassign the value to avoid delete/new cycle.
@@ -233,7 +249,6 @@ struct EmTagValueStruct {
         set_(in.m_type, in.m_value);
     }
 
-protected:
     void clear_() {
         if (m_type == EmTagValueType::vt_string) {
             delete m_value.as_string;
@@ -271,7 +286,7 @@ public:
     EmTagValue(const char* value) : EmTagValueStruct(new EmStringType(value)) {}
     EmTagValue(const EmStringType& value) : EmTagValueStruct(new EmStringType(value)) {}
     EmTagValue(const EmTagValue& other) : EmTagValueStruct(EmTagValueType::vt_undefined) {
-        fromValue(other);
+        fromValue_(other);
     }
 
     // NOTE: keep destructor and class without virtual functions to limit RAM footprint
@@ -399,8 +414,8 @@ public:
         return !isUndefinedType();  
     }
 
-    void setUndefinedType() const { 
-        getType() == EmTagValueType::vt_undefined;  
+    void setUndefinedType() { 
+        setType(MUTEX_MEMBER_VAR1 EmTagValueType::vt_undefined);
     }
 
     EmBoolType asBool() const {
@@ -601,6 +616,19 @@ public:
     }
 
 protected:
+    void fromValue_(const EmTagValue& in) {
+        fromStruct_(in);
+    }
+
+    void toStruct_(EmTagValueStruct& out) const {
+        toStruct_(out);
+    }
+
+    void fromStruct_(const EmTagValueStruct& in) {
+        EmTagValueStruct::fromStruct_(in);
+    }
+
+
     // Member vars
 #ifdef EM_MULTITHREAD
     mutable EmMutex m_mutex;

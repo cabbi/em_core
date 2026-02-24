@@ -196,39 +196,35 @@ private:
     nvs_handle_t m_handle;
 
     // Initialization items linked list
-    enum class InitItemType_: uint8_t { bytes, string, tag };
+    enum class InitItemType_: uint8_t { none, bytes, string};
     struct InitItem_ {
-        const char* key;
-        InitItemType_ type;
+        const char* key = nullptr;
+        InitItemType_ type = InitItemType_::none;
         char* bytes = nullptr;
         size_t len = 0;
         InitItem_* next = nullptr;
 
         InitItem_(const char* key, const void* value, size_t len) {
-            this->next = nullptr;
-            this->key = key;
-            this->type = InitItemType_::bytes;
-            this->bytes = new char[len];
-            memcpy(this->bytes, value, len);
-            this->len = len;
+            init_(key, value, InitItemType_::bytes, len);
         }
         InitItem_(const char* key, const char* value) {
-            this->next = nullptr;
-            this->key = key;
-            this->type = InitItemType_::string;
-            this->len = strlen(value)+1;
-            this->bytes = new char[this->len];
-            memcpy(this->bytes, value, this->len);
+            init_(key, value, InitItemType_::string, strlen(value)+1);
         }
         InitItem_(const char* key, const EmTagValue& value) {
-            this->next = nullptr;
-            this->key = key;
-            this->type = InitItemType_::tag;
-            this->len = sizeof(EmTagValueStruct);
-            this->bytes = new char[this->len];
-            memcpy(this->bytes, &value.asStruct(), this->len);
+            EmTagValueStruct vs;
+            value.toStruct(vs);
+            init_(key, &vs, InitItemType_::bytes, sizeof(vs));
         }
         ~InitItem_() { if (bytes) delete[] bytes; }
+
+        void init_(const char* k, const void* v, InitItemType_ t, size_t l) {
+            this->next = nullptr;
+            this->key = k;
+            this->type = t;
+            this->bytes = new char[l];
+            memcpy(this->bytes, v, l);
+            this->len = l;
+        }
     };
 
     void addInitItem_(InitItem_* item) const {
@@ -275,14 +271,14 @@ public:
     }
 
     virtual bool setValue(const T& value) override {
-        // NOTE: we do not chext == sizeof(value) since value might be EmTagValue
+        // NOTE: we do not check == sizeof(value) since value might be EmTagValue
         //       and its size might differ from the stored one due to internal allocations.
         return tStorage.putValue(getKey(), value) > 0;
     }
     
     virtual T getValue() const {
         T value;
-        // NOTE: we do not chext == sizeof(value) since value might be EmTagValue
+        // NOTE: we do not check == sizeof(value) since value might be EmTagValue
         //       and its size might differ from the stored one due to internal allocations.
         if (tStorage.getBytes(getKey(), &value, sizeof(value)) > 0) {
             return value;
@@ -299,6 +295,10 @@ public:
     size_t initValue(const V& value, bool commit=true) const {
         return tStorage.initValue<V>(getKey(), value, commit);
     }   
+
+    size_t initValue(const EmTag& tag, bool commit=true) const {
+        return initValue(static_cast<const EmTagValue&>(tag.getValue()), commit);
+    }
 
     size_t initValue(const EmTagValue& value, bool commit=true) const {
         return tStorage.initValue(getKey(), value, commit);

@@ -55,11 +55,6 @@ bool EmStorage::begin(const char * name, bool clearExisting) {
                     case InitItemType_::string:
                         putString(cur->key, cur->bytes, false);
                         break;
-                    case InitItemType_::tag:
-                        EmTagValueStruct tagStruct;
-                        memcpy(&tagStruct, cur->bytes, sizeof(EmTagValueStruct));
-                        putValue(cur->key, tagStruct, false);
-                        break;
                 }
                 commitNeeded = true;
             }
