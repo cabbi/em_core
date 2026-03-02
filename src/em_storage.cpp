@@ -105,20 +105,19 @@ size_t EmStorage::putValue(const char* key,
                            bool commit,
                            bool equalityCheckBeforeWrite) const {
     // Get the tag type & value
-    EmTagValueType tagType;
-    EmTagValueUnion tagValue;
-    value.get(tagType, tagValue);
+    EmTagValueStruct tagStruct;
+    value.toStruct(tagStruct);
 
-        // We do not store undefined type!
-    if (tagType == EmTagValueType::vt_undefined) {
+    // We do not store undefined type!
+    if (tagStruct.getType() == EmTagValueType::vt_undefined) {
         return 0;
     }
     // String special handling!
-    if (tagType == EmTagValueType::vt_string) {
-        return putString(key, tagValue.as_string->c_str(), commit, equalityCheckBeforeWrite);
+    if (tagStruct.getType() == EmTagValueType::vt_string) {
+        return putString(key, tagStruct.getValue().as_string->c_str(), commit, equalityCheckBeforeWrite);
     }
     // Not a string, lets write the value bytes
-    return putBytes(key, &tagValue, sizeof(tagValue), commit, equalityCheckBeforeWrite);
+    return putBytes(key, &tagStruct, sizeof(tagStruct), commit, equalityCheckBeforeWrite);
 }
 
 size_t EmStorage::putString(const char* key, 
@@ -169,7 +168,8 @@ size_t EmStorage::putBytes(const char* key,
 }
 
 size_t EmStorage::getValue(const char* key, EmTagValue& value) const {
-    // String special handling!?
+    // String special handling
+    // NOTE: we need to know if the tag is of type string!
     if (value.getType() == EmTagValueType::vt_string) {
         size_t len = getStringLength(key);
         if (len > 0) {

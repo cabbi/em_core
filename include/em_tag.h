@@ -135,40 +135,65 @@ struct EmTagValueStruct {
     EmTagValueStruct(EmStringType* value): m_type(EmTagValueType::vt_string), m_value(value) {}
     EmTagValueStruct(EmTagValueType type, EmTagValueUnion value = {0}): m_type(type), m_value(value) {}
 
-    EmTagValueType getType(MUTEX_PARAM0) const { 
+    EmTagValueType getType() const { 
+        return m_type; 
+    }
+
+    EmTagValueType getTypeTs(MUTEX_PARAM0) const { 
         MUTEX_LOCK;
         return m_type; 
     }
     
-    void setType(MUTEX_PARAM1 EmTagValueType type) { 
+    void setType(EmTagValueType type) { 
+        m_type = type;
+    }
+
+    void setTypeTs(MUTEX_PARAM1 EmTagValueType type) { 
         MUTEX_LOCK;
         m_type = type;
     }
 
-    EmTagValueUnion getValue(MUTEX_PARAM0) const { 
+    EmTagValueUnion getValue() const { 
+        return m_value; 
+    }
+    
+    EmTagValueUnion getValueTs(MUTEX_PARAM0) const { 
         MUTEX_LOCK;
         return m_value; 
     }
     
-    void get(MUTEX_PARAM1 EmTagValueType& type, EmTagValueUnion& value) const { 
+    void get(EmTagValueType& type, EmTagValueUnion& value) const { 
+        type = m_type;
+        value = m_value; 
+    }
+
+    void getTs(MUTEX_PARAM1 EmTagValueType& type, EmTagValueUnion& value) const { 
         MUTEX_LOCK;
         type = m_type;
         value = m_value; 
     }
 
     template<class T>
-    void set(MUTEX_PARAM1 EmTagValueType type, T value) { 
+    void set(EmTagValueType type, T value) { 
+        set_(type, value);
+    }
+
+    template<class T>
+    void setTs(MUTEX_PARAM1 EmTagValueType type, T value) { 
         MUTEX_LOCK;
         set_(type, value);
     }
 
-    void clear(MUTEX_PARAM0) {
+    void clear() {
+        clear_();
+    }
+
+    void clearTs(MUTEX_PARAM0) {
         MUTEX_LOCK;
         clear_();
     }
 
-    bool setValue(MUTEX_PARAM1 bool value, bool forceType) {
-        MUTEX_LOCK;
+    bool setValue(bool value, bool forceType) {
         if (!forceType && m_type != EmTagValueType::vt_boolean && m_type != EmTagValueType::vt_undefined) {
             return false;
         }
@@ -176,8 +201,12 @@ struct EmTagValueStruct {
         return true;
     }
 
-    bool setValue(MUTEX_PARAM1 int32_t value, bool forceType) {
+    bool setValueTs(MUTEX_PARAM1 bool value, bool forceType) {
         MUTEX_LOCK;
+        return setValue(value, forceType);
+    }
+
+    bool setValue(int32_t value, bool forceType) {
         if (!forceType && m_type != EmTagValueType::vt_integer && m_type != EmTagValueType::vt_undefined) {
             return false;
         }
@@ -185,8 +214,12 @@ struct EmTagValueStruct {
         return true;
     }
 
-    bool setValue(MUTEX_PARAM1 float value, bool forceType) {
+    bool setValueTs(MUTEX_PARAM1 int32_t value, bool forceType) {
         MUTEX_LOCK;
+        return setValue(value, forceType);
+    }
+
+    bool setValue(float value, bool forceType) {
         if (!forceType && m_type != EmTagValueType::vt_real && m_type != EmTagValueType::vt_undefined) {
             return false;
         }
@@ -194,8 +227,12 @@ struct EmTagValueStruct {
         return true;
     }
 
-    bool setValue(MUTEX_PARAM1 double value, bool forceType) {
+    bool setValueTs(MUTEX_PARAM1 float value, bool forceType) {
         MUTEX_LOCK;
+        return setValue(value, forceType);
+    }
+
+    bool setValue(double value, bool forceType) {
         if (!forceType && m_type != EmTagValueType::vt_real && m_type != EmTagValueType::vt_undefined) {
             return false;
         }
@@ -203,7 +240,16 @@ struct EmTagValueStruct {
         return true;
     }
 
-    bool setValue(MUTEX_PARAM1 const EmStringType& value, bool forceType) {
+    bool setValueTs(MUTEX_PARAM1 double value, bool forceType) {
+        MUTEX_LOCK;
+        return setValue(value, forceType);
+    }
+
+    bool setValue(const EmStringType& value, bool forceType) {
+        return setValue(value.c_str(), forceType);
+    }
+
+    bool setValueTs(MUTEX_PARAM1 const EmStringType& value, bool forceType) {
         return setValue(MUTEX_VAR1 value.c_str(), forceType);
     }
 
@@ -221,22 +267,21 @@ struct EmTagValueStruct {
         return true;
     }
 
-    void toStruct(MUTEX_PARAM1 EmTagValueStruct& out) const {
+    bool setValueTs(MUTEX_PARAM1 const char* value, bool forceType) {
         MUTEX_LOCK;
-        toStruct_(out);
+        return setValue(value, forceType);
     }
 
-    void fromStruct(MUTEX_PARAM1 const EmTagValueStruct& in) {
-        MUTEX_LOCK;
-        fromStruct_(in);
-    }
-
-protected:
-    void toStruct_(EmTagValueStruct& out) const {
+    void toStruct(EmTagValueStruct& out) const {
         out.set_(this->m_type, this->m_value);
     }
 
-    void fromStruct_(const EmTagValueStruct& in) {
+    void toStructTs(MUTEX_PARAM1 EmTagValueStruct& out) const {
+        MUTEX_LOCK;
+        toStruct(out);
+    }
+
+    void fromStruct(const EmTagValueStruct& in) {
         if (in.m_type == EmTagValueType::vt_string) {
             if (m_type == EmTagValueType::vt_string) {
                 // Already a string, just reassign the value to avoid delete/new cycle.
@@ -249,6 +294,12 @@ protected:
         set_(in.m_type, in.m_value);
     }
 
+    void fromStructTs(MUTEX_PARAM1 const EmTagValueStruct& in) {
+        MUTEX_LOCK;
+        fromStruct(in);
+    }
+
+protected:
     void clear_() {
         if (m_type == EmTagValueType::vt_string) {
             delete m_value.as_string;
@@ -286,12 +337,12 @@ public:
     EmTagValue(const char* value) : EmTagValueStruct(new EmStringType(value)) {}
     EmTagValue(const EmStringType& value) : EmTagValueStruct(new EmStringType(value)) {}
     EmTagValue(const EmTagValue& other) : EmTagValueStruct(EmTagValueType::vt_undefined) {
-        fromValue_(other);
+        fromValue(other);
     }
 
     // NOTE: keep destructor and class without virtual functions to limit RAM footprint
     ~EmTagValue() {
-        clear(MUTEX_MEMBER_VAR0);
+        clearTs(MUTEX_MEMBER_VAR0);
     }   
 
     template<typename T>
@@ -383,15 +434,15 @@ public:
     }
 
     EmTagValueType getType() const {
-        return EmTagValueStruct::getType(MUTEX_MEMBER_VAR0);
+        return EmTagValueStruct::getTypeTs(MUTEX_MEMBER_VAR0);
     }
 
     EmTagValueUnion getValue() const {
-        return EmTagValueStruct::getValue(MUTEX_MEMBER_VAR0);
+        return EmTagValueStruct::getValueTs(MUTEX_MEMBER_VAR0);
     }
 
     void get(EmTagValueType& type, EmTagValueUnion& value) const { 
-        return EmTagValueStruct::get(MUTEX_MEMBER_VAR1 type, value);
+        return EmTagValueStruct::getTs(MUTEX_MEMBER_VAR1 type, value);
     }
 
     bool isSameType(const EmTagValue& other) const {
@@ -415,7 +466,7 @@ public:
     }
 
     void setUndefinedType() { 
-        setType(MUTEX_MEMBER_VAR1 EmTagValueType::vt_undefined);
+        setTypeTs(MUTEX_MEMBER_VAR1 EmTagValueType::vt_undefined);
     }
 
     EmBoolType asBool() const {
@@ -453,15 +504,15 @@ public:
     }
 
     void fromValue(const EmTagValue& in) {
-        EmTagValueStruct::fromStruct(MUTEX_MEMBER_VAR1 in);
+        EmTagValueStruct::fromStructTs(MUTEX_MEMBER_VAR1 in);
     }
 
     void toStruct(EmTagValueStruct& out) const {
-        out.fromStruct(MUTEX_MEMBER_VAR1 *this);
+        out.fromStructTs(MUTEX_MEMBER_VAR1 *this);
     }
 
     void fromStruct(const EmTagValueStruct& in) {
-        EmTagValueStruct::fromStruct(MUTEX_MEMBER_VAR1 in);
+        EmTagValueStruct::fromStructTs(MUTEX_MEMBER_VAR1 in);
     }
 
     template<typename T>
@@ -575,27 +626,27 @@ public:
     }
 
     bool setValue(bool value, bool forceType) {
-        return EmTagValueStruct::setValue(MUTEX_MEMBER_VAR1 value, forceType);
+        return EmTagValueStruct::setValueTs(MUTEX_MEMBER_VAR1 value, forceType);
     }
 
     bool setValue(int32_t value, bool forceType) {
-        return EmTagValueStruct::setValue(MUTEX_MEMBER_VAR1 value, forceType);
+        return EmTagValueStruct::setValueTs(MUTEX_MEMBER_VAR1 value, forceType);
     }
 
     bool setValue(float value, bool forceType) {
-        return EmTagValueStruct::setValue(MUTEX_MEMBER_VAR1 value, forceType);
+        return EmTagValueStruct::setValueTs(MUTEX_MEMBER_VAR1 value, forceType);
     }
 
     bool setValue(double value, bool forceType) {
-        return EmTagValueStruct::setValue(MUTEX_MEMBER_VAR1 value, forceType);
+        return EmTagValueStruct::setValueTs(MUTEX_MEMBER_VAR1 value, forceType);
     }
 
     bool setValue(const EmStringType& value, bool forceType) {
-        return EmTagValueStruct::setValue(MUTEX_MEMBER_VAR1 value, forceType);
+        return EmTagValueStruct::setValueTs(MUTEX_MEMBER_VAR1 value, forceType);
     }
 
     bool setValue(const char* value, bool forceType) {
-        return EmTagValueStruct::setValue(MUTEX_MEMBER_VAR1 value, forceType);
+        return EmTagValueStruct::setValueTs(MUTEX_MEMBER_VAR1 value, forceType);
     }
     
     bool setValue(const EmTagValue& value, bool forceType) {
@@ -607,7 +658,7 @@ public:
         if (!forceType && thisType != otherType && thisType != EmTagValueType::vt_undefined) {
             return false;
         }
-        set(MUTEX_MEMBER_VAR1 otherType, otherValue);
+        setTs(MUTEX_MEMBER_VAR1 otherType, otherValue);
         return true;
     }
     
@@ -621,11 +672,11 @@ protected:
     }
 
     void toStruct_(EmTagValueStruct& out) const {
-        toStruct_(out);
+        toStruct(out);
     }
 
     void fromStruct_(const EmTagValueStruct& in) {
-        EmTagValueStruct::fromStruct_(in);
+        EmTagValueStruct::fromStruct(in);
     }
 
 
