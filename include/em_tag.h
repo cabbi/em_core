@@ -44,12 +44,17 @@ enum class EmTagValueType: uint8_t {
     vt_string = 5
 };
 
+bool isValidTagValueType(uint8_t type) {
+    return type <= static_cast<uint8_t>(EmTagValueType::vt_string);
+}
+
 // The value types
 using EmBoolType    = bool;
 using EmIntegerType = int32_t;
 using EmEpochType   = uint32_t;
 using EmRealType    = float;
 using EmStringType  = String;
+
 
 // The tag value bytes union
 union EmTagValueUnion {
@@ -118,6 +123,9 @@ private:
     };
 };
 
+// Forward declaration
+class EmTagValueBuffer;
+
 
 // The tag value data structure used to read and write an EmTagValue object.
 //
@@ -126,6 +134,8 @@ private:
 // In case of multithreading capability methods get a mutex to avoid concurrency. The mutex
 // is external to keep this struct memory only for its members (i.e. type and value).
 struct EmTagValueStruct {
+    friend class EmTagValueBuffer;
+
     EmTagValueStruct(): m_type(EmTagValueType::vt_undefined), m_value{0} {}
     EmTagValueStruct(EmBoolType value): m_type(EmTagValueType::vt_boolean), m_value(value) {}
     EmTagValueStruct(EmIntegerType value): m_type(EmTagValueType::vt_integer), m_value(value) {}
@@ -250,11 +260,10 @@ struct EmTagValueStruct {
     }
 
     bool setValueTs(MUTEX_PARAM1 const EmStringType& value, bool forceType) {
-        return setValue(MUTEX_VAR1 value.c_str(), forceType);
+        return setValueTs(MUTEX_VAR1 value.c_str(), forceType);
     }
 
-    bool setValue(MUTEX_PARAM1 const char* value, bool forceType) {
-        MUTEX_LOCK;
+    bool setValue(const char* value, bool forceType) {
         if (m_type == EmTagValueType::vt_string) {
             // Already a string, just reassign the value to avoid delete/new cycle.
             *m_value.as_string = value;
@@ -299,6 +308,24 @@ struct EmTagValueStruct {
         fromStruct(in);
     }
 
+    size_t getValueBufferSize() const {
+        switch (m_type) {
+            case EmTagValueType::vt_string:
+                return m_value.as_string ? m_value.as_string->length() + 1 : 0;
+            default:
+                return sizeof(m_value);
+        }
+    }
+
+    const void* getValueBuffer() const {
+        switch (m_type) {
+            case EmTagValueType::vt_string:
+                return m_value.as_string ? m_value.as_string->c_str() : nullptr;
+            default:
+                return &m_value;
+        }
+    }
+
 protected:
     void clear_() {
         if (m_type == EmTagValueType::vt_string) {
@@ -318,6 +345,80 @@ protected:
     EmTagValueType m_type;
     EmTagValueUnion m_value;
 };
+
+
+// The tag value buffer class used to read and write a tag value in a memory buffer.
+// This is useful to avoid heap fragmentation when reading/writing tags from/to storage.
+class EmTagValueBuffer {
+public:
+    EmTagValueBuffer(const EmTagValueStruct& tagValue)
+     : m_buffer(nullptr), m_size(0) {
+        fromValue(tagValue);
+    }
+
+    EmTagValueBuffer(size_t size)
+     : m_buffer(size == 0 ? nullptr : new char[size]), m_size(size) {
+    }
+
+    ~EmTagValueBuffer() {
+        clear();
+    }
+
+    void clear() {
+        if (m_buffer) {
+            delete[] m_buffer;
+        }
+        m_buffer = nullptr;
+        m_size = 0;
+    }
+
+    void fromValue(const EmTagValueStruct& tagValue) {
+        clear();
+        const size_t valueSize = tagValue.getValueBufferSize();
+        m_size = 1 + valueSize;
+        m_buffer = new char[m_size];
+        if (m_buffer) {
+            m_buffer[0] = static_cast<char>(tagValue.getType());
+            if (valueSize > 0) {
+                memcpy(&m_buffer[1], tagValue.getValueBuffer(), valueSize);
+            }
+        }
+    }   
+
+    bool toValue(EmTagValueStruct& tagValue) const {
+        if (m_buffer && m_size) {
+            // Read type
+            if (!isValidTagValueType(m_buffer[0])) {
+                return false;
+            }
+            EmTagValueType type = static_cast<EmTagValueType>(m_buffer[0]);
+            // Read value
+            if (type == EmTagValueType::vt_string) {
+                // For string type, the value is a null-terminated string stored in the buffer
+                const char* strValue = &m_buffer[1];
+                tagValue.setValue(strValue, true);
+            } else {
+                // For other types, the value is stored as binary data in the buffer
+                tagValue.set_(type, *reinterpret_cast<const EmTagValueUnion*>(&m_buffer[1]));
+            }
+            return true;
+        }
+        return false;
+    }
+
+    char* buffer() const {
+        return m_buffer;
+    }  
+
+    const size_t size() const {
+        return m_size;
+    }   
+
+protected:
+    char* m_buffer;
+    size_t m_size;
+};
+
 
 // The tag value class.
 //

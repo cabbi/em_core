@@ -104,20 +104,8 @@ size_t EmStorage::putValue(const char* key,
                            const EmTagValue& value, 
                            bool commit,
                            bool equalityCheckBeforeWrite) const {
-    // Get the tag type & value
-    EmTagValueStruct tagStruct;
-    value.toStruct(tagStruct);
-
-    // We do not store undefined type!
-    if (tagStruct.getType() == EmTagValueType::vt_undefined) {
-        return 0;
-    }
-    // String special handling!
-    if (tagStruct.getType() == EmTagValueType::vt_string) {
-        return putString(key, tagStruct.getValue().as_string->c_str(), commit, equalityCheckBeforeWrite);
-    }
-    // Not a string, lets write the value bytes
-    return putBytes(key, &tagStruct, sizeof(tagStruct), commit, equalityCheckBeforeWrite);
+    EmTagValueBuffer tagBuffer(value);
+    return putBytes(key, tagBuffer.buffer(), tagBuffer.size(), commit, equalityCheckBeforeWrite);
 }
 
 size_t EmStorage::putString(const char* key, 
@@ -168,29 +156,15 @@ size_t EmStorage::putBytes(const char* key,
 }
 
 size_t EmStorage::getValue(const char* key, EmTagValue& value) const {
-    // String special handling
-    // NOTE: we need to know if the tag is of type string!
-    if (value.getType() == EmTagValueType::vt_string) {
-        size_t len = getStringLength(key);
-        if (len > 0) {
-            EmAutoPtr<char> buf(new char[len+1]);
-            if (ESP_OK == nvs_get_str(m_handle, key, buf.get(), &len) && 
-                value.setValue(buf.get(), false)) {
-                return len;
-            }
-        } else {
-            // Key does not exist, set to empty string
-            value.setValue("", false);
-        }
+    size_t size = getBytesLength(key);
+    if (size == 0) {
         return 0;
     }
-    // Not a string, lets read the value bytes
-    EmTagValueStruct valueBytes;
-    size_t size = getBytes(key, &valueBytes, sizeof(valueBytes));
-    if (size > 0) {
-        value.fromStruct(valueBytes);
+    EmTagValueBuffer tagBuffer(size);
+    if (getBytes(key, tagBuffer.buffer(), tagBuffer.size()) != size) {
+        return 0;
     }
-    return size;
+    return tagBuffer.toValue(value) ? size : 0;
 }
 
 size_t EmStorage::getString(const char* key, char* value, const size_t maxLen) const {
