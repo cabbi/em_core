@@ -211,9 +211,8 @@ private:
             init_(key, value, InitItemType_::string, strlen(value)+1);
         }
         InitItem_(const char* key, const EmTagValue& value) {
-            EmTagValueStruct vs;
-            value.toStruct(vs);
-            init_(key, &vs, InitItemType_::bytes, sizeof(vs));
+            EmTagValueBuffer vb(value);
+            init_(key, vb.buffer(), InitItemType_::bytes, vb.size());
         }
         ~InitItem_() { if (bytes) delete[] bytes; }
 

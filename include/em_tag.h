@@ -44,7 +44,7 @@ enum class EmTagValueType: uint8_t {
     vt_string = 5
 };
 
-bool isValidTagValueType(uint8_t type) {
+inline bool isValidTagValueType(uint8_t type) {
     return type <= static_cast<uint8_t>(EmTagValueType::vt_string);
 }
 
@@ -348,16 +348,18 @@ protected:
 
 
 // The tag value buffer class used to read and write a tag value in a memory buffer.
+// It uses a stack buffer for numeric values and a heap buffer for larger string values.
 // This is useful to avoid heap fragmentation when reading/writing tags from/to storage.
 class EmTagValueBuffer {
 public:
     EmTagValueBuffer(const EmTagValueStruct& tagValue)
-     : m_buffer(nullptr), m_size(0) {
+     : m_HeapBuf(nullptr), m_bufSize(0) {
         fromValue(tagValue);
     }
 
-    EmTagValueBuffer(size_t size)
-     : m_buffer(size == 0 ? nullptr : new char[size]), m_size(size) {
+    EmTagValueBuffer(size_t bufSize)
+     : m_HeapBuf(nullptr), m_bufSize(0) {
+        preapareBuf_(bufSize);
     }
 
     ~EmTagValueBuffer() {
@@ -365,41 +367,41 @@ public:
     }
 
     void clear() {
-        if (m_buffer) {
-            delete[] m_buffer;
+        if (m_HeapBuf) {
+            delete[] m_HeapBuf;
         }
-        m_buffer = nullptr;
-        m_size = 0;
+        m_HeapBuf = nullptr;
+        memset(&m_StackBuf, 0, sizeof(m_StackBuf));
+        m_bufSize = 0;
     }
 
     void fromValue(const EmTagValueStruct& tagValue) {
-        clear();
         const size_t valueSize = tagValue.getValueBufferSize();
-        m_size = 1 + valueSize;
-        m_buffer = new char[m_size];
-        if (m_buffer) {
-            m_buffer[0] = static_cast<char>(tagValue.getType());
+        char* buf = preapareBuf_(valueSize+1);
+        if (buf) {
+            buf[0] = static_cast<char>(tagValue.getType());
             if (valueSize > 0) {
-                memcpy(&m_buffer[1], tagValue.getValueBuffer(), valueSize);
+                memcpy(&buf[1], tagValue.getValueBuffer(), valueSize);
             }
         }
     }   
 
     bool toValue(EmTagValueStruct& tagValue) const {
-        if (m_buffer && m_size) {
+        char* buf = buffer();
+        if (buf) {
             // Read type
-            if (!isValidTagValueType(m_buffer[0])) {
+            if (!isValidTagValueType(buf[0])) {
                 return false;
             }
-            EmTagValueType type = static_cast<EmTagValueType>(m_buffer[0]);
+            EmTagValueType type = static_cast<EmTagValueType>(buf[0]);
             // Read value
             if (type == EmTagValueType::vt_string) {
                 // For string type, the value is a null-terminated string stored in the buffer
-                const char* strValue = &m_buffer[1];
+                const char* strValue = &buf[1];
                 tagValue.setValue(strValue, true);
             } else {
                 // For other types, the value is stored as binary data in the buffer
-                tagValue.set_(type, *reinterpret_cast<const EmTagValueUnion*>(&m_buffer[1]));
+                tagValue.set_(type, *reinterpret_cast<const EmTagValueUnion*>(&buf[1]));
             }
             return true;
         }
@@ -407,16 +409,31 @@ public:
     }
 
     char* buffer() const {
-        return m_buffer;
+        if (0==m_bufSize) {
+            return nullptr;
+        }
+        return nullptr == m_HeapBuf ?  const_cast<char*>(m_StackBuf) : m_HeapBuf;
     }  
 
     const size_t size() const {
-        return m_size;
+        return m_bufSize;
     }   
 
 protected:
-    char* m_buffer;
-    size_t m_size;
+    char* preapareBuf_(size_t bufSize) {
+        clear();
+        m_bufSize = bufSize;
+        if (m_bufSize > sizeof(m_StackBuf)) {
+            m_HeapBuf = new char[m_bufSize];
+            return m_HeapBuf;
+        }
+        return m_StackBuf; 
+    }
+
+    // Member vars
+    char* m_HeapBuf;
+    char m_StackBuf[1+sizeof(EmTagValueUnion)];
+    size_t m_bufSize;
 };
 
 
@@ -1106,8 +1123,8 @@ public:
     }
 
     EmTagSyncGroup* find(const char* tagId) const {
-        EmTagSyncGroupBase* pGroup = m_groups.find(EmTagSyncGroupSearch(tagId));
-        return static_cast<EmTagSyncGroup*>(pGroup);
+        const EmTagSyncGroupBase* pGroup = m_groups.find(EmTagSyncGroupSearch(tagId));
+        return static_cast<EmTagSyncGroup*>(const_cast<EmTagSyncGroupBase*>(pGroup));
     }
 
     // Convenience getValue overloads
