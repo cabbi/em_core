@@ -45,6 +45,8 @@
 
 #if defined(ARDUINO_NANO_ESP32)
     #define USB_SERIAL_CLASS USBCDC
+#elif defined(ARDUINO_ESP32C3_DEV) || defined(ARDUINO_ESP32S3_DEV)
+    #define USB_SERIAL_CLASS HWCDC
 #else
     #define USB_SERIAL_CLASS HardwareSerial
 #endif    
