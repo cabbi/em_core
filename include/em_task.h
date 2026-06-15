@@ -1,3 +1,6 @@
+#ifndef __EM_TASK_H
+#define __EM_TASK_H
+
 #include "em_defs.h"
 
 #ifdef EM_MULTITHREAD
@@ -26,6 +29,13 @@ enum class EmTaskStatus: uint8_t {
 // Type definition for the task function
 template <typename TParam>
 using TaskFunctionType = EmTaskFuncRes (*)(TParam*);
+
+// Feed the watchdog to prevent it from resetting the system
+// This is needed when the task is paused for a long time (e.g. waiting for WiFi connection)
+// or when the task function execution takes a long time (e.g. performing a long operation)
+inline void signalWatchdog(uint32_t pauseMs=1) {
+    vTaskDelay(pdMS_TO_TICKS(pauseMs));
+}
 
 // A worker task executing 'taskFunction' within a loop. The result of the function
 // will determine if the task should continue, pause or be killed.
@@ -229,3 +239,4 @@ protected:
 };
 
 #endif // EM_MULTITHREAD
+#endif // __EM_TASK_H

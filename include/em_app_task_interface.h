@@ -237,7 +237,8 @@ public:
                         EmLogLevel logLevel=EmLogLevel::global) : 
         EmAppTaskInterfaces(name, runSetupOnTask, taskCoreId, taskStackSize, 
                             taskPriority, blockedTimeout, logLevel) {
-        appInterfaces.appendUnowned(*this); 
+        // TODO: verify if we need to add "this" to the appInterfaces list!?!?
+        //appInterfaces.appendUnowned(*this); 
     }
 
     virtual ~EmAppTaskInterfaces() {

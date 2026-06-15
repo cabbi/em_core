@@ -1,12 +1,12 @@
 #ifndef __EM_DEFS__H_
 #define __EM_DEFS__H_
-
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <math.h>
 
 #if defined(ESP32) || defined(ESP8266)
+
     #define EM_ESP
     #define EM_STD_LIB  // Use of standard library (AVR arduinos does not have it!)
     #define EM_WIFI
@@ -21,7 +21,7 @@
         core0 = 0, 
         core1 = 1,
         // In general, system tasks are pinned to core 0 and user tasks to core 1
-        coresystemTask = 0,
+        coreSystemTask = 0,
         coreUserTask = 1,
     };
  

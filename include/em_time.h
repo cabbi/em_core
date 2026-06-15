@@ -10,6 +10,7 @@
 #include <esp_sntp.h>
 
 #include "em_timeout.h"
+#include "em_duration.h"
 #include "em_log.h"
 
 using EmEpochTypeSec = uint32_t;
@@ -82,7 +83,13 @@ public:
             return getLocalTime(&timeinfo);
         }
         return m_isInitialized;
-    }   
+    }
+
+    // Get the up time since the device stated
+    static EmLowResDuration getDeviceUpTime() {
+        int64_t uptime_us = esp_timer_get_time();
+        return EmLowResDuration(static_cast<uint32_t>(uptime_us/1000000));
+    }    
 };
 
 #endif
