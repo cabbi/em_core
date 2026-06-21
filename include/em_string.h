@@ -38,7 +38,7 @@ template<size_t Capacity>
 class EmString {
 public:
     EmString() {
-        m_buf[0] = '\0';
+        clear();
     }
 
     EmString(const char* initValue) {
@@ -64,9 +64,24 @@ public:
         return length() == 0;
     }
 
+    // Returns true if string is NOT empty
+    bool isNotEmpty() const {
+        return !isEmpty();
+    }
+
     // Returns true if string has reached its capacity
     bool isFull() const {
         return length() == capacity();
+    }
+
+    // Returns true if string has NOT reached its capacity
+    bool isNotFull() const {
+        return !isFull();
+    }
+
+    // Clears the current string content
+    void clear() {
+        memset(m_buf, 0, sizeof(m_buf));
     }
 
     // Retruns the space left to reach the string capacity

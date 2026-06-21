@@ -2,18 +2,18 @@
 
 
 bool EmWiFi::addAP(const char* ssid, const char* passphrase) {
-    if (_networks.size() < 128 && ssid && strlen(ssid) > 0) {
-        _networks.push_back({EmStringS(ssid), EmStringS(passphrase)});
+    if (m_networks.size() < 128 && ssid && strlen(ssid) > 0) {
+        m_networks.push_back({EmStringS(ssid), EmStringS(passphrase)});
         return true;
     }
     return false;
 }
 
 bool EmWiFi::start(uint16_t checkIntervalSec, EmWiFiLevel checkLevel) {
-    _checkIntervalSec = checkIntervalSec;
-    _checkLevel = checkLevel;
+    m_checkIntervalSec = checkIntervalSec;
+    m_checkLevel = checkLevel;
     
-    if (_taskHandle == nullptr) {
+    if (m_taskHandle == nullptr) {
         // Creates a background task running on Core 0 to leave Core 1 free for your loop()
         TaskHandle_t taskHandle;
         xTaskCreatePinnedToCore(
@@ -25,71 +25,74 @@ bool EmWiFi::start(uint16_t checkIntervalSec, EmWiFiLevel checkLevel) {
             &taskHandle,          // Task handle
             0                     // Core ID (0)
         );
-        _taskHandle = taskHandle;
+        m_taskHandle = taskHandle;
         return taskHandle != nullptr;
     }
     return false;
 }
 
 void EmWiFi::stop() {
-    if (_taskHandle != nullptr) {
-        vTaskDelete(_taskHandle);
-        _taskHandle = nullptr;
+    if (m_taskHandle != nullptr) {
+        vTaskDelete(m_taskHandle);
+        m_taskHandle = nullptr;
     }
 }
 
-int16_t EmWiFi::getBestNetworkIndex_() {
-    int16_t scanResult = WiFi.scanNetworks();
-    if (scanResult <= 0) {
-        return -1;
+bool EmWiFi::getBestNetwork_(EmWiFiCredential& bestNetwork) {
+    // Any user defined network?
+    if (m_networks.empty()) {
+        return false;
     }
 
-    int16_t bestNetworkIndexInList = -1;
-    int32_t highestRssi = -1000;
+    // Scan for available networks
+    int16_t scanResult = WiFi.scanNetworks();
+    if (scanResult <= 0) {
+        return false;
+    }
 
+    // Check if any network matches and take the best one
+    bool networkFound = false;
+    int32_t highestRssi = -1000;
     for (int i = 0; i < scanResult; i++) {
         EmStringS scannedSsid(WiFi.SSID(i).c_str());
         int currentRssi = WiFi.RSSI(i);
 
-        for (size_t j = 0; j < _networks.size(); j++) {
-            if (_networks[j].ssid == scannedSsid) {
+        EmMutexLock lock(m_networkMutex);
+        for (auto& _network : m_networks) {
+            if (_network.ssid == scannedSsid) {
                 if (currentRssi > highestRssi) {
                     highestRssi = currentRssi;
-                    bestNetworkIndexInList = j;
+                    bestNetwork.ssid = _network.ssid;
+                    bestNetwork.password = _network.password;
+                    networkFound = true;
                 }
             }
         }
     }
     WiFi.scanDelete();
-    return bestNetworkIndexInList;
+    return networkFound;
 }
 
 void EmWiFi::wifiTaskCore_(void* pvParameters) {
     // Cast the void pointer back to our class instance
-    EmWiFi* instance = static_cast<EmWiFi*>(pvParameters);
-
+    EmWiFi* self = static_cast<EmWiFi*>(pvParameters);
+    // Endless loop until task is killed
     while (true) {
-        if (!instance->_networks.empty() &&
-            (WiFi.status() != WL_CONNECTED ||
-             instance->getWiFiLevel() <= instance->_checkLevel)) {
-            int16_t bestIndex = instance->getBestNetworkIndex_();
-
-            if (bestIndex != -1 &&
-                bestIndex != instance->_currentApIndex) {
-                instance->_currentApIndex = bestIndex;
+        if (!self->m_networks.empty() &&                    // Any user defined AP
+            (WiFi.status() != WL_CONNECTED ||               // Is WiFi disconnected
+             self->getWiFiLevel() <= self->m_checkLevel)) { // Is WiFi level poor
+            // Get the best user defined AP if any is found
+            EmWiFiCredential bestNetwork;
+            if (self->getBestNetwork_(bestNetwork) &&      // Any network found
+                !self->isCurrentSsid_(bestNetwork.ssid)) { // Different than this one
+                self->setCurrentSsid_(bestNetwork.ssid);
                 WiFi.disconnect();
-                WiFi.begin(instance->_networks[bestIndex].ssid.c_str(), 
-                            instance->_networks[bestIndex].password.c_str());
-                            
-                
-                // Wait for connection with a 10-second timeout
-                int attempts = 0;
-                while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-                    vTaskDelay(pdMS_TO_TICKS(500));
-                    attempts++;
-                }
+                WiFi.begin(bestNetwork.ssid.c_str(), 
+                           bestNetwork.password.c_str());
+                // Lest wait extra time for this new connection
+                tDelay(1000);
             }
         }
-        vTaskDelay(pdMS_TO_TICKS(instance->_checkIntervalSec*1000));
+        tDelay(self->m_checkIntervalSec*1000);
     }
 }

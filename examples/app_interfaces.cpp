@@ -29,7 +29,7 @@ public:
 
     virtual EmIntOperationResult setup() override {
         logInfo("setup...");
-        delay(1000); // Simulate work in setup
+        tDelay(1000); // Simulate work in setup
         return EmIntOperationResult::canContinue;
     }
 

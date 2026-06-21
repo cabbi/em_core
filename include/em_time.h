@@ -31,8 +31,11 @@ public:
     virtual bool begin(const EmDuration& timeout,
                        uint32_t gmtOffset_sec = 0,
                        uint32_t daylightOffset_sec = 0,
-                       const char* ntpServer = "pool.ntp.org") {
-        configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+                       const char* ntpServer1 = "pool.ntp.org",
+                       const char* ntpServer2 = "time.nist.gov",
+                       const char* ntpServer3 = nullptr) {
+        configTime(gmtOffset_sec, daylightOffset_sec, 
+                   ntpServer1, ntpServer2, ntpServer3);
         return checkInitialized(timeout);
     }
 
@@ -40,26 +43,7 @@ public:
         return m_isInitialized;
     }
 
-    bool checkInitialized(const EmDuration& timeout = EmDuration(100)) const {
-        // Check if the time is already initialized
-        if (m_isInitialized) {
-            return true;
-        }
-        // Attempt to get the local time with a timeout
-        struct tm tmInfo;
-        m_isInitialized = getLocalTime(&tmInfo, timeout.milliseconds());
-        if (m_isInitialized) {
-            logInfo<50>("Time initialized [<%d-%02d-%02d %02d:%02d:%02d]!", 
-                        tmInfo.tm_year + 1900, tmInfo.tm_mon + 1, tmInfo.tm_mday,
-                        tmInfo.tm_hour, tmInfo.tm_min, tmInfo.tm_sec);            
-        } else {
-            // Try to reinitialize SNTP
-            sntp_stop();
-            sntp_init();
-            logDebug(F("Failed to initialize time within the timeout period"));
-        }
-        return m_isInitialized;
-    }
+    bool checkInitialized(const EmDuration& timeout = EmDuration(100)) const;
 
     // Get the current time in seconds since epoch
     bool now(EmEpochTypeSec& currentTime) const {

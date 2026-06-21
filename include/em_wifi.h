@@ -6,10 +6,10 @@
 #include <atomic>
 #include <vector>
 
-#include "em_string.h"
-
 #include "em_log.h"
 #include "em_string.h"
+#include "em_threading.h"
+
 
 enum class EmWiFiLevel: uint8_t {
     notConnected = 0,
@@ -41,7 +41,7 @@ inline const char* getWiFiLevelName(EmWiFiLevel level) {
     return "Unknown";
 }
 
-struct EmWiFiAp {
+struct EmWiFiCredential {
     EmStringS ssid;
     EmStringS password;
 };
@@ -51,9 +51,8 @@ struct EmWiFiAp {
 class EmWiFi {
 public:
     EmWiFi()
-     : _taskHandle(nullptr),
-       _checkIntervalSec(0), 
-       _currentApIndex(-1) {}
+     : m_taskHandle(nullptr),
+       m_checkIntervalSec(0) {}
     
     ~EmWiFi() { stop(); }
     
@@ -62,13 +61,16 @@ public:
     bool addAP(const char* ssid, const char* passphrase);
     
     void resetApPool() {
-        _networks.clear();
-        _currentApIndex = -1;
+        EmMutexLock lock(m_networkMutex);
+        m_networks.clear();
+        m_currentSsid.clear();
     }
     
-    int8_t getApCount() {
-        return static_cast<int8_t>(_networks.size());
+    int8_t getApCount() const {
+        // No need to block this networks read operation
+        return static_cast<int8_t>(m_networks.size());
     }
+
     // Start the WiFi connection check loop.
     // The loop will check each 'checkIntervalSec' if WiFi is 
     //  connected and the level is above the 'checkLevel'.  
@@ -77,7 +79,7 @@ public:
     void stop();
 
     bool isRunning() const {
-        return _taskHandle != nullptr;
+        return m_taskHandle != nullptr;
     }
 
     bool isConnected() const {
@@ -115,14 +117,23 @@ public:
     }
 
 private:
-    std::vector<EmWiFiAp> _networks;
-    std::atomic<TaskHandle_t> _taskHandle;
-    std::atomic<uint16_t> _checkIntervalSec;
-    std::atomic<EmWiFiLevel> _checkLevel;
-    std::atomic<int8_t> _currentApIndex;
-
-    int16_t getBestNetworkIndex_();
+    bool getBestNetwork_(EmWiFiCredential& bestNetwork);
+    void setCurrentSsid_(const EmStringS& ssid) {
+        EmMutexLock lock(m_networkMutex);
+        m_currentSsid.set(ssid);
+    }
+    bool isCurrentSsid_(const EmStringS& ssid) const {
+        EmMutexLock lock(m_networkMutex);
+        return m_currentSsid == ssid;
+    }
     static void wifiTaskCore_(void* pvParameters); // FreeRTOS task function
+
+    EmStringS m_currentSsid;
+    mutable EmMutex m_networkMutex;
+    std::vector<EmWiFiCredential> m_networks;
+    std::atomic<TaskHandle_t> m_taskHandle;
+    std::atomic<uint16_t> m_checkIntervalSec;
+    std::atomic<EmWiFiLevel> m_checkLevel;
 };
 
 #endif

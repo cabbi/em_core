@@ -14,7 +14,8 @@ using EmTimeout = EmTimeout_<uint32_t, ts_uint32>;
 using EmTimeoutShort = EmTimeout_<uint16_t, ts_uint16>;
 
 // The long timeout object in case you need to handle longer timeouts.
-using EmTimeoutLong = EmTimeout_<uint64_t, ts_uint64>;
+// TODO
+//using EmTimeoutLong = EmTimeout_<uint64_t, ts_uint64>;
 
 // The millis() function that returns the number of milliseconds since system start.
 #ifdef __cplusplus

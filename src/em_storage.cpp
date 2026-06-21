@@ -3,7 +3,7 @@
 #ifdef EM_NVS
 
 // Error codes for NVS operations
-const char* nvs_errors[] = { "UNDEFINED ERROR", 
+const char* _nvs_errors[] = { "UNDEFINED ERROR", 
                              "NOT_INITIALIZED", 
                              "NOT_FOUND", 
                              "TYPE_MISMATCH", 
@@ -16,8 +16,7 @@ const char* nvs_errors[] = { "UNDEFINED ERROR",
                              "PAGE_FULL", 
                              "INVALID_STATE", 
                              "INVALID_LENGTH"};
-#define nvs_error(e) (((e)>ESP_ERR_NVS_BASE)?nvs_errors[(e)&~(ESP_ERR_NVS_BASE)]:nvs_errors[0])
-
+#define nvs_error(e) (((e)>ESP_ERR_NVS_BASE)?_nvs_errors[(e)&~(ESP_ERR_NVS_BASE)]:_nvs_errors[0])
 
 bool EmStorage::begin(const char * name, bool clearExisting) {
     // Already initialized?

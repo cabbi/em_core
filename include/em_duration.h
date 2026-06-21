@@ -206,9 +206,10 @@ public:
 };
 
 // The long duration object in case you need to handle longer milliseconds durations.
-class EmDurationLong: public EmHiResDuration_<uint64_t, ts_uint64> {
-public:
-    using EmHiResDuration_<uint64_t, ts_uint64>::EmHiResDuration_;
-};
+// TODO
+//class EmDurationLong: public EmHiResDuration_<uint64_t, ts_uint64> {
+//public:
+//    using EmHiResDuration_<uint64_t, ts_uint64>::EmHiResDuration_;
+//};
 
 #endif // EM_DURATION_H

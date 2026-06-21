@@ -9,7 +9,7 @@ EmTaskFuncRes task1Func(uint32_t* counter)
   if (*counter == 10) {
     return EmTaskFuncRes::pauseTask;
   }
-  vTaskDelay(500 / portTICK_PERIOD_MS);
+  tDelay(500);
   return EmTaskFuncRes::continueTask;
 }
 

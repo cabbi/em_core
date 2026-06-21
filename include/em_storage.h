@@ -170,7 +170,7 @@ public:
     bool isSameBytes(const char* key, const void * buf, size_t len) const;
 
     #if ESP_IDF_VERSION_MAJOR >= 5
-    bool hasKey(const char* key) const { return nvm_find_key(m_handle, key, nullptr) == ESP_OK; }
+    bool hasKey(const char* key) const { return nvs_find_key(m_handle, key, nullptr) == ESP_OK; }
     #else
     bool hasKey(const char* key) const { return hasValue(key) || hasString(key); }
     #endif

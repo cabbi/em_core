@@ -299,6 +299,7 @@ protected:
             [](EmAppInterface& interface, bool, bool, EmIntOperationResult* pOpRes) -> EmIterResult {
                 bool failed = false;
                 *pOpRes = interface.loopStep_(failed);
+                tDelay(1); // Signal the task watchdog to avoid device reboot
                 if (*pOpRes == EmIntOperationResult::stopInterface) {
                     return EmIterResult::removeMoveNext;
                 } else if (*pOpRes != EmIntOperationResult::canContinue) {
@@ -307,6 +308,7 @@ protected:
                 return EmIterResult::moveNext;
             }, &opRes);
         self->m_taskOperationResult.store(opRes);
+        tDelay(1); // Signal the task watchdog to avoid device reboot
         return opRes == EmIntOperationResult::canContinue ? 
                         EmTaskFuncRes::continueTask : EmTaskFuncRes::pauseTask;
     }
