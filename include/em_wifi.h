@@ -73,9 +73,9 @@ public:
 
     // Start the WiFi connection check loop.
     // The loop will check each 'checkIntervalSec' if WiFi is 
-    //  connected and the level is above the 'checkLevel'.  
-    bool start(uint16_t checkIntervalSec = 10,
-               EmWiFiLevel checkLevel = EmWiFiLevel::fair);
+    // not connected or the level is equal or below the 'minCheckLevel'.  
+    bool start(uint16_t checkIntervalSec = 60,
+               EmWiFiLevel minCheckLevel = EmWiFiLevel::fair);
     void stop();
 
     bool isRunning() const {
@@ -118,6 +118,10 @@ public:
 
 private:
     bool getBestNetwork_(EmWiFiCredential& bestNetwork);
+    void clearCurrentSsid_() {
+        EmMutexLock lock(m_networkMutex);
+        m_currentSsid.clear();
+    }
     void setCurrentSsid_(const EmStringS& ssid) {
         EmMutexLock lock(m_networkMutex);
         m_currentSsid.set(ssid);

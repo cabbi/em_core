@@ -1,4 +1,5 @@
 #include "em_wifi.h"
+#include <em_timeout.h>
 
 
 bool EmWiFi::addAP(const char* ssid, const char* passphrase) {
@@ -10,7 +11,7 @@ bool EmWiFi::addAP(const char* ssid, const char* passphrase) {
 }
 
 bool EmWiFi::start(uint16_t checkIntervalSec, EmWiFiLevel checkLevel) {
-    m_checkIntervalSec = checkIntervalSec;
+    m_checkIntervalSec = checkIntervalSec > 0 ? checkIntervalSec : 1;
     m_checkLevel = checkLevel;
     
     if (m_taskHandle == nullptr) {
@@ -44,8 +45,12 @@ bool EmWiFi::getBestNetwork_(EmWiFiCredential& bestNetwork) {
         return false;
     }
 
+uint32_t s = millis();    
     // Scan for available networks
-    int16_t scanResult = WiFi.scanNetworks();
+    int16_t scanResult = WiFi.scanNetworks(false, // async scan
+                                           false, // show_hidden
+                                           true,  // passive
+                                           300);  // max_ms_per_channel 
     if (scanResult <= 0) {
         return false;
     }
@@ -56,7 +61,6 @@ bool EmWiFi::getBestNetwork_(EmWiFiCredential& bestNetwork) {
     for (int i = 0; i < scanResult; i++) {
         EmStringS scannedSsid(WiFi.SSID(i).c_str());
         int currentRssi = WiFi.RSSI(i);
-
         EmMutexLock lock(m_networkMutex);
         for (auto& _network : m_networks) {
             if (_network.ssid == scannedSsid) {
@@ -69,7 +73,6 @@ bool EmWiFi::getBestNetwork_(EmWiFiCredential& bestNetwork) {
             }
         }
     }
-    WiFi.scanDelete();
     return networkFound;
 }
 
@@ -79,8 +82,12 @@ void EmWiFi::wifiTaskCore_(void* pvParameters) {
     // Endless loop until task is killed
     while (true) {
         if (!self->m_networks.empty() &&                    // Any user defined AP
-            (WiFi.status() != WL_CONNECTED ||               // Is WiFi disconnected
+            (self->isNotConnected() ||                      // Is WiFi disconnected
              self->getWiFiLevel() <= self->m_checkLevel)) { // Is WiFi level poor
+            // Clear current network ssid if disconnected
+            if (self->isNotConnected()) {
+                self->clearCurrentSsid_();
+            }
             // Get the best user defined AP if any is found
             EmWiFiCredential bestNetwork;
             if (self->getBestNetwork_(bestNetwork) &&      // Any network found
@@ -90,7 +97,10 @@ void EmWiFi::wifiTaskCore_(void* pvParameters) {
                 WiFi.begin(bestNetwork.ssid.c_str(), 
                            bestNetwork.password.c_str());
                 // Lest wait extra time for this new connection
-                tDelay(1000);
+                EmTimeout conTimeout(10000);
+                while (!WiFi.isConnected() && !conTimeout.isExpired(false)) {
+                    tDelay(100);
+                }
             }
         }
         tDelay(self->m_checkIntervalSec*1000);

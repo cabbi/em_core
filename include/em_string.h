@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h> // For vsnprintf
+#include <ctype.h>
 
 #include "em_defs.h"
 #include "em_optional.h"
@@ -29,6 +30,9 @@ enum EmStrResult: uint8_t {
     success = 1,  // Succeeded, full string as result
     partial = 2   // Succeeded, a partial string as result (i.e. buffer to small)
 };
+
+// External functions used to avoid big inline functions
+bool toInt(const char* str, int32_t& value, bool strictParse);
 
 
 // This tiny string class uses a fixed templated size and no virtual methods to minimize RAM footprint.
@@ -181,6 +185,22 @@ public:
             return EmStrResult::failure;
         }
         return EmStrResult::success;
+    }
+
+    // Converts the string content to an integer.
+    // It skips leading spaces or tabs (e.g. '  -123' -> true). 
+    // If 'strictParse' is true the parsing will return false if the string  
+    // doesn't end with a digit (e.g. '-123abc' -> false) 
+    bool toInt(int32_t& value, bool strictParse = true) const {
+        return ::toInt(c_str(), value, strictParse);
+    }
+
+    // Converts the string content to an unsigned integer.
+    // It skips leading spaces or tabs (e.g. '  -123' -> true). 
+    // If 'strictParse' is true the parsing will return false if the string  
+    // doesn't end with a digit (e.g. '-123abc' -> false) 
+    bool toUInt(uint32_t& value, bool strictParse = true) const {
+        return ::toInt(c_str(), value, false, strictParse);
     }
 
     // Gets the string buffer.
@@ -400,15 +420,33 @@ public:
         return *this;
     }
 
-    // Equal operator.
-    bool operator ==(const char* value) {
-        return 0 == this->strcmp(value);
-    }
+    // Equals
+    bool equals(const char* value, bool caseSensitive = true) const {
+        // Treat nullptr as empty string
+        if (value == nullptr) {
+            return m_buf[0] == 0;
+        }
+        // Case sensitive comparison
+        if (caseSensitive) {
+            return ::strcmp(m_buf, value) == 0;
+        }
+        // Case insensitive comparison
+        const unsigned char* a = reinterpret_cast<const unsigned char*>(m_buf);
+        const unsigned char* b = reinterpret_cast<const unsigned char*>(value);
+        while (*a && *b) {
+            if (::tolower(*a) != ::tolower(*b)) {
+                return false;
+            }                
+            ++a;
+            ++b;
+        }
+        return *a == *b;
+    } 
 
-    // Not-equal operator.
-    bool operator !=(const char* value) {
-        return !(*this == value);
-    }
+    bool equals(const EmString& value, bool caseSensitive = true) {
+        return equals(value.c_str(), caseSensitive);
+    } 
+
 
 protected:
     static EmStrResult set_(char* buf, 
@@ -448,5 +486,15 @@ protected:
 private:
     char m_buf[Capacity+1];
 };
+
+template<size_t N>
+bool operator==(const EmString<N>& a, const EmString<N>& b) {
+    return a.equals(b, true);
+}
+
+template<size_t N>
+bool operator!=(const EmString<N>& a, const EmString<N>& b) {
+    return !a.equals(b, true);
+}
 
 #endif // __EM_STRING__H_
