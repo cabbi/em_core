@@ -47,3 +47,5 @@
 - 'EmDuration' classes split to 'EmDuration', 'EmDurationShort', 'EmDurationLong' and 'EmLowResDuration'. 
 - 'EmDuration' added 'to' method to get duration days, hours, minutes, seconds and milliseconds.
 - 'EmList' added iterators support to enable for loops (e.g. for (auto& item : itemList))
+- Added 'EmWiFi' class to handle APs re-connections
+- Added 'EmJsonDictWriter' & 'EmJsonDictReader' classes to handle Json basic operations

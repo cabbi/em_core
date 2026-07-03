@@ -13,66 +13,76 @@ class EmTaskQueue {
 public:
     // Create a queue with a maximum number of items
     explicit EmTaskQueue(UBaseType_t queue_length) {
-        handle_ = xQueueCreate(queue_length, sizeof(T));
+        m_handle = xQueueCreate(queue_length, sizeof(T));
     }
 
     ~EmTaskQueue() {
-        if (handle_ != nullptr) {
-            vQueueDelete(handle_);
+        if (m_handle != nullptr) {
+            vQueueDelete(m_handle);
         }
     }
 
     // Prevent copying to avoid double deletion of the handle
-    EmTaskQueue(const Queue&) = delete;
+    EmTaskQueue(const EmTaskQueue&) = delete;
     EmTaskQueue& operator=(const EmTaskQueue&) = delete;
 
     // Allow moving
-    EmTaskQueue(EmTaskQueue&& other) noexcept : handle_(other.handle_) {
-        other.handle_ = nullptr;
+    EmTaskQueue(EmTaskQueue&& other) noexcept : m_handle(other.m_handle) {
+        other.m_handle = nullptr;
     }
 
     EmTaskQueue& operator=(EmTaskQueue&& other) noexcept {
         if (this != &other) {
-            if (handle_ != nullptr) vQueueDelete(handle_);
-            handle_ = other.handle_;
-            other.handle_ = nullptr;
+            if (m_handle != nullptr) {
+                vQueueDelete(m_handle);
+            }
+            m_handle = other.m_handle;
+            other.m_handle = nullptr;
         }
         return *this;
     }
 
     // Send an item to the back of the queue
     bool send(const T& item, TickType_t wait_ticks = portMAX_DELAY) {
-        if (handle_ == nullptr) return false;
-        return xQueueSend(handle_, &item, wait_ticks) == pdTRUE;
+        if (m_handle == nullptr) {
+            return false;
+        }
+        return xQueueSend(m_handle, &item, wait_ticks) == pdTRUE;
     }
 
     // Send an item from an Interrupt Service Routine (ISR)
     bool sendFromISR(const T& item, BaseType_t* higher_priority_task_woken) {
-        if (handle_ == nullptr) return false;
-        return xQueueSendFromISR(handle_, &item, higher_priority_task_woken) == pdTRUE;
+        if (m_handle == nullptr) {
+            return false;
+        }
+        return xQueueSendFromISR(m_handle, &item, higher_priority_task_woken) == pdTRUE;
     }
 
     // Receive an item from the queue
     bool receive(T& item, TickType_t wait_ticks = portMAX_DELAY) {
-        if (handle_ == nullptr) return false;
-        return xQueueReceive(handle_, &item, wait_ticks) == pdTRUE;
+        if (m_handle == nullptr) return false;
+        return xQueueReceive(m_handle, &item, wait_ticks) == pdTRUE;
     }
 
     // Get the number of messages waiting in the queue
     UBaseType_t messagesWaiting() const {
-        if (handle_ == nullptr) return 0;
-        return uxQueueMessagesWaiting(handle_);
+        if (m_handle == nullptr) {
+            return 0;
+        }
+        return uxQueueMessagesWaiting(m_handle);
     }
 
     // Check if the queue handle is valid
-    bool isValid() const { return handle_ != nullptr; }
+    bool isValid() const { return m_handle != nullptr; }
 
     // --- Status Verification Methods ---
 
     // Returns true if the queue is empty (for use in Tasks)
     bool isEmpty() const {
-        if (handle_ == nullptr) return true;
-        return uxQueueMessagesWaiting(handle_) == 0;
+        if (m_handle == nullptr) {
+            return true;
+        }
+        return uxQueueMessagesWaiting(m_handle) == 0;
     }
 
     // Returns true if the queue is NOT empty (for use in Tasks)
@@ -82,9 +92,11 @@ public:
     
     // Returns true if the queue is full (for use in Tasks)
     bool isFull() const {
-        if (handle_ == nullptr) return true;
+        if (m_handle == nullptr) {
+            return true;
+        }
         // Returns the number of free slots remaining in the queue
-        return uxQueueSpacesAvailable(handle_) == 0;
+        return uxQueueSpacesAvailable(m_handle) == 0;
     }
 
     // Returns true if the queue is NOT full (for use in Tasks)
@@ -94,8 +106,10 @@ public:
 
     // Returns true if the queue is empty (safe for use in ISRs)
     bool isEmptyFromISR() const {
-        if (handle_ == nullptr) return true;
-        return xQueueIsQueueEmptyFromISR(handle_) == pdTRUE;
+        if (m_handle == nullptr) {
+            return true;
+        }
+        return xQueueIsQueueEmptyFromISR(m_handle) == pdTRUE;
     }
 
     // Returns true if the queue is NOT empty (safe for use in ISRs)
@@ -105,8 +119,10 @@ public:
 
     // Returns true if the queue is full (safe for use in ISRs)
     bool isFullFromISR() const {
-        if (handle_ == nullptr) return true;
-        return xQueueIsQueueFullFromISR(handle_) == pdTRUE;
+        if (m_handle == nullptr) {
+            return true;
+        }
+        return xQueueIsQueueFullFromISR(m_handle) == pdTRUE;
     }
 
     // Returns true if the queue is NOT full (safe for use in ISRs)
@@ -115,7 +131,7 @@ public:
     }
 
 private:
-    QueueHandle_t handle_ = nullptr;
+    QueueHandle_t m_handle = nullptr;
 };
 
 #endif
