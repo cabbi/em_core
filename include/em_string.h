@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h> // For vsnprintf
+#include <time.h>
 #include <ctype.h>
 
 #include "em_defs.h"
@@ -202,6 +203,17 @@ public:
     bool toUInt(uint32_t& value, bool strictParse = true) const {
         return ::toInt(c_str(), value, false, strictParse);
     }
+
+    // Converts the string content to ISO8601 timestamp format (i.e. '%Y-%m-%dT%H:%M:%SZ')
+    bool toTimestamp(uint32_t epoch) {
+        if (Capacity < 20) {
+            return false; // Not enough space for the timestamp
+        }
+        struct tm timeinfo;
+        time_t epochTime = static_cast<time_t>(epoch);
+        gmtime_r(&epochTime, &timeinfo); 
+        return strftime(m_buf, sizeof(m_buf), "%Y-%m-%dT%H:%M:%SZ", &timeinfo) > 0;
+    }    
 
     // Gets the string buffer.
     const char* c_str() const {

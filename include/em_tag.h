@@ -5,7 +5,6 @@
 
 #ifdef EM_STD_LIB // Need standard library 
 
-#include <WString.h>
 #include <type_traits>
 
 #include "em_list.h"
@@ -48,12 +47,15 @@ inline bool isValidTagValueType(uint8_t type) {
     return type <= static_cast<uint8_t>(EmTagValueType::vt_string);
 }
 
-// The value types
+// Need to give a fixed size to the string type to avoid nested templating. 
+#define EM_TAG_MAX_STRING_LEN 256
+
+// The value types (NOTE: we want to have max 32 bit values here!)
 using EmBoolType    = bool;
 using EmIntegerType = int32_t;
-using EmEpochType   = uint32_t;
+using EmEpochType   = uint32_t; // By using an uint32_t, the epoch will overflow on February 7, 2106
 using EmRealType    = float;
-using EmStringType  = String;
+using EmStringType  = EmString<EM_TAG_MAX_STRING_LEN>;
 
 
 // The tag value bytes union
@@ -62,7 +64,7 @@ union EmTagValueUnion {
     EmIntegerType as_integer;
     EmEpochType as_epoch;
     EmRealType as_real;
-    EmStringType* as_string;
+    EmStringType* as_string;  // Storing pointer to keep size of union small.
 
     EmTagValueUnion() { as_integer = 0; }
     EmTagValueUnion(EmBoolType value) { as_bool = value; } explicit
@@ -282,6 +284,19 @@ struct EmTagValueStruct {
     bool setValueTs(MUTEX_PARAM1 const char* value, bool forceType) {
         MUTEX_LOCK;
         return setValue(value, forceType);
+    }
+
+    bool setEpoch(EmEpochType value, bool forceType) {
+        if (!forceType && m_type != EmTagValueType::vt_epoch && m_type != EmTagValueType::vt_undefined) {
+            return false;
+        }
+        set_(EmTagValueType::vt_epoch, value);
+        return true;
+    }
+
+    bool setEpochTs(MUTEX_PARAM1 EmEpochType value, bool forceType) {
+        MUTEX_LOCK;
+        return setEpoch(value, forceType);
     }
 
     void toStruct(EmTagValueStruct& out) const {
