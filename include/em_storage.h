@@ -150,9 +150,8 @@ public:
         return T();
     }
     size_t getValue(const char* key, EmTagValue& value) const;
-    template<size_t maxLen>
-    size_t getString(const char* key, EmString<maxLen>& value) const {
-        size_t len = getString(key, value.buffer(), maxLen);
+    size_t getString(const char* key, EmStringBase& value) const {
+        size_t len = getString(key, value.buffer(), value.capacity());
         return len;
     }
     size_t getString(const char* key, char* value, const size_t maxLen) const;

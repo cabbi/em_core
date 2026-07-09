@@ -50,8 +50,7 @@ public:
     EmJsonValueType getValueType(const char* key, const EmJsonInnerObj& scope = EmJsonInnerObj()) const;
 
     bool getString(const char* key, char* dest, size_t destMaxLen, const EmJsonInnerObj& scope = EmJsonInnerObj()) const;
-    template<size_t maxLen>
-    bool getString(const char* key, EmString<maxLen>& dest, const EmJsonInnerObj& scope = EmJsonInnerObj()) const {
+    bool getString(const char* key, EmStringBase& dest, const EmJsonInnerObj& scope = EmJsonInnerObj()) const {
         return getString(key, dest.buffer(), dest.capacity(), scope);
     }
     bool getBool(const char* key, bool& outValue, const EmJsonInnerObj& scope = EmJsonInnerObj()) const; 

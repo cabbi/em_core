@@ -11,8 +11,8 @@
 //
 // Example usage:
 // -------------.
-//     EmString<256> jsonBuffer;
-//     EmJsonDictWriter<256> writer(jsonBuffer);
+//     EmStringL jsonBuffer;
+//     EmJsonDictWriter writer(jsonBuffer);
 //     writer.add("key1", "value1");
 //     writer.add("key2", 42);      
 //     writer.beginObject("nested");
@@ -20,11 +20,10 @@
 //     writer.endObject();  
 //     writer.end(); // Close the root object
 //
-template<size_t strMaxLen>
 class EmJsonDictWriter {
 public:
     // Bind to your custom string reference
-    EmJsonDictWriter(EmString<strMaxLen>& target) : m_target(target) {
+    EmJsonDictWriter(EmStringBase& target) : m_target(target) {
         m_target.append("{"); // Start the root object
         m_level = 1;
     }
@@ -230,7 +229,7 @@ private:
         m_isFirstElement = false;
     }
 
-    EmString<strMaxLen>& m_target;
+    EmStringBase& m_target;
     bool m_isFirstElement = true;
     uint16_t m_level = 0;
 };

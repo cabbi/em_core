@@ -47,15 +47,13 @@ inline bool isValidTagValueType(uint8_t type) {
     return type <= static_cast<uint8_t>(EmTagValueType::vt_string);
 }
 
-// Need to give a fixed size to the string type to avoid nested templating. 
-#define EM_TAG_MAX_STRING_LEN 256
-
 // The value types (NOTE: we want to have max 32 bit values here!)
 using EmBoolType    = bool;
 using EmIntegerType = int32_t;
 using EmEpochType   = uint32_t; // By using an uint32_t, the epoch will overflow on February 7, 2106
 using EmRealType    = float;
-using EmStringType  = EmString<EM_TAG_MAX_STRING_LEN>;
+using EmStringType  = EmStringBase;
+using EmStringInst  = EmStringM;
 
 
 // The tag value bytes union
@@ -271,13 +269,13 @@ struct EmTagValueStruct {
     bool setValue(const char* value, bool forceType) {
         if (m_type == EmTagValueType::vt_string) {
             // Already a string, just reassign the value to avoid delete/new cycle.
-            *m_value.as_string = value;
+            m_value.as_string->set(value);
             return true;
         }
         if (!forceType && m_type != EmTagValueType::vt_undefined) {
             return false;
         }
-        set_(EmTagValueType::vt_string, new EmStringType(value));
+        set_(EmTagValueType::vt_string, new EmStringInst(value));
         return true;
     }
 
@@ -312,9 +310,9 @@ struct EmTagValueStruct {
         if (in.m_type == EmTagValueType::vt_string) {
             if (m_type == EmTagValueType::vt_string) {
                 // Already a string, just reassign the value to avoid delete/new cycle.
-                *m_value.as_string = *(in.m_value.as_string);
+                m_value.as_string->set(*(in.m_value.as_string));
             } else {
-                set_(EmTagValueType::vt_string, new EmStringType(*(in.m_value.as_string)));
+                set_(EmTagValueType::vt_string, new EmStringInst(*(in.m_value.as_string)));
             }
             return;
         }
@@ -471,8 +469,8 @@ public:
     EmTagValue(int32_t value) : EmTagValueStruct(value) {} explicit
     EmTagValue(float value) : EmTagValueStruct(value) {} explicit
     EmTagValue(double value) : EmTagValueStruct(value) {} explicit
-    EmTagValue(const char* value) : EmTagValueStruct(new EmStringType(value)) {}
-    EmTagValue(const EmStringType& value) : EmTagValueStruct(new EmStringType(value)) {}
+    EmTagValue(const char* value) : EmTagValueStruct(new EmStringInst(value)) {}
+    EmTagValue(const EmStringType& value) : EmTagValueStruct(new EmStringInst(value)) {}
     EmTagValue(const EmTagValue& other) : EmTagValueStruct(EmTagValueType::vt_undefined) {
         fromValue(other);
     }
@@ -552,7 +550,7 @@ public:
     }
 
     bool operator >=(const EmTagValue& other) const {
-        return (*this > other) || (*this != other);
+        return (*this > other) || (*this == other);
     }
 
     bool operator <(const EmTagValue& other) const {
@@ -704,24 +702,7 @@ public:
         EmGetValueResult res = (value == *thisValue.as_string)
                                ? EmGetValueResult::succeedEqualValue 
                                : EmGetValueResult::succeedNotEqualValue;
-        value = *thisValue.as_string;
-        return res;
-    }
-
-    template<size_t size>
-    EmGetValueResult getValue(EmString<size>& value) const {
-        // Get type and value 
-        EmTagValueType thisType;
-        EmTagValueUnion thisValue;
-        get(thisType, thisValue);
-
-        if (thisType != EmTagValueType::vt_string) {
-            return EmGetValueResult::failed;
-        }
-        EmGetValueResult res = (value == thisValue.as_string->c_str())
-                               ? EmGetValueResult::succeedEqualValue 
-                               : EmGetValueResult::succeedNotEqualValue;
-        value.set(thisValue.as_string->c_str());
+        value.set(*thisValue.as_string);
         return res;
     }
 
@@ -873,13 +854,6 @@ public:
     }
 
     EmGetValueResult getValue(EmStringType& value) const {
-        EmTagValue v;
-        getValue(v);
-        return v.getValue(value);
-    }
-
-    template<size_t size>
-    EmGetValueResult getValue(EmString<size>& value) const {
         EmTagValue v;
         getValue(v);
         return v.getValue(value);

@@ -66,8 +66,8 @@ uint32_t s = millis();
             if (_network.ssid == scannedSsid) {
                 if (currentRssi > highestRssi) {
                     highestRssi = currentRssi;
-                    bestNetwork.ssid = _network.ssid;
-                    bestNetwork.password = _network.password;
+                    bestNetwork.ssid.set(_network.ssid);
+                    bestNetwork.password.set(_network.password);
                     networkFound = true;
                 }
             }
