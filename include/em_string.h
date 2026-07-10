@@ -38,6 +38,12 @@ public:
     // Destructor (non-virtual to save Flash and eliminate VTable RAM)
     ~EmStringBase() = default;
 
+    // Copy & move operation are removed to let this class be trivially copyable (i.e. is_trivially_copyable_v will pass)
+    EmStringBase(const EmStringBase&) = delete;
+    EmStringBase(EmStringBase&&) = delete;
+    EmStringBase& operator=(const EmStringBase&) = delete;
+    EmStringBase& operator=(EmStringBase&&) = delete;
+
     // Returns the current length of this string object.
     size_t length() const {
         return strlen(m_buf);
@@ -209,18 +215,7 @@ public:
     // If 'i' is negative it returns the char starting from end
     // (e.g. -1 returns the last char of the string).
     char operator[](int i) const;
-
-    // Assigns a new string.
-    EmStringBase& operator=(const char* value) {
-        set(value);
-        return *this;
-    }
-
-    EmStringBase& operator=(const EmStringBase& value) {
-        set(value.c_str());
-        return *this;
-    }
-
+    
     // Equals
     bool equals(const char* value, bool caseSensitive = true) const;
     bool equals(const EmStringBase& value, bool caseSensitive = true) const {

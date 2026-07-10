@@ -8,7 +8,7 @@
 template <typename T>
 class EmTaskQueue {
     // Ensure the type is safe to copy via raw bytes (FreeRTOS requirement)
-    static_assert(std::is_trivially_copyable<T>::value, "Type must be trivially copyable");
+    static_assert(std::is_trivially_copyable<T>::value, "EmTaskQueue item type must be trivially copyable");
 
 public:
     // Create a queue with a maximum number of items
@@ -42,26 +42,32 @@ public:
         return *this;
     }
 
-    // Send an item to the back of the queue
-    bool send(const T& item, TickType_t wait_ticks = portMAX_DELAY) {
+    // Push an item to the back of the queue
+    bool push(const T& item, uint32_t waitIfFullMillis = 0) {
         if (m_handle == nullptr) {
             return false;
         }
-        return xQueueSend(m_handle, &item, wait_ticks) == pdTRUE;
+        return xQueueSend(m_handle, &item, pdMS_TO_TICKS(waitIfFullMillis)) == pdTRUE;
     }
 
-    // Send an item from an Interrupt Service Routine (ISR)
-    bool sendFromISR(const T& item, BaseType_t* higher_priority_task_woken) {
+    // Push an item from an Interrupt Service Routine (ISR)
+    bool pushFromISR(const T& item, BaseType_t* higher_priority_task_woken) {
         if (m_handle == nullptr) {
             return false;
         }
         return xQueueSendFromISR(m_handle, &item, higher_priority_task_woken) == pdTRUE;
     }
 
-    // Receive an item from the queue
-    bool receive(T& item, TickType_t wait_ticks = portMAX_DELAY) {
+    // Pull an item from the queue
+    bool pull(T& item, uint32_t waitIfEmptyMillis = 0) {
         if (m_handle == nullptr) return false;
-        return xQueueReceive(m_handle, &item, wait_ticks) == pdTRUE;
+        return xQueueReceive(m_handle, &item, pdMS_TO_TICKS(waitIfEmptyMillis)) == pdTRUE;
+    }
+
+    // Pull an item from an Interrupt Service Routine (ISR)
+    bool pullFromISR(T& item, BaseType_t* higher_priority_task_woken) {
+        if (m_handle == nullptr) return false;
+        return xQueueReceiveFromISR(m_handle, &item, higher_priority_task_woken) == pdTRUE;
     }
 
     // Get the number of messages waiting in the queue

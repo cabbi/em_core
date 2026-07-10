@@ -42,6 +42,24 @@ inline const char* getWiFiLevelName(EmWiFiLevel level) {
 }
 
 struct EmWiFiCredential {
+    EmWiFiCredential() {}
+    EmWiFiCredential(const char* ssid_val, const char* pwd_val)
+     : ssid(ssid_val), password(pwd_val) {}
+
+    EmWiFiCredential(EmWiFiCredential& other)
+     : ssid(other.ssid.c_str()), password(other.password.c_str()) {}
+    EmWiFiCredential(const EmWiFiCredential& other)
+     : ssid(other.ssid.c_str()), password(other.password.c_str()) {}
+    
+    EmWiFiCredential& operator=(EmWiFiCredential& other) {
+        ssid.set(other.ssid); password.set(other.password);
+        return *this;
+    }
+    EmWiFiCredential& operator=(const EmWiFiCredential& other) {
+        ssid.set(other.ssid); password.set(other.password);
+        return *this;
+    }
+
     EmStringS ssid;
     EmStringS password;
 };

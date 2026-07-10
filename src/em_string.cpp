@@ -232,6 +232,26 @@ bool EmStringBase::isToken(size_t tokenIndex, char separator, const char* token)
     }
 }
 
+EmStrResult EmStringBase::substring(size_t beginIndex, size_t endIndex, char* out, size_t outMaxStrLen) const {
+    if (!out){
+        return EmStrResult::failure;
+    }
+    
+    out[0] = '\0';
+    if (outMaxStrLen == 0) {
+        return EmStrResult::failure;
+    }
+
+    const size_t len = length();
+    if (beginIndex >= len || beginIndex >= endIndex) {
+        return EmStrResult::failure;
+    }
+    if (endIndex > len) {
+        endIndex = len;
+    }
+    return set_(out, outMaxStrLen, m_buf + beginIndex, endIndex - beginIndex);
+}
+
 char EmStringBase::operator[](int i) const {
     size_t len = length();
     if (i < 0) {

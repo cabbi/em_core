@@ -4,7 +4,7 @@
 
 bool EmWiFi::addAP(const char* ssid, const char* passphrase) {
     if (m_networks.size() < 128 && ssid && strlen(ssid) > 0) {
-        m_networks.push_back({EmStringS(ssid), EmStringS(passphrase)});
+        m_networks.push_back(EmWiFiCredential(ssid, passphrase));
         return true;
     }
     return false;
@@ -45,7 +45,6 @@ bool EmWiFi::getBestNetwork_(EmWiFiCredential& bestNetwork) {
         return false;
     }
 
-uint32_t s = millis();    
     // Scan for available networks
     int16_t scanResult = WiFi.scanNetworks(false, // async scan
                                            false, // show_hidden
