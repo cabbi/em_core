@@ -308,7 +308,7 @@ EmStrResult EmStringBase::set_(char* buf,
         return EmStrResult::success;
     }
     
-    // Copy the string till capacity ensuring null termination
+    // Copy the string till capacity or requested len ensuring null termination
     memcpy(buf, value, MIN(len.value(), capacity));
     buf[MIN(len.value(), capacity)] = '\0';
 

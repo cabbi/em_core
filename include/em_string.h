@@ -243,15 +243,23 @@ private:
 template<size_t Capacity>
 class EmString : public EmStringBase {
 public:
-    EmString() : EmStringBase(m_storage, Capacity) {
+    EmString()
+     : EmStringBase(m_storage, Capacity) {
         clear();
     }
 
-    EmString(const char* initValue) : EmStringBase(m_storage, Capacity) {
+    EmString(const char* initValue)
+     : EmStringBase(m_storage, Capacity) {
         set(initValue);
     }
 
-    EmString(const EmStringBase& initValue) : EmStringBase(m_storage, Capacity) {
+    EmString(const char* initValue, size_t maxLen)
+     : EmStringBase(m_storage, Capacity) {
+        set_(m_storage, capacity(), initValue, maxLen);
+    }
+
+    EmString(const EmStringBase& initValue)
+     : EmStringBase(m_storage, Capacity) {
         set(initValue.c_str());
     }
 
