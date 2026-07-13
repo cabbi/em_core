@@ -9,7 +9,7 @@ const char* EmStringBase::format(const char* fmt, ...) {
 }
 
 const char* EmStringBase::format(const char* fmt, va_list args) {
-    vsnprintf(m_buf, sizeof(m_buf), fmt, args);
+    vsnprintf(m_buf, m_capacity, fmt, args);
     return m_buf;
 }
 
@@ -117,7 +117,7 @@ bool EmStringBase::toTimestamp(uint32_t epoch) {
     struct tm timeinfo;
     time_t epochTime = static_cast<time_t>(epoch);
     gmtime_r(&epochTime, &timeinfo); 
-    return strftime(m_buf, sizeof(m_buf), "%Y-%m-%dT%H:%M:%SZ", &timeinfo) > 0;
+    return strftime(m_buf, m_capacity, "%Y-%m-%dT%H:%M:%SZ", &timeinfo) > 0;
 }    
 
 bool EmStringBase::startsWith(const char* prefix) const {
