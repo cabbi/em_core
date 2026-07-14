@@ -5,6 +5,14 @@
 #include <stdio.h>
 #include <math.h>
 
+#ifdef ARDUINO
+    // This code compiles ONLY if you are using the Arduino framework
+    #include <Arduino.h>
+#else
+    // This code compiles if you are using ESP-IDF, STM32Cube, Native, etc.
+    
+#endif
+
 #if defined(ESP32) || defined(ESP8266)
     #include <freertos/FreeRTOS.h>
     #include <freertos/task.h>
