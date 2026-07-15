@@ -8,12 +8,13 @@
 #ifdef ARDUINO
     // This code compiles ONLY if you are using the Arduino framework
     #include <Arduino.h>
+#elif ESP_PLATFORM
+    // This code compiles if you are using ESP-IDF
 #else
-    // This code compiles if you are using ESP-IDF, STM32Cube, Native, etc.
-    
+    error "unsupported platform!"    
 #endif
 
-#if defined(ESP32) || defined(ESP8266)
+#if defined(ESP_PLATFORM) || defined(ESP32) || defined(ESP8266)
     #include <freertos/FreeRTOS.h>
     #include <freertos/task.h>
     

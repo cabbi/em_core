@@ -1,0 +1,148 @@
+#include "em_serial.h"
+
+#ifdef ESP_PLATFORM
+
+bool EmHardwareSerial::begin(unsigned long baud, int8_t tx_pin, int8_t rx_pin) {
+    if (isInitialized()) {
+        return true;
+    }
+    uart_config_t uart_config = {
+        .baud_rate = (int)baud,
+        .data_bits = UART_DATA_8_BITS,
+        .parity    = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .source_clk = UART_SCLK_DEFAULT,
+    };
+    return begin(uart_config, tx_pin, rx_pin);
+}
+
+bool EmHardwareSerial::begin(const uart_config_t& uart_config, int8_t tx_pin, int8_t rx_pin) {
+    if (isInitialized()) {
+        return true;
+    }
+    esp_err_t res = uart_param_config(m_uartNum, &uart_config);
+    if (res != ESP_OK) {
+        return false;
+    }
+    res = uart_set_pin(m_uartNum, tx_pin, rx_pin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    if (res != ESP_OK) {
+        return false;
+    }
+    res = uart_driver_install(m_uartNum, RX_BUF_SIZE, 0, 0, NULL, 0);
+    if (res != ESP_OK) {
+        return false;
+    }
+    m_isInitialized = true;
+    return true;
+}
+
+size_t EmHardwareSerial::write(unsigned char c) {
+    if (!isInitialized()) {
+        return -1;
+    }
+    return uart_write_bytes(m_uartNum, (const char*)&c, 1);
+}
+
+size_t EmHardwareSerial::write(const char* text) {
+    if (!isInitialized()) {
+        return -1;
+    }
+    return uart_write_bytes(m_uartNum, text, strlen(text));
+}
+
+size_t EmHardwareSerial::write(const char *buffer, int buffLen) {
+    if (!isInitialized()) {
+        return -1;
+    }
+    return uart_write_bytes(m_uartNum, buffer, buffLen);
+}
+
+void EmHardwareSerial::flushRxBuffer() {
+    if (!isInitialized()) {
+        return;
+    }
+    
+    // Clear the internal ESP-IDF ring buffer and hardware FIFO
+    esp_err_t err = uart_flush_input(m_uartNum);
+    if (err != ESP_OK) {
+        ESP_LOGE("EspSerial", "Failed to flush RX buffer");
+    }
+}
+
+int EmHardwareSerial::baudRate() {
+    if (!isInitialized()) {
+        return -1;
+    }
+
+    uint32_t current_baud = 0;
+    
+    // Natively query the ESP32 hardware driver registers
+    esp_err_t err = uart_get_baudrate(m_uartNum, &current_baud);
+    if (err != ESP_OK) {
+        return -1;
+    }
+
+    return (int)current_baud;
+}
+
+int EmHardwareSerial::available() {
+    if (!isInitialized()) {
+        return -1;
+    }
+    size_t length = 0;
+    uart_get_buffered_data_len(m_uartNum, &length);
+    return (int)length;
+}
+
+int EmHardwareSerial::read() {
+    if (!isInitialized()) {
+        return -1;
+    }
+    uint8_t ch;
+    int rxBytes = uart_read_bytes(m_uartNum, &ch, 1, 0);
+    if (rxBytes > 0) {
+        return ch;
+    }
+    return -1;
+}
+
+size_t EmHardwareSerial::read(uint8_t* buffer, size_t length, uint32_t timeout_ms) {
+    if (!isInitialized() || buffer == nullptr || length == 0) {
+        return 0;
+    }
+
+    TickType_t ticks_to_wait = timeout_ms / portTICK_PERIOD_MS;
+    if (timeout_ms > 0 && ticks_to_wait == 0) {
+        ticks_to_wait = 1; // Ensure at least 1 tick wait if timeout is small but non-zero
+    }
+
+    int bytes_read = uart_read_bytes(m_uartNum, buffer, length, ticks_to_wait);
+    
+    if (bytes_read < 0) {
+        return 0;
+    }
+
+    return (size_t)bytes_read;
+}
+
+void EmHardwareSerial::flush(bool txOnly) {
+    if (!isInitialized()) {
+        return;
+    }
+    if (!txOnly) {
+        while (read() >= 0);
+    }
+    uart_wait_tx_done(m_uartNum, portMAX_DELAY);
+}
+
+void EmHardwareSerial::end() {
+    if (!isInitialized()) {
+        return;
+    }
+    flush();
+    uart_driver_delete(m_uartNum);
+    m_isInitialized = false;
+}
+
+#endif //ESP_PLATFORM
