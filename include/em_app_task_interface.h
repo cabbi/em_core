@@ -150,8 +150,8 @@ protected:
 
     // Member vars
     EmTask<EmAppTaskInterface> m_task;
-    const bool m_runSetupOnTask;
     EmAppInterface& m_taskInterface;
+    const bool m_runSetupOnTask;
     std::atomic<EmIntOperationResult> m_taskOperationResult;
 };
 

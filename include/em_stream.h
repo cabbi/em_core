@@ -16,17 +16,20 @@ class EmPrint {
 public:
     virtual size_t write(uint8_t c) = 0;
     
-    size_t print(const std::string &s) {
-        for (char c : s) write(c);
-        return s.length();
+    size_t print(const char* s) {
+        size_t len = strlen(s);
+        for (int i=0; i<len; i++) write(s[i]);
+        return len;
     }
-    size_t print(int n) { return print(std::to_string(n)); }
+    size_t print(int n) { return printf("%d", n); }
     
-    size_t println(const std::string &s) { return print(s + "\n"); }
-    size_t println(int n) { return println(std::to_string(n)); }
+    size_t println() { return print("\n"); }
+    size_t println(const char* s) { size_t n = print(s); print("\n"); return n+1; }
+    size_t println(int n) { size_t len = print(n); print("\n"); return len+1; }
+    size_t printf(const char *format, ...);
 };
 
-class EmStream : public EmPrint {
+class EmStream {
 public:
     virtual int available() = 0;
     virtual int peek() = 0;

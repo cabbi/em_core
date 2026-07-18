@@ -11,7 +11,7 @@
 #elif ESP_PLATFORM
     // This code compiles if you are using ESP-IDF
 #else
-    error "unsupported platform!"    
+    #error "unsupported platform!"    
 #endif
 
 #if defined(ESP_PLATFORM) || defined(ESP32) || defined(ESP8266)
@@ -65,13 +65,39 @@
     #define EM_HW_SERIAL_AVR
 #endif
 
-#if defined(ARDUINO_NANO_ESP32)
-    #define USB_SERIAL_CLASS USBCDC
-#elif defined(ARDUINO_ESP32C3_DEV) || defined(ARDUINO_ESP32S3_DEV)
-    #define USB_SERIAL_CLASS HWCDC
-#else
-    #define USB_SERIAL_CLASS HardwareSerial
+
+#ifdef ARDUINO
+    #if defined(ARDUINO_NANO_ESP32)
+        #define USB_SERIAL_CLASS USBCDC
+    #elif defined(ARDUINO_ESP32C3_DEV) || defined(ARDUINO_ESP32S3_DEV)
+        #define USB_SERIAL_CLASS HWCDC
+    #else
+        #define USB_SERIAL_CLASS HardwareSerial
+    #endif  
+
+    #ifdef EM_ESP
+        inline void restart() {
+            ESP.restart();
+        }
+    #endif
+  
+#elif ESP_PLATFORM
+    #include "esp_system.h"
+    #include <esp_timer.h>
+
+    extern "C" {
+    inline uint32_t millis() {
+        return (uint32_t)(esp_timer_get_time() / 1000);
+    }
+    }
+    inline void restart() {
+        esp_restart();
+    }
+
+    class EmHardwareSerial;
+    #define USB_SERIAL_CLASS EmHardwareSerial
 #endif    
+
 
 #if __cplusplus >= 201402L
     #define DEPRECATED          [[deprecated]]
@@ -164,7 +190,7 @@ inline const char* to_str(char* buf, size_t bufLen, int32_t n) {
 }
 
 inline const char* to_str(char* buf, size_t bufLen, float n) {
-    snprintf(buf, bufLen, "%g", static_cast<double>(n));
+    snprintf(buf, bufLen, "%g", n);
     return buf;
 }
 

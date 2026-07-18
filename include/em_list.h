@@ -5,6 +5,11 @@
 #include <stdarg.h>
 #include "em_iterator.h"
 
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdelete-non-virtual-dtor"
+#endif
+
 template<class T> class _EmListElement;
 
 // Defines the result of an iteration callback
@@ -463,5 +468,9 @@ private:
     _EmListElement<T>* m_pFirst;
     ItemsMatchCb<T> m_itemsMatch;
 };
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 #endif // __EM_LIST_H__

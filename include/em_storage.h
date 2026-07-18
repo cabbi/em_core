@@ -268,6 +268,9 @@ public:
         return EmGetValueResult::succeedNotEqualValue;
     }
 
+    using ValueOfT::getValue;
+    using ValueOfT::setValue;
+
     virtual bool setValue(const T& value) override {
         // NOTE: we do not check == sizeof(value) since value might be EmTagValue
         //       and its size might differ from the stored one due to internal allocations.
@@ -421,6 +424,9 @@ public:
     virtual const char* getKey() const { 
         return EmTag::getId(); 
     }
+
+    using EmStorageValueBase<EmTag, EmTagValue, tStorage>::getValue;
+    using EmStorageValueBase<EmTag, EmTagValue, tStorage>::setValue;
 
     // Base Tag class overrides
     virtual EmGetValueResult getValue(EmTagValue& value) const override {

@@ -2,18 +2,19 @@
 
 #ifdef ESP_PLATFORM
 
+EmHardwareSerial Serial(11520); // TODO: which baud rate!?
+
 bool EmHardwareSerial::begin(unsigned long baud, int8_t tx_pin, int8_t rx_pin) {
     if (isInitialized()) {
         return true;
     }
-    uart_config_t uart_config = {
-        .baud_rate = (int)baud,
-        .data_bits = UART_DATA_8_BITS,
-        .parity    = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-        .source_clk = UART_SCLK_DEFAULT,
-    };
+    uart_config_t uart_config = {}; // Zero-initializes everything safely
+    uart_config.baud_rate = (int)baud;
+    uart_config.data_bits = UART_DATA_8_BITS;
+    uart_config.parity    = UART_PARITY_DISABLE;
+    uart_config.stop_bits = UART_STOP_BITS_1;
+    uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+    uart_config.source_clk = UART_SCLK_DEFAULT;
     return begin(uart_config, tx_pin, rx_pin);
 }
 

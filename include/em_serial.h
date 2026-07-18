@@ -101,7 +101,7 @@ protected:
 #elif ESP_PLATFORM
 #include "driver/uart.h"
 
-class EmHardwareSerial : public EmSerialStream {
+class EmHardwareSerial : public EmSerialStream, public EmPrint {
 private:
     uart_port_t m_uartNum;
     bool m_isInitialized;
@@ -110,6 +110,9 @@ private:
 public:
     EmHardwareSerial(uart_port_t uart_num = UART_NUM_0)
      : m_uartNum(uart_num), m_isInitialized(false) {}
+
+     EmHardwareSerial(int uart_num)
+     : EmHardwareSerial(static_cast<uart_port_t>(uart_num)) {}
 
 	virtual bool begin(unsigned long baud, int8_t rxPin=-1, int8_t txPin=-1) override;
 	virtual bool begin(const uart_config_t& uart_config, int8_t rxPin=-1, int8_t txPin=-1) override;
@@ -138,3 +141,4 @@ public:
 extern EmHardwareSerial Serial;
 
 #endif
+#endif //_EM_SERIAL_H__
