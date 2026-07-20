@@ -2,7 +2,8 @@
 
 #ifdef ESP_PLATFORM
 
-EmHardwareSerial Serial(11520); // TODO: which baud rate!?
+// The Arduino like Serial global object
+EmHardwareSerial Serial;
 
 bool EmHardwareSerial::begin(unsigned long baud, int8_t tx_pin, int8_t rx_pin) {
     if (isInitialized()) {
