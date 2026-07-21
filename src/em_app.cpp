@@ -28,7 +28,7 @@ void EmApp::loop_() {
                     return EmIterResult::stopFailed;
                 case EmIntOperationResult::stopApp:
                     return EmIterResult::stopFailed;
-                case EmIntOperationResult::canContinue:
+                default:
                     break; // Just to keep compiler happy
             }
             // You can now access the EmApp instance via pCtx->self

@@ -431,7 +431,7 @@ public:
         return nullptr == m_HeapBuf ?  const_cast<char*>(m_StackBuf) : m_HeapBuf;
     }  
 
-    const size_t size() const {
+    size_t size() const {
         return m_bufSize;
     }   
 
@@ -893,7 +893,6 @@ public:
 
     template<typename T>
     T as() const {
-        T value;
         EmTagValue tagVal;
         if (getValue(tagVal) != EmGetValueResult::failed) {
             return tagVal.as<T>();

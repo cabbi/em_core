@@ -54,6 +54,8 @@ bool EmStorage::begin(const char * name, bool clearExisting) {
                     case InitItemType_::string:
                         putString(cur->key, cur->bytes, false);
                         break;
+                    default:
+                        break;
                 }
                 commitNeeded = true;
             }
@@ -248,7 +250,7 @@ bool EmStorage::isSameString(const char* key, const char* value) const {
         return false;
     }
     // Check the actual string
-    EmAutoPtr<char> currBuf(new char[len+1]);
+    EmAutoPtr<char[]> currBuf(new char[len+1]);
     esp_err_t err = nvs_get_str(m_handle, key, currBuf.get(), &len);
     if (err) {
         return false;
@@ -263,7 +265,7 @@ bool EmStorage::isSameBytes(const char* key, const void * buf, size_t len) const
         return false;
     }
     // Check the actual bytes
-    EmAutoPtr<char> currBuf(new char[len]);
+    EmAutoPtr<char[]> currBuf(new char[len]);
     esp_err_t err = nvs_get_blob(m_handle, key, currBuf.get(), &len);
     if (err) {
         return false;

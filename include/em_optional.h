@@ -12,6 +12,7 @@ template<class T>
 class EmOptional {
 public:
     EmOptional() : m_hasValue(false), m_value(T()) {}
+    EmOptional(const EmOptional& other) : m_hasValue(other.m_hasValue), m_value(other.m_value) {}
     EmOptional(const EmUndefined&) : m_hasValue(false), m_value(T()) {}
     EmOptional(const T& value) : m_hasValue(true), m_value(value) {}
 

@@ -19,6 +19,7 @@ public:
         m_Printer.println(msg);
     }
 
+    #ifdef ARDUINO
     virtual void write(EmLogLevel level, 
                        const char* context, 
                        const __FlashStringHelper* msg){
@@ -27,7 +28,8 @@ public:
             m_Printer.print(context);m_Printer.print(" - ");
         }
         m_Printer.println(msg);
-    }                       
+    }             
+    #endif          
 
 protected:
     virtual void printLevel_(EmLogLevel level){
