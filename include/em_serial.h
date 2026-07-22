@@ -138,7 +138,5 @@ public:
     virtual int baudRate() override;
 };
 
-extern EmHardwareSerial Serial;
-
 #endif
 #endif //_EM_SERIAL_H__

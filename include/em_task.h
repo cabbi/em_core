@@ -50,12 +50,18 @@ public:
            TaskFunctionType<TParam> taskFunction,
            EmCoreId coreId=EmCoreId::coreUserTask,
            uint16_t stackSize=8192,
-           uint8_t priority=1) :
+           uint8_t priority=1,
+           const char* name = nullptr,
+           uint16_t loopDelayTicks=1,
+           uint16_t pauseDelayTicks=10) :
         m_pParam(pParam),
         m_taskFunction(taskFunction),
         m_coreId(coreId),
         m_stackSize(stackSize),
         m_priority(priority),
+        m_loopDelayTicks(loopDelayTicks),
+        m_pauseDelayTicks(pauseDelayTicks),
+        m_name(name),
         m_taskHandle(nullptr),
         m_status(EmTaskStatus::stopped) {
     }
@@ -74,7 +80,7 @@ public:
         }
         TaskHandle_t taskHandle;
         BaseType_t res = xTaskCreatePinnedToCore(EmTask::taskLoop_,
-                                                 "",
+                                                 m_name,
                                                  m_stackSize,
                                                  this,
                                                  static_cast<UBaseType_t>(m_priority),
@@ -200,9 +206,11 @@ protected:
                     EmTaskFuncRes res = pThis->m_taskFunction(pThis->m_pParam);
                     if (res == EmTaskFuncRes::pauseTask) {
                         pThis->pause();
-                    }
+                    } else
                     if (res == EmTaskFuncRes::stopTask) {
                         pThis->stop();
+                    } else {
+                        vTaskDelay(static_cast<TickType_t>(pThis->m_loopDelayTicks));
                     }
                 } 
                 // Check task status. 
@@ -215,7 +223,7 @@ protected:
                 }
                 // Relax the paused task
                 if (pThis->isPaused()) {
-                    vTaskDelay(10 / portTICK_PERIOD_MS);
+                    vTaskDelay(static_cast<TickType_t>(pThis->m_pauseDelayTicks));
                 }
             }
         }
@@ -227,6 +235,9 @@ protected:
     EmCoreId m_coreId;
     uint16_t m_stackSize;
     uint8_t m_priority;
+    uint16_t m_loopDelayTicks;
+    uint16_t m_pauseDelayTicks;
+    const char* m_name;
     std::atomic<TaskHandle_t> m_taskHandle;
     std::atomic<EmTaskStatus> m_status;
 };

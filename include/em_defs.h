@@ -28,6 +28,7 @@
     #define EM_TIME
     #define EM_CORES_COUNT 2
 
+    // TODO: define all as 0 if MPUs do not have multicore!
     enum class EmCoreId: uint8_t {
         core0 = 0, 
         core1 = 1,
@@ -84,6 +85,7 @@
 #elif ESP_PLATFORM
     #include "esp_system.h"
     #include <esp_timer.h>
+    #include "em_usb_serial.h"
 
     extern "C" {
     inline uint32_t millis() {
@@ -94,8 +96,10 @@
         esp_restart();
     }
 
-    class EmHardwareSerial;
-    #define USB_SERIAL_CLASS EmHardwareSerial
+    class EmUsbSerial;
+    #define USB_SERIAL_CLASS EmUsbSerial
+    // The Arduino like Serial global object
+    extern USB_SERIAL_CLASS Serial;
 #endif    
 
 

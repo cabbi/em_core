@@ -1,11 +1,9 @@
 #include "em_serial.h"
+#include <em_log.h>
 
 #ifdef ESP_PLATFORM
 
-// The Arduino like Serial global object
-EmHardwareSerial Serial;
-
-bool EmHardwareSerial::begin(unsigned long baud, int8_t tx_pin, int8_t rx_pin) {
+bool EmHardwareSerial::begin(unsigned long baud, int8_t rxPin, int8_t txPin) {
     if (isInitialized()) {
         return true;
     }
@@ -16,23 +14,26 @@ bool EmHardwareSerial::begin(unsigned long baud, int8_t tx_pin, int8_t rx_pin) {
     uart_config.stop_bits = UART_STOP_BITS_1;
     uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
     uart_config.source_clk = UART_SCLK_DEFAULT;
-    return begin(uart_config, tx_pin, rx_pin);
+    return begin(uart_config, rxPin, txPin);
 }
 
-bool EmHardwareSerial::begin(const uart_config_t& uart_config, int8_t tx_pin, int8_t rx_pin) {
+bool EmHardwareSerial::begin(const uart_config_t& uart_config, int8_t rxPin, int8_t txPin) {
     if (isInitialized()) {
         return true;
     }
     esp_err_t res = uart_param_config(m_uartNum, &uart_config);
     if (res != ESP_OK) {
+        logError<100>("EmHardwareSerial", "[%d] 'uart_param_config' failed!", res);
         return false;
     }
-    res = uart_set_pin(m_uartNum, tx_pin, rx_pin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    res = uart_set_pin(m_uartNum, txPin, rxPin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
     if (res != ESP_OK) {
+        logError<100>("EmHardwareSerial", "[%d] 'uart_set_pin' failed!", res);
         return false;
     }
     res = uart_driver_install(m_uartNum, RX_BUF_SIZE, 0, 0, NULL, 0);
     if (res != ESP_OK) {
+        logError<100>("EmHardwareSerial", "[%d] 'uart_driver_install' failed!", res);
         return false;
     }
     m_isInitialized = true;

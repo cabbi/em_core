@@ -53,7 +53,8 @@ public:
        m_task(this, EmAppTaskInterface::loop_, 
                taskCoreId,
                taskStackSize,
-               taskPriority),
+               taskPriority,
+               name),
        m_taskInterface(taskInterface),
        m_runSetupOnTask(runSetupOnTask),
        m_taskOperationResult(EmIntOperationResult::canContinue) {}
@@ -198,7 +199,8 @@ public:
         m_task(this, EmAppTaskInterfaces::loop_, 
                taskCoreId,
                taskStackSize,
-               taskPriority),
+               taskPriority,
+               name),
         m_runSetupOnTask(runSetupOnTask),
         m_taskOperationResult(EmIntOperationResult::canContinue) {}
 
