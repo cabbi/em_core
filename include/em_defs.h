@@ -40,8 +40,16 @@
     // Feed the watchdog to prevent it from resetting the system
     // This is needed when the task is paused for a long time (e.g. waiting for WiFi connection)
     // or when the task function execution takes a long time (e.g. performing a long operation)
-    inline void tDelay(uint32_t pauseMs) {
-        vTaskDelay(pdMS_TO_TICKS(pauseMs));
+    //
+    // The 'yieldIfNoTicks' set to true ensures the task is yield so the watchdog is refreshed.
+    inline void tDelay(uint32_t pauseMs, bool yieldIfNoTicks) {
+        TickType_t ticks = pdMS_TO_TICKS(pauseMs);
+        if (ticks > 0) {
+            vTaskDelay(ticks);
+        } else 
+        if (yieldIfNoTicks) {
+            taskYIELD();
+        }
     }
 
 #else
@@ -52,7 +60,7 @@
         coreUserTask = 0,
     };
 
-    void tDelay(u_int32_t ms) {
+    void tDelay(u_int32_t ms, bool delayAtLeastOneTick) {
         delay(ms);        
     }
 #endif

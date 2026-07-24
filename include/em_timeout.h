@@ -101,6 +101,13 @@ public:
         return expired;
     }
 
+    bool isNotExpired() const {
+        return !isExpired();
+    }
+
+    bool isNotExpired(bool restartIfExpired) const {
+        return !isExpired(restartIfExpired);
+    }
     
     DEPRECATED_MSG("Use 'isExpired' instead!")
     bool isElapsed() const {

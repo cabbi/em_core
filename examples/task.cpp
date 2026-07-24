@@ -9,7 +9,7 @@ EmTaskFuncRes task1Func(uint32_t* counter)
   if (*counter == 10) {
     return EmTaskFuncRes::pauseTask;
   }
-  tDelay(500);
+  tDelay(500, true);
   return EmTaskFuncRes::continueTask;
 }
 
