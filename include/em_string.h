@@ -76,7 +76,7 @@ public:
 
     // Clears the current string content
     void clear() {
-        memset(m_buf, 0, sizeof(m_buf));
+        memset(m_buf, 0, m_capacity);
     }
 
     // Retruns the space left to reach the string capacity

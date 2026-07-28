@@ -20,9 +20,7 @@ public:
     virtual bool begin() {
         if (m_isInitialized) return true;
 
-        #if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
-        esp_vfs_dev_usb_serial_jtag_init();
-        #endif
+        // NOTHING NEEDED HERE!
 
         m_isInitialized = true;
         return true;

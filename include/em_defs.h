@@ -22,19 +22,26 @@
     #define EM_STD_LIB  // Use of standard library (AVR arduinos does not have it!)
     #define EM_WIFI
     #define EM_BLE
-    #define EM_MULTICORE  // TODO: some ESP32 MPUs do not have multicore!
     #define EM_MULTITHREAD
     #define EM_NVS
     #define EM_TIME
+#ifdef CONFIG_IDF_TARGET_ESP32S3
+    #define EM_MULTICORE  
     #define EM_CORES_COUNT 2
+#else
+    #define EM_CORES_COUNT 1
+#endif
 
-    // TODO: define all as 0 if MPUs do not have multicore!
     enum class EmCoreId: uint8_t {
         core0 = 0, 
-        core1 = 1,
         // In general, system tasks are pinned to core 0 and user tasks to core 1
         coreSystemTask = 0,
+    #ifdef CONFIG_IDF_TARGET_ESP32S3
+        core1 = 1,
         coreUserTask = 1,
+    #else
+        coreUserTask = 0, // User & system tasks run on single core 
+    #endif
     };
 
     // Feed the watchdog to prevent it from resetting the system
@@ -121,8 +128,12 @@
 
 #define SIZE_OF(x) (sizeof((x))/sizeof((x[0])))
 
+#ifndef MIN
 #define MIN(x, y) ((x)<(y) ? (x) : (y))
+#endif
+#ifndef MAX
 #define MAX(x, y) ((x)>(y) ? (x) : (y))
+#endif
 
 // Returns the power of 10`^ exp as an integer number
 // This method will avoid using the "double pow10(...)" implementation

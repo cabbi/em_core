@@ -119,7 +119,13 @@ int analogRead(int pin) {
     if (adc1_handle == NULL) {
         adc_oneshot_unit_init_cfg_t init_config;
         init_config.unit_id = ADC_UNIT_1;
-        init_config.clk_src = ADC_RTC_CLK_SRC_DEFAULT;
+        #if CONFIG_IDF_TARGET_ESP32C6
+            init_config.clk_src = ADC_DIGI_CLK_SRC_DEFAULT;
+        #elif CONFIG_IDF_TARGET_ESP32S3
+            init_config.clk_src = ADC_RTC_CLK_SRC_DEFAULT;
+        #else
+            init_config.clk_src = 0; 
+        #endif
         init_config.ulp_mode = ADC_ULP_MODE_DISABLE;
         
         adc_oneshot_new_unit(&init_config, &adc1_handle); 
