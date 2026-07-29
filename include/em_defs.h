@@ -36,7 +36,7 @@
         core0 = 0, 
         // In general, system tasks are pinned to core 0 and user tasks to core 1
         coreSystemTask = 0,
-    #ifdef CONFIG_IDF_TARGET_ESP32S3
+    #ifdef EM_MULTICORE
         core1 = 1,
         coreUserTask = 1,
     #else
