@@ -54,7 +54,7 @@ public:
     // Append Integer Values
     template<typename T>
     bool addInt(const char* key, T value) {
-        static_assert(std::is_integral_v<T>, "An integer typeis requested for this function.");        
+        static_assert(std::is_integral_v<T>, "An integer type is requested for this function.");        
         if (m_level == 0) {
             return false;
         }
@@ -67,15 +67,9 @@ public:
     }
 
     // Append real Values
-    bool addReal(const char* key, float value) {
-        if (m_level == 0) {
-            return false;
-        }
-        prefix();
-        return m_target.appendFormat(false, "\"%s\":%g", key, static_cast<double>(value)) == EmStrResult::success;
-    }
-
-    bool addReal(const char* key, double value) {
+    template<typename T>
+    bool addReal(const char* key, T value) {
+        static_assert(std::is_floating_point_v<T>, "An real type is requested for this function.");        
         if (m_level == 0) {
             return false;
         }
@@ -116,11 +110,11 @@ public:
         if (m_level == 0) {
             return false;
         }
-        prefix();
         EmStringS dt;
         if (!dt.toTimestamp(timestamp)) {
             return false;
         }
+        prefix();
         return m_target.appendFormat(false, "\"%s\":\"%s\"", key, dt.c_str()) == EmStrResult::success;
     }
 
@@ -147,7 +141,6 @@ public:
             m_target.appendFormat(false, "\"%s\":%c", key, openChar);
         }
         m_level++;
-        m_isFirstElement = true; // Reset tracker for the inner scope nested variables
         return true;
     }
 
@@ -161,6 +154,16 @@ public:
         m_isFirstElement = false; // The nested object itself is now complete
     }
 
+    // Adds a generic object content (e.g.dict or list)
+    // This method is used in case you already have a well formattes dict or list string.
+    bool addObject(const char* key, const char* content) {
+        if (m_level == 0) {
+            return false;
+        }
+        prefix();
+        return m_target.appendFormat(false, "\"%s\":%s", key, content) == EmStrResult::success;    
+    }
+
     // Lists handling
     template<typename... Args>
     void addIntList(const char* key, Args... args) {
@@ -168,7 +171,6 @@ public:
         m_target.appendFormat(false, "\"%s\":[", key);
         appendListItems(args...);
         m_target.append("]");
-        m_isFirstElement = false;
     }
 
     template<typename... Args>
@@ -176,7 +178,6 @@ public:
         prefix(); m_target.appendFormat(false, "\"%s\":[", key);
         appendListItems_(args...);
         m_target.append("]");
-        m_isFirstElement = false;
     }
 
     template<typename... Args>
@@ -184,7 +185,6 @@ public:
         prefix(); m_target.appendFormat(false, "\"%s\":[", key);
         appendListItems_(args...);
         m_target.append("]");
-        m_isFirstElement = false;
     }
 
     template<typename... Args>
@@ -193,7 +193,6 @@ public:
         m_target.appendFormat(false, "\"%s\":[", key);
         appendListItems_(args...);
         m_target.append("]");
-        m_isFirstElement = false;
     }
 private:
 
