@@ -68,7 +68,11 @@ bool EmStringBase::toInt(int32_t& value, bool strictParse) const {
     //  - No 'strtol' (heavy on embedded, locale‑dependent)
     // Skip leading whitespace
     char* str = m_buf;
-    while (*str == ' ' || *str == '\t') str++;
+
+    // Skip leading whitespace (standard spaces)
+    while (*str == ' ' || *str == '\t' || *str == '\n' || *str == '\r') {
+        str++;
+    }
 
     // Optional sign
     bool negative = false;
@@ -87,17 +91,31 @@ bool EmStringBase::toInt(int32_t& value, bool strictParse) const {
     while (*str && isdigit((unsigned char)*str)) {
         int digit = *str - '0';
 
-        // Overflow check
-        if (result > (INT32_MAX - digit) / 10) return false;
-
-        result = result * 10 + digit;
+        // Safe overflow checks using absolute boundaries
+        if (negative) {
+            if (result < INT32_MIN / 10 || (result == INT32_MIN / 10 && -digit < INT32_MIN % 10)) {
+                return false; // Underflow
+            }
+            result = result * 10 - digit;
+        } else {
+            if (result > INT32_MAX / 10 || (result == INT32_MAX / 10 && digit > INT32_MAX % 10)) {
+                return false; // Overflow
+            }
+            result = result * 10 + digit;
+        }
         str++;
     }
 
-    // STRICT: no trailing characters allowed
-    if (*str != '\0') return false;
+    // Handle strict vs non-strict parsing
+    if (strictParse) {
+        // Strict: strictly no trailing characters allowed
+        if (*str != '\0') return false;
+    } else {
+        // Non-strict: trailing whitespace is okay, but trailing non-digits are ignored
+        // (The loop already stopped at the first non-digit character)
+    }
 
-    value = negative ? -result : result;
+    value = result;
     return true;
 }
 

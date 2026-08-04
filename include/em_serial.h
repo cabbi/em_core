@@ -40,13 +40,10 @@ public:
     int peek() override { 
         return HardwareSerial::peek(); 
     }
-    size_t write(unsigned char byte) override { 
+    size_t write(uint8_t byte) override { 
         return HardwareSerial::write(byte); 
     }
-    size_t write(const char* text) override { 
-        return HardwareSerial::write(text);
-    }
-    size_t write(const char *buffer, int buffLen) override { 
+    size_t write(const void* buffer, int buffLen) override { 
         return HardwareSerial::write(buffer, buffLen); 
     }
     void flush() override { 
@@ -101,7 +98,7 @@ protected:
 #elif ESP_PLATFORM
 #include "driver/uart.h"
 
-class EmHardwareSerial : public EmSerialStream, public EmPrint {
+class EmHardwareSerial : public EmSerialStream {
 private:
     uart_port_t m_uartNum;
     bool m_isInitialized;
@@ -130,9 +127,8 @@ public:
         return read(buffer, length, 100);
     }
     virtual size_t read(uint8_t* buffer, size_t length, uint32_t timeout_ms);
- 	virtual size_t write(unsigned char byte) override;
-	virtual size_t write(const char* text) override;
-	virtual size_t write(const char *buffer, int buffLen) override;
+ 	virtual size_t write(uint8_t byte) override;
+	virtual size_t write(const void* buffer, int buffLen) override;
 	virtual void flush(bool txOnly=true) override;
     virtual void flushRxBuffer() override;
     virtual int baudRate() override;

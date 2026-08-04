@@ -15,7 +15,7 @@
 class EmOtaUpdater {
 public:
     // Updates the firmware
-    virtual bool update(EmStream& client, size_t contentLength) = 0;
+    virtual bool update(EmStreamRx& client, size_t contentLength) = 0;
 
     // Extra step to finalize the firmware update 
     // (i.e. if applicable apply/commit/reboot the device)

@@ -40,21 +40,14 @@ bool EmHardwareSerial::begin(const uart_config_t& uart_config, int8_t rxPin, int
     return true;
 }
 
-size_t EmHardwareSerial::write(unsigned char c) {
+size_t EmHardwareSerial::write(uint8_t c) {
     if (!isInitialized()) {
         return -1;
     }
-    return uart_write_bytes(m_uartNum, (const char*)&c, 1);
+    return uart_write_bytes(m_uartNum, &c, 1);
 }
 
-size_t EmHardwareSerial::write(const char* text) {
-    if (!isInitialized()) {
-        return -1;
-    }
-    return uart_write_bytes(m_uartNum, text, strlen(text));
-}
-
-size_t EmHardwareSerial::write(const char *buffer, int buffLen) {
+size_t EmHardwareSerial::write(const void *buffer, int buffLen) {
     if (!isInitialized()) {
         return -1;
     }

@@ -10,7 +10,7 @@
 
 #elif ESP_PLATFORM
 
-class EmUsbSerial : public EmSerialStream, public EmPrint {
+class EmUsbSerial : public EmSerialStream {
 private:
     bool m_isInitialized;
 
@@ -37,14 +37,7 @@ public:
         return w;
     }
     
-    virtual size_t write(const char* text) override {
-        if (!m_isInitialized) return -1;
-        size_t w = fwrite(text, 1, strlen(text), stdout);
-        fflush(stdout);
-        return w;
-    }
-    
-    virtual size_t write(const char *buffer, int buffLen) override {
+    virtual size_t write(const void* buffer, int buffLen) override {
         if (!m_isInitialized || buffLen <= 0) return 0;
         size_t w = fwrite(buffer, 1, buffLen, stdout);
         fflush(stdout);
