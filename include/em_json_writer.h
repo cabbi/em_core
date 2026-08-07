@@ -141,6 +141,7 @@ public:
             m_target.appendFormat(false, "\"%s\":%c", key, openChar);
         }
         m_level++;
+        m_isFirstElement = true; // Reset for the new nested object
         return true;
     }
 
