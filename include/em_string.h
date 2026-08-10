@@ -291,4 +291,19 @@ inline bool operator <=(const EmStringBase& a, const EmStringBase& b) {
     return !(a > b);
 }
 
+// Hash specialization for EmStringBase to be used in unordered containers
+namespace std {
+    template<>
+    struct hash<EmStringBase> {
+        std::size_t operator()(const EmStringBase& s) const noexcept {
+            std::size_t hash = 2166136261U; // FNV-1a 32-bit offset basis
+            const char* p = s.c_str();
+            while (*p) {
+                hash ^= static_cast<std::size_t>(*p++);
+                hash *= 1099511628211ULL;
+            }
+            return hash;
+        }
+    };
+}
 #endif // __EM_STRING__H_
