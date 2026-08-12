@@ -109,6 +109,10 @@ public:
         return set_(m_buf, capacity(), value);
     }
     
+    EmStrResult set(const char* value, size_t len) {
+        return set_(m_buf, capacity(), value, len);
+    }
+    
     // Creates a formatted string (i.e. same as 'sprintf').
     const char* format(const char* fmt, ...);
 
@@ -118,8 +122,10 @@ public:
     EmStrResult append(const EmStringBase& str, bool allowPartial = false) {
         return append(str.c_str(), allowPartial);
     }
-
-    EmStrResult append(const char* str, bool allowPartial = false);
+    EmStrResult append(const char* str, bool allowPartial = false) {
+        return append(str, strlen(str), allowPartial);  
+    }
+    EmStrResult append(const char* data, size_t len, bool allowPartial);
 
     // Appends a formatted string to current one (i.e. same as 'sprintf').
     EmStrResult appendFormat(bool allowPartial, const char* fmt, ...);

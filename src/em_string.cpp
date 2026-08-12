@@ -13,9 +13,9 @@ const char* EmStringBase::format(const char* fmt, va_list args) {
     return m_buf;
 }
 
-EmStrResult EmStringBase::append(const char* str, bool allowPartial) {
+EmStrResult EmStringBase::append(const char* data, size_t len, bool allowPartial) {
     // Nothing to append?
-    if (!str || strlen(str) == 0) {
+    if (!data || len == 0) {
         return EmStrResult::success;
     }
     // Already full string
@@ -24,13 +24,13 @@ EmStrResult EmStringBase::append(const char* str, bool allowPartial) {
     }
     // Partial append?
     const size_t left = spaceLeft();
-    if (!allowPartial && left < strlen(str)) {
+    if (!allowPartial && left < len) {
         return EmStrResult::failure;
     }
     // Do the append
-    strncat(m_buf, str, left);
+    strncat(m_buf, data, len);
     m_buf[capacity()] = '\0';
-    return ::strlen(str) > left ? EmStrResult::partial : EmStrResult::success;
+    return len > left ? EmStrResult::partial : EmStrResult::success;
 }
 
 EmStrResult EmStringBase::appendFormat(bool allowPartial, const char* fmt, ...) {
