@@ -136,7 +136,9 @@ public:
     // it should also have a copy constructor and copy assignment operator, or have them deleted.
     // The original copy constructor was shallow and dangerous. Disabling them is the safest default.
     EmList(const EmList<T>&) = delete;
+    EmList(EmList<T>&&) = delete;
     EmList& operator=(const EmList<T>&) = delete;
+    EmList& operator=(EmList<T>&&) = delete;
 
     // NOTE: keep destructor and class without virtual functions to limit RAM footprint
     ~EmList() { clear(); }

@@ -26,7 +26,9 @@ public:
 
     // Forbid copying and assignment to prevent multiple ownership.
     EmAutoPtr(const EmAutoPtr&) = delete;
+    EmAutoPtr(EmAutoPtr&&) = delete;
     EmAutoPtr& operator=(const EmAutoPtr&) = delete;
+    EmAutoPtr& operator=(EmAutoPtr&&) = delete;
 
     // Overload -> to access members of the managed object.
     T* operator->() const { return m_ptr; }

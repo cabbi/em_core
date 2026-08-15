@@ -38,9 +38,11 @@ public:
     // Destructor (non-virtual to save Flash and eliminate VTable RAM)
     ~EmStringBase() = default;
 
-    // Copy & move operation are removed to let this class be trivially copyable (i.e. is_trivially_copyable_v will pass)
-    EmStringBase(const EmStringBase&) = delete;
-    EmStringBase(EmStringBase&&) = delete;
+    // Copy & move constructors are set as default to let this class be trivially copyable (i.e. is_trivially_copyable_v will pass)
+    EmStringBase(const EmStringBase&) = default;
+    EmStringBase(EmStringBase&&) = default;
+
+    // Const member vars of this class cannot be re-assigned
     EmStringBase& operator=(const EmStringBase&) = delete;
     EmStringBase& operator=(EmStringBase&&) = delete;
 
@@ -301,15 +303,10 @@ inline bool operator <=(const EmStringBase& a, const EmStringBase& b) {
 namespace std {
     template<>
     struct hash<EmStringBase> {
-        std::size_t operator()(const EmStringBase& s) const noexcept {
-            std::size_t hash = 2166136261U; // FNV-1a 32-bit offset basis
-            const char* p = s.c_str();
-            while (*p) {
-                hash ^= static_cast<std::size_t>(*p++);
-                hash *= 1099511628211ULL;
-            }
-            return hash;
-        }
+        std::size_t operator()(const EmStringBase& s) const noexcept;
     };
 }
+
+size_t calculateHash(const char* str);
+
 #endif // __EM_STRING__H_

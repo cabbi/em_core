@@ -38,7 +38,7 @@ public:
     // Using 'explicit' prevents unintentional conversions from integer types.
     // For example, it would prevent `EmTimeout t = 1000;` which might be ambiguous.
     // The user would have to be explicit: `EmTimeout t(1000);`
-    explicit EmTimeout_(T timeoutMs, bool startAsExpired = false) noexcept
+    explicit EmTimeout_(T timeoutMs, bool startAsExpired = false)
      : m_timeoutMillis(timeoutMs) {
         if (startAsExpired) {
             setExpired();
@@ -47,9 +47,22 @@ public:
         }
     }
 
-    EmTimeout_(const EmTimeout_& other) :
-        m_timeoutMillis(static_cast<T>(other.m_timeoutMillis)),
-        m_startMillis(static_cast<T>(other.m_startMillis)) {}
+    EmTimeout_(const EmTimeout_& other) 
+     : m_timeoutMillis(static_cast<T>(other.m_timeoutMillis)),
+       m_startMillis(static_cast<T>(other.m_startMillis)) {}
+
+    EmTimeout_& operator=(const EmTimeout_& other) {
+        if (this != &other) {
+        #ifdef EM_MULTITHREAD
+            m_timeoutMillis.store(other.m_timeoutMillis.load());
+            m_startMillis.store(other.m_startMillis.load());
+        #else
+            m_timeoutMillis = other.m_timeoutMillis;
+            m_startMillis = other.m_startMillis;
+        #endif
+        }
+        return *this;
+    }
 
     // Forces the timeout to be considered expired.
     void setExpired() {

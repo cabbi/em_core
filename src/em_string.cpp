@@ -336,3 +336,30 @@ EmStrResult EmStringBase::set_(char* buf,
     }
     return EmStrResult::success;
 }
+
+// Hash specialization for EmStringBase to be used in unordered containers
+size_t calculateHash(const char* str) {
+    const char* p = str;
+    // This check happens at compile-time, choosing the right block for your target architecture
+    if constexpr (sizeof(std::size_t) == 8) {
+        std::size_t hash = 14695981039346656037ULL;
+        while (*p) {
+            hash ^= static_cast<std::size_t>(*p++);
+            hash *= 1099511628211ULL;
+        }
+        return hash;
+    } else {
+        std::size_t hash = 2166136261U;
+        while (*p) {
+            hash ^= static_cast<std::size_t>(*p++);
+            hash *= 16777619U;
+        }
+        return hash;
+    }
+}
+
+namespace std {
+    std::size_t hash<EmStringBase>::operator()(const EmStringBase& s) const noexcept {
+        return calculateHash(s.c_str());
+    }
+}
