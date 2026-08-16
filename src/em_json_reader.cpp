@@ -1,4 +1,5 @@
 #include "em_json_reader.h"
+#include <em_log.h>
 
 bool EmJsonDictReader::isValidJson() const {
     if (!m_jsonStr || m_jsonLen < 2) return false;
@@ -145,21 +146,25 @@ bool EmJsonDictReader::getTagValue(const char* key, EmTagValue& dest, const EmJs
         case (EmJsonValueType::vt_string): {
                 EmStringM value;
                 getString(key, value);
+                logDebug<100>("Json", "getTagValue(%s, %s) [STR]",key, value.c_str());                 
                 res = dest.setValue(value.c_str(), true);                
             } break;
         case (EmJsonValueType::vt_integer): {
                 int32_t value;
                 getInt(key, value);
+                logDebug<100>("Json", "getTagValue(%s, %d) [INT]",key, value);                 
                 res = dest.setValue(value, true);                
             } break;
         case (EmJsonValueType::vt_real): {
                 float value;
                 getFloat(key, value);
+                logDebug<100>("Json", "getTagValue(%s, %g) [FLOAT]",key, value);                 
                 res = dest.setValue(value, true);
             } break;
         case (EmJsonValueType::vt_boolean): {
                 bool value;
                 getBool(key, value);
+                logDebug<100>("Json", "getTagValue(%s, %s) [BOOL]",key, value?"TRUE":"FALSE");                 
                 res = dest.setValue(value, true);
             } break;
         case (EmJsonValueType::vt_timestamp): {
