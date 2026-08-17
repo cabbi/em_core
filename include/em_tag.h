@@ -67,6 +67,7 @@ union EmTagValueUnion {
     EmTagValueUnion() { as_integer = 0; }
     EmTagValueUnion(EmBoolType value) { as_bool = value; }
     EmTagValueUnion(EmEpochType value) { as_epoch = value; }
+    EmTagValueUnion(int value) { as_integer = value; }
     EmTagValueUnion(int8_t value) { as_integer = value; }
     EmTagValueUnion(int16_t value) { as_integer = value; }
     EmTagValueUnion(int32_t value) { as_integer = value; } 
@@ -151,6 +152,7 @@ struct EmTagValueStruct {
     EmTagValueStruct(): m_type(EmTagValueType::vt_undefined), m_value() {}
     EmTagValueStruct(EmBoolType value): m_type(EmTagValueType::vt_boolean), m_value(value) {} 
     EmTagValueStruct(EmEpochType value): m_type(EmTagValueType::vt_epoch), m_value(value) {}
+    EmTagValueStruct(int value): m_type(EmTagValueType::vt_integer), m_value(value) {} 
     EmTagValueStruct(int8_t value): m_type(EmTagValueType::vt_integer), m_value(value) {} 
     EmTagValueStruct(int16_t value): m_type(EmTagValueType::vt_integer), m_value(value) {} 
     EmTagValueStruct(int32_t value): m_type(EmTagValueType::vt_integer), m_value(value) {} 
@@ -480,6 +482,7 @@ public:
     EmTagValue() : EmTagValueStruct(EmTagValueType::vt_undefined) {}
     EmTagValue(EmTagValueType type) : EmTagValueStruct(type) {}
     EmTagValue(EmBoolType value) : EmTagValueStruct(value) {}
+    EmTagValue(int value) : EmTagValueStruct(value) {}
     EmTagValue(int8_t value) : EmTagValueStruct(value) {}
     EmTagValue(int16_t value) : EmTagValueStruct(value) {}
     EmTagValue(int32_t value) : EmTagValueStruct(value) {}
