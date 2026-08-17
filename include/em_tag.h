@@ -65,13 +65,24 @@ union EmTagValueUnion {
     EmStringType* as_string;  // Storing pointer to keep size of union small.
 
     EmTagValueUnion() { as_integer = 0; }
-    EmTagValueUnion(EmBoolType value) { as_bool = value; } explicit
-    EmTagValueUnion(EmEpochType value) { as_epoch = value; } explicit
-    EmTagValueUnion(int16_t value) { as_integer = value; }  explicit
-    EmTagValueUnion(int32_t value) { as_integer = value; }  explicit
-    EmTagValueUnion(float value) { as_real = static_cast<EmRealType>(value); } explicit
-    EmTagValueUnion(double value) { as_real = static_cast<EmRealType>(value); } explicit
+    EmTagValueUnion(EmBoolType value) { as_bool = value; }
+    EmTagValueUnion(EmEpochType value) { as_epoch = value; }
+    EmTagValueUnion(int8_t value) { as_integer = value; }
+    EmTagValueUnion(int16_t value) { as_integer = value; }
+    EmTagValueUnion(int32_t value) { as_integer = value; } 
+    EmTagValueUnion(uint8_t value) { as_integer = value; }
+    EmTagValueUnion(uint16_t value) { as_integer = value; }
+    //EmTagValueUnion(uint32_t value) { as_integer = value; }
+    EmTagValueUnion(float value) { as_real = static_cast<EmRealType>(value); }
+    EmTagValueUnion(double value) { as_real = static_cast<EmRealType>(value); }
     EmTagValueUnion(EmStringType* value) { as_string = value; }
+
+    template<typename T>
+    EmTagValueUnion& operator = (const T& value) {
+        EmTagValueUnion temp(value);
+        *this = temp;
+        return *this;
+    }
 
     template<typename T>
     typename std::enable_if<!std::is_pointer<T>::value, T>::type as() const {
@@ -137,15 +148,19 @@ class EmTagValueBuffer;
 struct EmTagValueStruct {
     friend class EmTagValueBuffer;
 
-    EmTagValueStruct(): m_type(EmTagValueType::vt_undefined) {}
-    EmTagValueStruct(EmBoolType value): m_type(EmTagValueType::vt_boolean), m_value(value) {} explicit
-    EmTagValueStruct(EmEpochType value): m_type(EmTagValueType::vt_epoch), m_value(value) {} explicit
-    EmTagValueStruct(int16_t value): m_type(EmTagValueType::vt_integer), m_value(value) {} explicit
-    EmTagValueStruct(int32_t value): m_type(EmTagValueType::vt_integer), m_value(value) {} explicit
-    EmTagValueStruct(float value): m_type(EmTagValueType::vt_real), m_value(value) {} explicit
-    EmTagValueStruct(double value): m_type(EmTagValueType::vt_real), m_value(value) {} explicit
+    EmTagValueStruct(): m_type(EmTagValueType::vt_undefined), m_value() {}
+    EmTagValueStruct(EmBoolType value): m_type(EmTagValueType::vt_boolean), m_value(value) {} 
+    EmTagValueStruct(EmEpochType value): m_type(EmTagValueType::vt_epoch), m_value(value) {}
+    EmTagValueStruct(int8_t value): m_type(EmTagValueType::vt_integer), m_value(value) {} 
+    EmTagValueStruct(int16_t value): m_type(EmTagValueType::vt_integer), m_value(value) {} 
+    EmTagValueStruct(int32_t value): m_type(EmTagValueType::vt_integer), m_value(value) {} 
+    EmTagValueStruct(uint8_t value): m_type(EmTagValueType::vt_integer), m_value(value) {} 
+    EmTagValueStruct(uint16_t value): m_type(EmTagValueType::vt_integer), m_value(value) {} 
+    //EmTagValueStruct(uint32_t value): m_type(EmTagValueType::vt_integer), m_value(value) {} 
+    EmTagValueStruct(float value): m_type(EmTagValueType::vt_real), m_value(value) {} 
+    EmTagValueStruct(double value): m_type(EmTagValueType::vt_real), m_value(value) {} 
     EmTagValueStruct(EmStringType* value): m_type(EmTagValueType::vt_string), m_value(value) {}
-    EmTagValueStruct(EmTagValueType type): m_type(type) {}
+    EmTagValueStruct(EmTagValueType type): m_type(type), m_value() {}
     EmTagValueStruct(EmTagValueType type, EmTagValueUnion value): m_type(type), m_value(value) {}
 
     EmTagValueType getType() const { 
@@ -464,11 +479,15 @@ class EmTagValue: public EmTagValueStruct {
 public:
     EmTagValue() : EmTagValueStruct(EmTagValueType::vt_undefined) {}
     EmTagValue(EmTagValueType type) : EmTagValueStruct(type) {}
-    EmTagValue(EmBoolType value) : EmTagValueStruct(value) {} explicit
-    EmTagValue(int16_t value) : EmTagValueStruct(value) {} explicit
-    EmTagValue(int32_t value) : EmTagValueStruct(value) {} explicit
-    EmTagValue(float value) : EmTagValueStruct(value) {} explicit
-    EmTagValue(double value) : EmTagValueStruct(value) {} explicit
+    EmTagValue(EmBoolType value) : EmTagValueStruct(value) {}
+    EmTagValue(int8_t value) : EmTagValueStruct(value) {}
+    EmTagValue(int16_t value) : EmTagValueStruct(value) {}
+    EmTagValue(int32_t value) : EmTagValueStruct(value) {}
+    EmTagValue(uint8_t value) : EmTagValueStruct(value) {}
+    EmTagValue(uint16_t value) : EmTagValueStruct(value) {}
+    EmTagValue(uint32_t value) : EmTagValueStruct(value) {}
+    EmTagValue(float value) : EmTagValueStruct(value) {}
+    EmTagValue(double value) : EmTagValueStruct(value) {}
     EmTagValue(const char* value) : EmTagValueStruct(new EmStringInst(value)) {}
     EmTagValue(const EmStringType& value) : EmTagValueStruct(new EmStringInst(value)) {}
     EmTagValue(const EmTagValue& other) : EmTagValueStruct(EmTagValueType::vt_undefined) {

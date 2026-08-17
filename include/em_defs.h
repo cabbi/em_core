@@ -10,8 +10,6 @@
     #include <Arduino.h>
 #elif ESP_PLATFORM
     // This code compiles if you are using ESP-IDF
-#else
-    #error "unsupported platform!"    
 #endif
 
 #if defined(ESP_PLATFORM) || defined(ESP32) || defined(ESP8266)
@@ -67,8 +65,8 @@
         coreUserTask = 0,
     };
 
-    void tDelay(u_int32_t ms, bool delayAtLeastOneTick) {
-        delay(ms);        
+    inline void tDelay(uint32_t ms, bool delayAtLeastOneTick) {
+        //delay(ms);        
     }
 #endif
 
