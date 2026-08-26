@@ -12,15 +12,69 @@
 #include "em_value_sync.h"
 #include "em_tag.h"
 #include "em_string.h"
+#include "em_sbo_buffer.h"
 
 #define EM_STORAGE_NULL_HANDLE 0
 
+using EmNvsKeyString = EmString<NVS_KEY_NAME_MAX_SIZE-1>;
+
+// The storage namespaces iteration callback
+// Note: a namespace name can be an hashed one due to user longer name
+typedef void (*EmStorageNamespaceInfoCallback)(void* user_arg, 
+                                               const char* namespaceName);
+
+// The storage key iteration callback
+// Note: a key can be an hashed one due to user longer key
+typedef void (*EmStorageKeyInfoCallback)(void* user_arg, 
+                                         const char* namespaceName, 
+                                         const char* keyName);
+
+// Possible storage items types (this is an extention of ESP-IDF ones)
+enum class EmStorageItemType: uint8_t {
+    Undefined = 0,
+    UInt8     = NVS_TYPE_U8,
+    Int8      = NVS_TYPE_I8,
+    UInt16    = NVS_TYPE_U16,
+    Int16     = NVS_TYPE_I16,
+    UInt32    = NVS_TYPE_U32,
+    Int32     = NVS_TYPE_I32,
+    UInt64    = NVS_TYPE_U64,
+    Int64     = NVS_TYPE_I64,
+    String    = NVS_TYPE_STR,
+    Bytes     = NVS_TYPE_BLOB,
+    // Extended types
+    Bool      = 0x81,
+    Float     = 0x82,
+    Double    = 0x84,
+    TagValue  = 0x88,
+};
+
+// Error codes for NVS operations
+constexpr const char* _nvs_errors[] = {"UNDEFINED ERROR", 
+                                       "NOT_INITIALIZED", 
+                                       "NOT_FOUND", 
+                                       "TYPE_MISMATCH", 
+                                       "READ_ONLY", 
+                                       "NOT_ENOUGH_SPACE", 
+                                       "INVALID_NAME", 
+                                       "INVALID_HANDLE", 
+                                       "REMOVE_FAILED", 
+                                       "KEY_TOO_LONG", 
+                                       "PAGE_FULL", 
+                                       "INVALID_STATE", 
+                                       "INVALID_LENGTH"};
+#define nvs_error(e) (((e)>ESP_ERR_NVS_BASE)?_nvs_errors[(e)&~(ESP_ERR_NVS_BASE)]:_nvs_errors[0])
+
 // NVS persistent storage class
+//
+// Due to the NVS key limit of NVS_KEY_NAME_MAX_SIZE-1, if the requested key is bigger than
+// NVS_KEY_NAME_MAX_SIZE-1 a hash key is generated to safely get and set longer key values.
 //
 // This class handles "post" initializations when begin() is called, this 
 // allows to setup initial values before the storage is actually initialized.
 // This is usefull when using EmStorageValue classes in global objects providing an 'initValue'.
 class EmStorage: public EmLog {
+    static constexpr char c_ResetVersionKey[] = "!#rèsét_vèr#!"; // Let it be unique!
 public:
     EmStorage(const char* logContext="EmStorage", 
               EmLogLevel logLevel = EmLogLevel::global)
@@ -33,6 +87,10 @@ public:
         clearInitItems_();
     }
 
+    // No copy allowed (move are removed as well)
+    EmStorage(const EmStorage&) = delete;
+    EmStorage& operator=(const EmStorage&) = delete;
+
     bool isInitialized() const {
         return m_handle != EM_STORAGE_NULL_HANDLE;
     }
@@ -40,50 +98,80 @@ public:
         return !isInitialized();
     }
 
-    bool begin(const char* name, bool clearExisting=false);
+    // Start the new storage object by assigning a name to the used NVS namespace.
+    // By assigning a 'resetVersion' bigger than zero the storage will store a version number 
+    // and if the old stored version is different the old storage namespace will be reset/cleared.
+    // This is usefull if some changes take place and you need to clear only once previous stored keys.
+    bool begin(const char* name,
+               uint16_t resetVersion=0);
     void end();
     bool clear() const;
     bool commit() const;
 
+
+    // Gets the current reset version for this namespace (i.e. the name specified in the 'begin' method)
+    // Returns zero if no reset version has been set or storage object is not initialized.
+    uint16_t getCurrentResetVersion() const {
+        if (isInitialized()) {
+            uint16_t version = 0;
+            if (nvs_get_u16(m_handle, c_ResetVersionKey, &version)==ESP_OK) {
+                return version;
+            }
+        }
+        return 0;
+    }
+
+    // Sets the current reset version for this namespace (i.e. the name specified in the 'begin' method)
+    // Returns zero in case of error or storage object not being initialized.
+    uint16_t setCurrentResetVersion(uint16_t version) const {
+        if (isInitialized()) {
+            if (nvs_set_u16(m_handle, c_ResetVersionKey, version)==ESP_OK) {
+                return version;
+            }
+        }
+        return 0;
+    }
+
     // Initialization methods (i.e. value is set only if key does not exist)
     template<typename T>
-    size_t initValue(const char* key, const T& value, bool commit=true) const {
+    bool initValue(const char* key, const T& value, bool commit=true) const {
         if (isNotInitialized()) {
-            addToInitBytes_(key, &value, sizeof(T));
+            addToInitValue_(key, value);
             return sizeof(value);            
         }
         if (!hasKey(key)) {
-            return putValue(key, value, commit);
+            return setValue(key, value, commit);
         }
         return 0;
-    }   
-    size_t initValue(const char* key, const EmTagValue& value, bool commit=true) const {
+    }
+
+    bool initValue(const char* key, const EmTagValue& value, bool commit=true) const {
         if (isNotInitialized()) {
             addToInitTags_(key, value);
             return sizeof(value);            
         }
         if (!hasKey(key)) {
-            return putValue(key, value, commit);
+            return setValue(key, value, commit);
         }
         return 0;
     }   
-    size_t initString(const char* key, const char* value, bool commit=true) const {
+    bool initString(const char* key, const char* value, bool commit=true) const {
         if (isNotInitialized()) {
             addToInitStrings_(key, value);
             return strlen(value);            
         }
         if (!hasKey(key)) {
-            return putString(key, value, commit);
+            return setString(key, value, commit);
         }
         return 0;
     }   
-    size_t initBytes(const char* key, const void* value, size_t len, bool commit=true) const {
+    bool initBytes(const char* key, const void* value, size_t len, bool commit=true) const {
         if (isNotInitialized()) {
             addToInitBytes_(key, value, len);
             return len;            
         }
         if (!hasKey(key)) {
-            return putBytes(key, value, len, commit);
+            return setBytes(key, value, len, commit);
         }
         return 0;
     }   
@@ -95,12 +183,81 @@ public:
     // @param commit If true, commits the change to storage immediately.
     // @param equalityCheckBeforeWrite If true, checks if the value is different before writing it.
     template<typename T>
-    size_t putValue(const char* key, 
-                    const T& value, 
-                    bool commit=true,
-                    bool equalityCheckBeforeWrite=true) const {
-        return putBytes(key, &value, sizeof(value), commit, equalityCheckBeforeWrite);
-    }   
+    bool setValue(const char* key, 
+                  const T& value, 
+                  bool commit=true,
+                  bool equalityCheckBeforeWrite=true) const{
+        if (!isInitialized() || key == nullptr || strlen(key) == 0) {
+            return false;
+        }    
+        // Avoid writing the same value again
+        if (equalityCheckBeforeWrite && isSameValue(key, value)) {
+            return true; 
+        }
+        // Key check (creating hash if key is too long!)
+        EmNvsKeyString keyBuf;
+        key = getNvsKey(key, keyBuf);
+        // Write the new value
+        using cleanType = std::decay_t<T>;
+        esp_err_t err = ESP_FAIL;
+        if constexpr (std::is_same_v<cleanType, bool>) {
+            err = nvs_set_i8(m_handle, key, (int8_t)value);
+        }            
+        else if constexpr (std::is_same_v<cleanType, char*> || std::is_same_v<cleanType, const char*>) {
+            err = nvs_set_str(m_handle, key, value);
+        } else if constexpr (std::is_integral_v<T>) {
+            if constexpr (sizeof(T) == 1) {
+                if constexpr (std::is_signed_v<T>) {
+                    err = nvs_set_i8(m_handle, key, static_cast<int8_t>(value));
+                } else {
+                    err = nvs_set_u8(m_handle, key, static_cast<uint8_t>(value));
+                }
+            }
+            else if constexpr (sizeof(T) == 2) {
+                if constexpr (std::is_signed_v<T>) {
+                    err = nvs_set_i16(m_handle, key, static_cast<int16_t>(value));
+                } else {
+                    err = nvs_set_u16(m_handle, key, static_cast<uint16_t>(value));
+                }
+            }
+            else if constexpr (sizeof(T) == 4) {
+                if constexpr (std::is_signed_v<T>) {
+                    err = nvs_set_i32(m_handle, key, static_cast<int32_t>(value));
+                } else {
+                    err = nvs_set_u32(m_handle, key, static_cast<uint32_t>(value));
+                }
+            }
+            else if constexpr (sizeof(T) == 8) {
+                if constexpr (std::is_signed_v<T>) {
+                    err = nvs_set_i64(m_handle, key, static_cast<int64_t>(value));
+                } else {
+                    err = nvs_set_u64(m_handle, key, static_cast<uint64_t>(value));
+                }
+            }
+        }
+        else if constexpr (std::is_same_v<cleanType, float>) {
+            uint32_t raw_bits;
+            memcpy(&raw_bits, &value, sizeof(raw_bits)); 
+            err = nvs_set_u32(m_handle, key, raw_bits);            
+        }
+        else if constexpr (std::is_same_v<cleanType, double>) {
+            uint64_t raw_bits;
+            memcpy(&raw_bits, &value, sizeof(raw_bits));
+            err = nvs_set_u64(m_handle, key, raw_bits);
+        } else {
+            static_assert(always_false<cleanType>, "Unsupported value type!");
+            return 0;
+        }    
+        // Check result
+        if (err != ESP_OK) {
+            logError<100>("putValue failed: %s - %s", key, nvs_error(err));
+            return 0;
+        }
+        if (commit && !this->commit()) {
+            return false;
+        }
+        return true;
+    }
 
     // Put a tag value into the NVS storage
     //
@@ -108,10 +265,10 @@ public:
     // @param value The value to be stored.
     // @param commit If true, commits the change to storage immediately.
     // @param equalityCheckBeforeWrite If true, checks if the value is different before writing it.
-    size_t putValue(const char* key, 
-                    const EmTagValue& value, 
-                    bool commit=true,
-                    bool equalityCheckBeforeWrite=true) const;
+    bool setValue(const char* key, 
+                  const EmTagValue& value, 
+                  bool commit=true,
+                  bool equalityCheckBeforeWrite=true) const;
 
 
     // Put a string value into the NVS storage
@@ -120,27 +277,126 @@ public:
     // @param value The value to be stored.
     // @param commit If true, commits the change to storage immediately.
     // @param equalityCheckBeforeWrite If true, checks if the value is different before writing it.
-    size_t putString(const char* key, 
-                     const char* value, 
-                     bool commit=true,
-                     bool equalityCheckBeforeWrite=true) const;
+    bool setString(const char* key, 
+                   const char* value, 
+                   bool commit=true,
+                   bool equalityCheckBeforeWrite=true) const {
+        return setValue(key, value, commit, equalityCheckBeforeWrite);
+    }
 
-    // Put generic bytes into the NVS storage
+    // Put generic bytes into the NVS storage as a blob.
     //
     // @param key The key name for the value.
     // @param value The value to be stored.
     // @param commit If true, commits the change to storage immediately.
     // @param equalityCheckBeforeWrite If true, checks if the value is different before writing it.
-    size_t putBytes(const char* key, 
-                    const void* value, 
-                    size_t len, 
-                    bool commit=true,
-                    bool equalityCheckBeforeWrite=true) const;
+    bool setBytes(const char* key, 
+                  const void* value, 
+                  size_t len, 
+                  bool commit=true,
+                  bool equalityCheckBeforeWrite=true) const;
 
     template<typename T>
-    size_t getValue(const char* key, T& value) const {
-        return getBytes(key, &value, sizeof(value));
+    bool getValue(const char* key, T& value) const {
+        if (!isInitialized() || !key) {
+            return 0;
+        }
+        // Key check (creating hash if key is too long!)
+        EmNvsKeyString keyBuf;
+        key = getNvsKey(key, keyBuf);
+        // Write the new value
+        using cleanType = std::decay_t<T>;
+        esp_err_t err = ESP_FAIL;
+        if constexpr (std::is_same_v<cleanType, bool>) {
+            err = nvs_get_i8(m_handle, key, (int8_t*)&value);
+        } 
+        else if constexpr (std::is_integral_v<T>) {
+            if constexpr (sizeof(T) == 1) {
+                if constexpr (std::is_signed_v<T>) {
+                    int8_t v;
+                    err = nvs_get_i8(m_handle, key, &v);
+                    if (err == ESP_OK) {
+                        value = static_cast<T>(v);
+                    }
+                } else {
+                    uint8_t v;
+                    err = nvs_get_u8(m_handle, key, &v);
+                    if (err == ESP_OK) {
+                        value = static_cast<T>(v);
+                    }
+                }
+            }
+            else if constexpr (sizeof(T) == 2) {
+                if constexpr (std::is_signed_v<T>) {
+                    int16_t v;
+                    err = nvs_get_i16(m_handle, key, &v);
+                    if (err == ESP_OK) {
+                        value = static_cast<T>(v);
+                    }
+                } else {
+                    uint16_t v;
+                    err = nvs_get_u16(m_handle, key, &v);
+                    if (err == ESP_OK) {
+                        value = static_cast<T>(v);
+                    }
+                }
+            }
+            else if constexpr (sizeof(T) == 4) {
+                if constexpr (std::is_signed_v<T>) {
+                    int32_t v;
+                    err = nvs_get_i32(m_handle, key, &v);
+                    if (err == ESP_OK) {
+                        value = static_cast<T>(v);
+                    }
+                } else {
+                    uint32_t v;
+                    err = nvs_get_u32(m_handle, key, &v);
+                    if (err == ESP_OK) {
+                        value = static_cast<T>(v);
+                    }
+                }
+            }
+            else if constexpr (sizeof(T) == 8) {
+                if constexpr (std::is_signed_v<T>) {
+                    int64_t v;
+                    err = nvs_get_i64(m_handle, key, &v);
+                    if (err == ESP_OK) {
+                        value = static_cast<T>(v);
+                    }
+                } else {
+                    uint64_t v;
+                    err = nvs_get_u64(m_handle, key, &v);
+                    if (err == ESP_OK) {
+                        value = static_cast<T>(v);
+                    }
+                }
+            }
+        }
+        else if constexpr (std::is_same_v<cleanType, float>) {
+            uint32_t raw_bits;
+            err = nvs_get_u32(m_handle, key, &raw_bits);
+            if (err == ESP_OK) {
+                memcpy(&value, &raw_bits, sizeof(raw_bits));
+            }            
+        }
+        else if constexpr (std::is_same_v<cleanType, double>) {
+            uint64_t raw_bits;
+            err = nvs_get_u64(m_handle, key, &raw_bits);
+            if (err == ESP_OK) {
+                memcpy(&value, &raw_bits, sizeof(raw_bits));
+            }
+        } else {
+            static_assert(always_false<cleanType>, "Unsupported value type!");
+            return 0;
+        }    
+        // Check result
+        if (err != ESP_OK) {
+            logError<100>("putValue failed: %s - %s", key, nvs_error(err));
+            return false;
+        }
+        return true;
     }
+
     template<typename T>
     T getValue(const char* key) const {
         T value;
@@ -149,35 +405,120 @@ public:
         }
         return T();
     }
-    size_t getValue(const char* key, EmTagValue& value) const;
-    size_t getString(const char* key, EmStringBase& value) const {
+    bool getValue(const char* key, EmTagValue& value) const;
+    bool getString(const char* key, EmStringBase& value) const {
         size_t len = getString(key, value.buffer(), value.capacity());
         return len;
     }
-    size_t getString(const char* key, char* value, const size_t maxLen) const;
-    size_t getBytes(const char* key, void * buf, size_t maxLen) const;
+    bool getString(const char* key, char* value, const size_t maxLen) const;
+    bool getBytes(const char* key, void * buf, size_t maxLen) const;
 
     size_t getBytesLength(const char* key) const;
     size_t getStringLength(const char* key) const;
 
     template<typename T>
     bool isSameValue(const char* key, const T& value) const {
-        return isSameBytes(key, &value, sizeof(value));
+        using cleanType = std::decay_t<T>;
+        if constexpr (std::is_same_v<cleanType, char*> || std::is_same_v<cleanType, const char*>) {
+            return isSameString(key, value);
+        } else {
+            T nvsValue;
+            if (!getValue(key, nvsValue)) {
+                return false;
+            }
+            return value == nvsValue;
+        }
     }
     bool isSameValue(const char* key, EmTagValue& value) const;
     bool isSameString(const char* key, const char* value) const;
     bool isSameBytes(const char* key, const void * buf, size_t len) const;
 
-    #if ESP_IDF_VERSION_MAJOR >= 5
-    bool hasKey(const char* key) const { return nvs_find_key(m_handle, key, nullptr) == ESP_OK; }
-    #else
-    bool hasKey(const char* key) const { return hasValue(key) || hasString(key); }
-    #endif
-    bool hasValue(const char* key) const { return hasBytes(key); }
-    bool hasBytes(const char* key) const { return getBytesLength(key) > 0;}
-    bool hasString(const char* key) const { return getStringLength(key) > 0; }
+    bool hasKey(const char* key) const { 
+        EmNvsKeyString keyBuffer;
+        return nvs_find_key(m_handle, getNvsKey(key, keyBuffer), nullptr) == ESP_OK;
+    }
 
-    size_t freeEntries() const;
+    size_t getFreeEntriesCount();
+
+    template<typename T>
+    static EmStorageItemType getItemType() {
+        using cleanType = std::decay_t<T>;
+        if constexpr (std::is_same_v<cleanType, bool>) {
+            return EmStorageItemType::Bool;
+        }
+        else if constexpr (std::is_integral_v<T>) {
+            if constexpr (sizeof(T) == 1) {
+                if constexpr (std::is_signed_v<T>) {
+                    return EmStorageItemType::Int8;
+                } else {
+                    return EmStorageItemType::UInt8;
+                }
+            }
+            else if constexpr (sizeof(T) == 2) {
+                if constexpr (std::is_signed_v<T>) {
+                    return EmStorageItemType::Int16;
+                } else {
+                    return EmStorageItemType::UInt16;
+                }
+            }
+            else if constexpr (sizeof(T) == 4) {
+                if constexpr (std::is_signed_v<T>) {
+                    return EmStorageItemType::Int32;
+                } else {
+                    return EmStorageItemType::UInt32;
+                }
+            }
+            else if constexpr (sizeof(T) == 8) {
+                if constexpr (std::is_signed_v<T>) {
+                    return EmStorageItemType::Int64;
+                } else {
+                    return EmStorageItemType::UInt64;
+                }
+            }
+        }
+        else if constexpr (std::is_same_v<cleanType, float>) {
+            return EmStorageItemType::Float;
+        }
+        else if constexpr (std::is_same_v<cleanType, double>) {
+            return EmStorageItemType::Double;
+        } 
+        else if constexpr (std::is_same_v<cleanType, EmTagValue>) {
+            return EmStorageItemType::TagValue;
+        }
+        else if constexpr (std::is_same_v<cleanType, const char*> || std::is_same_v<cleanType, char*>) {
+            return EmStorageItemType::String;
+        }
+        else if constexpr (std::is_same_v<cleanType, const void*> || std::is_same_v<cleanType, void*>) {
+            return EmStorageItemType::Bytes;
+        } else {
+            static_assert(always_false<cleanType>, "Unsupported value type!");
+            return EmStorageItemType::Undefined;
+        }
+    }
+
+    
+    // Iterate al storage defined namespaces
+    static bool iterateNamespaces(EmStorageNamespaceInfoCallback callback, 
+                                  void* user_arg=nullptr);
+
+    // Iterate keys for current namespace
+    bool iterateNamespaceKeys(EmStorageKeyInfoCallback callback, 
+                              void* user_arg=nullptr) {
+        if (m_name != nullptr) {
+            return iterateNamespaceKeys(m_name, callback, user_arg);
+        }
+        return false;
+    }
+
+    // Iterate key for a given namespace
+    static bool iterateNamespaceKeys(const char* name, 
+                                     EmStorageKeyInfoCallback callback, 
+                                     void* user_arg=nullptr);
+
+    // Generates a valid NVS key (NVS_KEY_NAME_MAX_SIZE-1 characters) from a long string.
+    // If the input exceeds NVS_KEY_NAME_MAX_SIZE-1 chars, it computes a 56-bit hash and converts it to HEX.
+    // keyBuffer is only used if input exceeds NVS_KEY_NAME_MAX_SIZE-1 chars.
+    static const char* getNvsKey(const char* key, EmNvsKeyString& keyBuffer);
 
 protected:
     void addToInitBytes_(const char* key, const void* value, size_t len) const {
@@ -189,38 +530,77 @@ protected:
     void addToInitTags_(const char* key, const EmTagValue& value) const {
         addInitItem_(new InitItem_(key, value));
     }
+    template<typename T>
+    void addToInitValue_(const char* key, T value) const {
+        addInitItem_(new InitItem_(key, value));
+    }
+
+    bool setValue_(EmStorageItemType type,
+                   const char* key, 
+                   void* valueBuf,
+                   size_t valueLen) const;
+
+    // NVS methods override (used to set the 'adjusted' key)
+    esp_err_t nvs_set_str_(nvs_handle_t handle, const char* key, const char* value) const {
+        EmNvsKeyString keyBuffer;
+        return nvs_set_str(handle, getNvsKey(key, keyBuffer), value);
+    }
+    
+    esp_err_t nvs_get_str_(nvs_handle_t handle, const char* key, char* out_value, size_t* length) const {
+        EmNvsKeyString keyBuffer;
+        return nvs_get_str(handle, getNvsKey(key, keyBuffer), out_value, length);
+    }
+
+
+    esp_err_t nvs_set_blob_(nvs_handle_t handle, const char* key, const void* value, size_t length) const {
+        EmNvsKeyString keyBuffer;
+        return nvs_set_blob(handle, getNvsKey(key, keyBuffer), value, length);
+    }
+
+    esp_err_t nvs_get_blob_(nvs_handle_t handle, const char* key, void* out_value, size_t* length) const {
+        EmNvsKeyString keyBuffer;
+        return nvs_get_blob(handle, getNvsKey(key, keyBuffer), out_value, length);
+    }
 
 private:
-    // The storage nvs handle
+    // Type traits helper
+    template<typename...> static constexpr bool always_false = false;
+
+    // The storage nvs handle and namespace
     nvs_handle_t m_handle;
+    const char* m_name;
 
     // Initialization items linked list
-    enum class InitItemType_: uint8_t { none, bytes, string};
     struct InitItem_ {
-        const char* key = nullptr;
-        InitItemType_ type = InitItemType_::none;
-        char* bytes = nullptr;
+        EmNvsKeyString key;
+        EmStorageItemType type = EmStorageItemType::Undefined;
+        EmSboBuffer<char, 16> bytes;
         size_t len = 0;
         InitItem_* next = nullptr;
 
+        template<typename T>
+        InitItem_(const char* key, T value) {
+            EmStorageItemType type = getItemType<T>();                        
+            init_(key, type, &value, sizeof(T));
+        }
         InitItem_(const char* key, const void* value, size_t len) {
-            init_(key, value, InitItemType_::bytes, len);
+            init_(key, EmStorageItemType::Bytes, value, len);
         }
         InitItem_(const char* key, const char* value) {
-            init_(key, value, InitItemType_::string, strlen(value)+1);
+            init_(key, EmStorageItemType::String, value, strlen(value)+1);
         }
         InitItem_(const char* key, const EmTagValue& value) {
             EmTagValueBuffer vb(value);
-            init_(key, vb.buffer(), InitItemType_::bytes, vb.size());
+            init_(key, EmStorageItemType::TagValue, vb.getBuffer(), vb.getMaxSize());
         }
-        ~InitItem_() { if (bytes) delete[] bytes; }
+        ~InitItem_() = default;
 
-        void init_(const char* k, const void* v, InitItemType_ t, size_t l) {
+        void init_(const char* k, EmStorageItemType t, const void* v, size_t l) {
             this->next = nullptr;
-            this->key = k;
+            getNvsKey(k, this->key);
             this->type = t;
-            this->bytes = new char[l];
-            memcpy(this->bytes, v, l);
+            this->bytes.setMaxSize(l);
+            memcpy(this->bytes.getBuffer(), v, l);
             this->len = l;
         }
     };
@@ -274,14 +654,14 @@ public:
     virtual bool setValue(const T& value) override {
         // NOTE: we do not check == sizeof(value) since value might be EmTagValue
         //       and its size might differ from the stored one due to internal allocations.
-        return tStorage.putValue(getKey(), value) > 0;
+        return tStorage.setValue(getKey(), value) > 0;
     }
     
     virtual T getValue() const {
         T value;
         // NOTE: we do not check == sizeof(value) since value might be EmTagValue
         //       and its size might differ from the stored one due to internal allocations.
-        if (tStorage.getBytes(getKey(), &value, sizeof(value)) > 0) {
+        if (tStorage.getValue(getKey(), value)) {
             return value;
         }
         return T();

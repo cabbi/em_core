@@ -3,23 +3,7 @@
 
 #ifdef EM_NVS
 
-// Error codes for NVS operations
-const char* _nvs_errors[] = { "UNDEFINED ERROR", 
-                             "NOT_INITIALIZED", 
-                             "NOT_FOUND", 
-                             "TYPE_MISMATCH", 
-                             "READ_ONLY", 
-                             "NOT_ENOUGH_SPACE", 
-                             "INVALID_NAME", 
-                             "INVALID_HANDLE", 
-                             "REMOVE_FAILED", 
-                             "KEY_TOO_LONG", 
-                             "PAGE_FULL", 
-                             "INVALID_STATE", 
-                             "INVALID_LENGTH"};
-#define nvs_error(e) (((e)>ESP_ERR_NVS_BASE)?_nvs_errors[(e)&~(ESP_ERR_NVS_BASE)]:_nvs_errors[0])
-
-bool EmStorage::begin(const char * name, bool clearExisting) {
+bool EmStorage::begin(const char * name, uint16_t resetVersion) {
     // Already initialized?
     if (isInitialized()) {
         return false;
@@ -32,22 +16,27 @@ bool EmStorage::begin(const char * name, bool clearExisting) {
     }
 
     if (err != ESP_OK) {
-        logError<50>("Init failed: %s", nvs_error(err));
+        logError<100>("Init failed: %s", nvs_error(err));
         return false;
     }
 
     // Open ths nvs handle
-    err = nvs_open(name, NVS_READWRITE, &m_handle);
+    EmNvsKeyString keyBuf;
+    err = nvs_open(getNvsKey(name, keyBuf), NVS_READWRITE, &m_handle);
     if (err) {
-        logError<50>("Begin failed: %s", nvs_error(err));
+        logError<100>("Begin failed: %s", nvs_error(err));
         return false;
     }
+    m_name = name;
 
-    // Clear existing values?
-    if (clearExisting) {
+    // Reset version check
+    if (resetVersion > 0 &&                          // User asks version check!
+        resetVersion != getCurrentResetVersion() &&  // We have new version!
+        0 != setCurrentResetVersion(resetVersion)) { // We can set new version!
         if (!clear()) {
             nvs_close(m_handle);
             m_handle = EM_STORAGE_NULL_HANDLE;
+            m_name = nullptr;
             return false;
         }
     }
@@ -58,17 +47,9 @@ bool EmStorage::begin(const char * name, bool clearExisting) {
         InitItem_* cur = m_initHead;
         while (cur) {
             if (!hasKey(cur->key)) {
-                switch (cur->type) {
-                    case InitItemType_::bytes:
-                        putBytes(cur->key, cur->bytes, cur->len, false);
-                        break;
-                    case InitItemType_::string:
-                        putString(cur->key, cur->bytes, false);
-                        break;
-                    default:
-                        break;
+                if (setValue_(cur->type, cur->key.c_str(), (void*)cur->bytes.getBuffer(), cur->len)) {
+                    commitNeeded = true;
                 }
-                commitNeeded = true;
             }
             cur = cur->next;
         }
@@ -77,14 +58,82 @@ bool EmStorage::begin(const char * name, bool clearExisting) {
         }
         clearInitItems_();
     }
-
     return true;
+}
+
+bool EmStorage::setValue_(EmStorageItemType type,
+                          const char* key, 
+                          void* valueBuf,
+                          size_t valueLen) const {
+    switch (type) {
+        case EmStorageItemType::Undefined: 
+            break;
+        case EmStorageItemType::Bool: {
+            bool value = static_cast<const char*>(valueBuf)[0] != 0;
+            return setValue(key, value, false);
+        }
+        case EmStorageItemType::Int8: {
+            int8_t value = static_cast<const char*>(valueBuf)[0];
+            return setValue(key, value, false);
+        }
+        case EmStorageItemType::UInt8: {
+            uint8_t value = static_cast<const char*>(valueBuf)[0];
+            return setValue(key, value, false);
+        }
+        case EmStorageItemType::Int16: {
+            int16_t value;
+            memcpy(&value, valueBuf, sizeof(value));
+            return setValue(key, value, false);
+        }
+        case EmStorageItemType::UInt16: {
+            uint16_t value;
+            memcpy(&value, valueBuf, sizeof(value));
+            return setValue(key, value, false);
+        }
+        case EmStorageItemType::Int32: {
+            int32_t value;
+            memcpy(&value, valueBuf, sizeof(value));
+            return setValue(key, value, false);
+        }
+        case EmStorageItemType::UInt32: {
+            uint32_t value;
+            memcpy(&value, valueBuf, sizeof(value));
+            return setValue(key, value, false);
+        }
+        case EmStorageItemType::Int64: {
+            int64_t value;
+            memcpy(&value, valueBuf, sizeof(value));
+            return setValue(key, value, false);
+        }
+        case EmStorageItemType::UInt64: {
+            uint64_t value;
+            memcpy(&value, valueBuf, sizeof(value));
+            return setValue(key, value, false);
+        }
+        case EmStorageItemType::Float: {
+            float value;
+            memcpy(&value, valueBuf, sizeof(value));
+            return setValue(key, value, false);
+        }
+        case EmStorageItemType::Double: {
+            double value;
+            memcpy(&value, valueBuf, sizeof(value));
+            return setValue(key, value, false);
+        }
+        case EmStorageItemType::Bytes:
+        case EmStorageItemType::TagValue:
+            return setBytes(key, valueBuf, valueLen, false);
+        case EmStorageItemType::String:
+            return setString(key, (const char*)valueBuf, false);
+    }
+    return false;
 }
 
 void EmStorage::end() {
     if (isInitialized()) {
         nvs_close(m_handle);
         m_handle = EM_STORAGE_NULL_HANDLE;
+        m_name = nullptr;
     }
 }
 
@@ -94,7 +143,7 @@ bool EmStorage::clear() const {
     }
     esp_err_t err = nvs_erase_all(m_handle);
     if (err) {
-        logError<50>("nvs_erase_all fail: %s", nvs_error(err));
+        logError<100>("nvs_erase_all fail: %s", nvs_error(err));
         return false;
     }
     return commit();
@@ -106,96 +155,75 @@ bool EmStorage::commit() const {
     }
     esp_err_t err = nvs_commit(m_handle);
     if (err) {
-        logError<50>("nvs_commit fail: %s", nvs_error(err));
+        logError<100>("nvs_commit fail: %s", nvs_error(err));
         return false;
     }
     return true;
 }
 
-size_t EmStorage::putValue(const char* key, 
-                           const EmTagValue& value, 
-                           bool commit,
-                           bool equalityCheckBeforeWrite) const {
+bool EmStorage::setValue(const char* key, 
+                         const EmTagValue& value, 
+                         bool commit,
+                         bool equalityCheckBeforeWrite) const {
     EmTagValueBuffer tagBuffer(value);
-    return putBytes(key, tagBuffer.buffer(), tagBuffer.size(), commit, equalityCheckBeforeWrite);
+    return setBytes(key, tagBuffer.getBuffer(), tagBuffer.getMaxSize(), commit, equalityCheckBeforeWrite);
 }
 
-size_t EmStorage::putString(const char* key, 
-                            const char* value, 
-                            bool commit,
-                            bool equalityCheckBeforeWrite) const {
-    if (!isInitialized() || !key || !value) {
-        return 0;
-    }    
-    // Avoid writing the same value again
-    if (equalityCheckBeforeWrite && isSameString(key, value)) {
-        return strlen(value); 
-    }
-    // Write the new value
-    esp_err_t err = nvs_set_str(m_handle, key, value);
-    if (err) {
-        logError<50>("nvs_set_str fail: %s %s", key, nvs_error(err));
-        return 0;
-    }
-    if (commit && !this->commit()) {
-        return 0;
-    }
-    return strlen(value);
-}
-
-size_t EmStorage::putBytes(const char* key, 
-                           const void* value, 
-                           size_t len, 
-                           bool commit,
-                           bool equalityCheckBeforeWrite) const {
+bool EmStorage::setBytes(const char* key, 
+                         const void* value, 
+                         size_t len, 
+                         bool commit,
+                         bool equalityCheckBeforeWrite) const {
     if (!isInitialized() || !key || !value || !len) {
-        return 0;
+        return false;
     }    
     // Avoid writing the same value again
     if (equalityCheckBeforeWrite && isSameBytes(key, value, len)) {
-        return len; 
+        return true; 
     }
     // Write the new value
-    esp_err_t err = nvs_set_blob(m_handle, key, value, len);
+    esp_err_t err = nvs_set_blob_(m_handle, key, value, len);
     if (err) {
-        logError<50>("nvs_set_blob fail: %s %s", key, nvs_error(err));
+        logError<100>("nvs_set_blob failed: %s - %s", key, nvs_error(err));
         return 0;
     }
     if (commit && !this->commit()) {
-        return 0;
+        return false;
     }
-    return len;
+    return true;
 }
 
-size_t EmStorage::getValue(const char* key, EmTagValue& value) const {
+bool EmStorage::getValue(const char* key, EmTagValue& value) const {
     size_t size = getBytesLength(key);
     if (size == 0) {
         return 0;
     }
     EmTagValueBuffer tagBuffer(size);
-    if (getBytes(key, tagBuffer.buffer(), tagBuffer.size()) != size) {
+    if (getBytes(key, tagBuffer.getBuffer(), tagBuffer.getMaxSize()) != size) {
         return 0;
     }
     return tagBuffer.toValue(value) ? size : 0;
 }
 
-size_t EmStorage::getString(const char* key, char* value, const size_t maxLen) const {
+bool EmStorage::getString(const char* key, 
+                          char* value, 
+                          const size_t maxLen) const {
     size_t len = 0;
     if (!isInitialized() || !key || !value || !maxLen) {
         return 0;
     }
-    esp_err_t err = nvs_get_str(m_handle, key, NULL, &len);
+    esp_err_t err = nvs_get_str_(m_handle, key, NULL, &len);
     if (err) {
-        logDebug<50>("nvs_get_str len fail: %s %s", key, nvs_error(err));
+        logDebug<100>("nvs_get_str len failed: %s - %s", key, nvs_error(err));
         return 0;
     }
     if (len > maxLen) {
-        logError<50>("not enough space in value: %u < %u", maxLen, len);
+        logError<100>("not enough space in value: %u < %u", maxLen, len);
         return 0;
     }
-    err = nvs_get_str(m_handle, key, value, &len);
+    err = nvs_get_str_(m_handle, key, value, &len);
     if (err) {
-        logError<50>("nvs_get_str fail: %s %s", key, nvs_error(err));
+        logError<100>("nvs_get_str failed: %s - %s", key, nvs_error(err));
         return 0;
     }
     return len;
@@ -206,9 +234,9 @@ size_t EmStorage::getBytesLength(const char* key) const {
     if (!isInitialized() || !key) {
         return 0;
     }
-    esp_err_t err = nvs_get_blob(m_handle, key, NULL, &len);
+    esp_err_t err = nvs_get_blob_(m_handle, key, NULL, &len);
     if (err) {
-        logDebug<50>("nvs_get_blob len fail: %s %s", key, nvs_error(err));
+        logDebug<100>("nvs_get_blob len failed: %s - %s", key, nvs_error(err));
         return 0;
     }
     return len;
@@ -219,26 +247,28 @@ size_t EmStorage::getStringLength(const char* key) const {
     if (!isInitialized() || !key) {
         return 0;
     }
-    esp_err_t err = nvs_get_str(m_handle, key, NULL, &len);
+    esp_err_t err = nvs_get_str_(m_handle, key, NULL, &len);
     if (err) {
-        logDebug<50>("nvs_get_str len fail: %s %s", key, nvs_error(err));
+        logDebug<100>("nvs_get_str len failed: %s - %s", key, nvs_error(err));
         return 0;
     }
     return len;
 }
 
-size_t EmStorage::getBytes(const char* key, void * buf, size_t maxLen) const {
+bool EmStorage::getBytes(const char* key, 
+                         void * buf, 
+                         size_t maxLen) const {
     size_t len = getBytesLength(key);
     if (!len || !buf || !maxLen) {
         return len;
     }
     if (len > maxLen) {
-        logError<50>("not enough space in buffer: %u < %u", maxLen, len);
+        logError<100>("not enough space in buffer: %u < %u", maxLen, len);
         return 0;
     }
-    esp_err_t err = nvs_get_blob(m_handle, key, buf, &len);
+    esp_err_t err = nvs_get_blob_(m_handle, key, buf, &len);
     if (err) {
-        logError<50>("nvs_get_blob fail: %s %s", key, nvs_error(err));
+        logError<100>("nvs_get_blob failed: %s - %s", key, nvs_error(err));
         return 0;
     }
     return len;
@@ -261,12 +291,12 @@ bool EmStorage::isSameString(const char* key, const char* value) const {
         return false;
     }
     // Check the actual string
-    EmAutoPtr<char[]> currBuf(new char[len+1]);
-    esp_err_t err = nvs_get_str(m_handle, key, currBuf.get(), &len);
+    EmSboBuffer<char, 512> currBuf(len+1);
+    esp_err_t err = nvs_get_str_(m_handle, key, currBuf.getBuffer(), &len);
     if (err) {
         return false;
     }
-    return memcmp(value, currBuf.get(), len);
+    return memcmp(value, currBuf.getBuffer(), len);
 }
 
 bool EmStorage::isSameBytes(const char* key, const void * buf, size_t len) const {
@@ -277,21 +307,98 @@ bool EmStorage::isSameBytes(const char* key, const void * buf, size_t len) const
     }
     // Check the actual bytes
     EmAutoPtr<char[]> currBuf(new char[len]);
-    esp_err_t err = nvs_get_blob(m_handle, key, currBuf.get(), &len);
+    esp_err_t err = nvs_get_blob_(m_handle, key, currBuf.get(), &len);
     if (err) {
         return false;
     }
     return 0==memcmp(buf, currBuf.get(), len);
 }
 
-size_t EmStorage::freeEntries() const {
+size_t EmStorage::getFreeEntriesCount() {
     nvs_stats_t nvs_stats;
-    esp_err_t err = nvs_get_stats(NULL, &nvs_stats);
+    esp_err_t err = nvs_get_stats(m_name, &nvs_stats);
     if (err) {
-        logError<50>("Failed to get nvs statistics");
+        logError<100>("Failed to get nvs statistics");
         return 0;
     }
     return nvs_stats.free_entries;
 }
 
+const char* EmStorage::getNvsKey(const char* key, EmNvsKeyString& keyBuffer) {
+    if (key == nullptr || keyBuffer == nullptr) {
+        return nullptr;
+    }
+
+    size_t len = strlen(key);
+
+    // Key already fits within the native NVS limits (i.e. < NVS_KEY_NAME_MAX_SIZE)
+    if (len < NVS_KEY_NAME_MAX_SIZE) {
+        return key;
+    }
+
+    // Key is too long (i.e >= NVS_KEY_NAME_MAX_SIZE). Compute FNV-1a 64-bit Hash
+    uint64_t hash = 14695981039346656037ULL; // FNV offset basis
+    const uint64_t fnvPrime = 1099511628211ULL; // FNV prime
+
+    for (size_t i = 0; i < len; ++i) {
+        hash ^= static_cast<uint8_t>(key[i]);
+        hash *= fnvPrime;
+    }
+
+    // Convert the 7 bytes (56 bits) into hex (avoids heavy sprintf)
+    const char hexChars[] = "0123456789ABCDF";
+    for (int i = 14; i >= 0; --i) {
+        keyBuffer.setAt(i, hexChars[hash & 0x0F]);
+        hash >>= 4;
+    }
+    keyBuffer.setAt(NVS_KEY_NAME_MAX_SIZE-1, 0);
+::logInfo<100>("EmStorage", "Set hashed key: %s", keyBuffer.c_str()); // CABBI
+    return keyBuffer.c_str();
+}
+
+bool EmStorage::iterateNamespaces(EmStorageNamespaceInfoCallback callback, void* user_arg) {
+    if (callback == NULL) {
+        return false;
+    }
+    
+    esp_partition_iterator_t part_it = esp_partition_find(ESP_PARTITION_TYPE_DATA, 
+                                                          ESP_PARTITION_SUBTYPE_DATA_NVS, 
+                                                          NULL);
+    if (part_it == NULL) {
+        return false;
+    }
+
+    while (part_it != NULL) {
+        const esp_partition_t* part = esp_partition_get(part_it);
+        callback(user_arg, part->label);
+        part_it = esp_partition_next(part_it);
+    }
+    
+    esp_partition_iterator_release(part_it);
+    return true;
+}
+
+bool EmStorage::iterateNamespaceKeys(const char* name, EmStorageKeyInfoCallback callback, void* user_arg) {
+    if (callback == NULL) {
+        return false;
+    }
+
+    // "nvs.st.ns" is the internal NVS system namespace that indexes all user namespaces
+    nvs_iterator_t it = NULL;
+    esp_err_t res = nvs_entry_find(name, "nvs.st.ns", NVS_TYPE_ANY, &it);
+    if (res == ESP_ERR_NVS_NOT_FOUND) {
+        return true;
+    } else if (res != ESP_OK) {
+        return false;
+    }
+
+    while (res == ESP_OK) {
+        nvs_entry_info_t info;
+        nvs_entry_info(it, &info);
+        callback(user_arg, info.namespace_name, info.key);
+        res = nvs_entry_next(&it);
+    }
+    nvs_release_iterator(it);
+    return true;
+}
 #endif

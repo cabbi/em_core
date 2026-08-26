@@ -270,17 +270,6 @@ EmStrResult EmStringBase::substring(size_t beginIndex, size_t endIndex, char* ou
     return set_(out, outMaxStrLen, m_buf + beginIndex, endIndex - beginIndex);
 }
 
-char EmStringBase::operator[](int i) const {
-    size_t len = length();
-    if (i < 0) {
-        i = static_cast<int>(len) + i;
-    }
-    if (i < 0 || i >= static_cast<int>(len)) {
-        return 0;
-    }
-    return m_buf[i];
-}
-
 bool EmStringBase::equals(const char* value, bool caseSensitive) const {
     // Treat nullptr as empty string
     if (value == nullptr) {

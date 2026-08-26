@@ -222,8 +222,37 @@ public:
     // Returns the char at the 'i' position or zero if 'i' is out of bounds.
     // If 'i' is negative it returns the char starting from end
     // (e.g. -1 returns the last char of the string).
-    char operator[](int i) const;
-    
+    // NOTE: we do not define the setter since we cannot "safety" handle 
+    //       the out of bounds case. Use 'setAt' instead.
+    char operator[](int i) const {
+        return normalizeIndex(i) ? m_buf[i] : 0;
+    }
+
+    // Sets a char at the 'i' position.
+    // NOTE: there is no check that 'i' is over the current string length
+    //       (e.g. If string length is 5 and you set the char at index 7, 
+    //             you will still have a string of length 5)
+    // Returns false if 'i' is out of capacity.
+    bool setAt(size_t i, char c) {
+        if (i > capacity()) {
+            return false;
+        }
+        m_buf[i] = c;
+        return true;
+    }
+
+    // Checks and normalize the 'i' position by handling negative number. 
+    // If 'i' is negative it returns the char starting from end
+    // (e.g. -1 returns the last char of the string).
+    // Returns false if 'i' is out of bounds.
+    bool normalizeIndex(int& i) const {
+        const size_t len = length();
+        if (i < 0) {
+            i = static_cast<int>(len) + i;
+        }
+        return (i >= 0 && i < static_cast<int>(len));
+    }
+
     // Equals
     bool equals(const char* value, bool caseSensitive = true) const;
     bool equals(const EmStringBase& value, bool caseSensitive = true) const {

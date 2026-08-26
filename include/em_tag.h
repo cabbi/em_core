@@ -11,6 +11,7 @@
 #include "em_string.h"
 #include "em_threading.h"
 #include "em_value_sync.h"
+#include "em_sbo_buffer.h"
 
 // Mutex parameter in case of multithreading
 #ifdef EM_MULTITHREAD
@@ -383,34 +384,23 @@ protected:
 // The tag value buffer class used to read and write a tag value in a memory buffer.
 // It uses a stack buffer for numeric values and a heap buffer for larger string values.
 // This is useful to avoid heap fragmentation when reading/writing tags from/to storage.
-class EmTagValueBuffer {
+class EmTagValueBuffer: public EmSboBuffer<char, 128> {
 public:
-    EmTagValueBuffer(const EmTagValueStruct& tagValue)
-     : m_HeapBuf(nullptr), m_bufSize(0) {
+    EmTagValueBuffer(const EmTagValueStruct& tagValue) {
         fromValue(tagValue);
     }
 
     EmTagValueBuffer(size_t bufSize)
-     : m_HeapBuf(nullptr), m_bufSize(0) {
-        preapareBuf_(bufSize);
-    }
+     : EmSboBuffer(bufSize) {}
 
     ~EmTagValueBuffer() {
         clear();
     }
 
-    void clear() {
-        if (m_HeapBuf) {
-            delete[] m_HeapBuf;
-        }
-        m_HeapBuf = nullptr;
-        memset(&m_StackBuf, 0, sizeof(m_StackBuf));
-        m_bufSize = 0;
-    }
-
     void fromValue(const EmTagValueStruct& tagValue) {
         const size_t valueSize = tagValue.getValueBufferSize();
-        char* buf = preapareBuf_(valueSize+1);
+        setMaxSize(valueSize+1);
+        char* buf = getBuffer();
         if (buf) {
             buf[0] = static_cast<char>(tagValue.getType());
             if (valueSize > 0) {
@@ -419,8 +409,8 @@ public:
         }
     }   
 
-    bool toValue(EmTagValueStruct& tagValue) const {
-        char* buf = buffer();
+    bool toValue(EmTagValueStruct& tagValue) {
+        char* buf = getBuffer();
         if (buf) {
             // Read type
             if (!isValidTagValueType(buf[0])) {
@@ -440,33 +430,6 @@ public:
         }
         return false;
     }
-
-    char* buffer() const {
-        if (0==m_bufSize) {
-            return nullptr;
-        }
-        return nullptr == m_HeapBuf ?  const_cast<char*>(m_StackBuf) : m_HeapBuf;
-    }  
-
-    size_t size() const {
-        return m_bufSize;
-    }   
-
-protected:
-    char* preapareBuf_(size_t bufSize) {
-        clear();
-        m_bufSize = bufSize;
-        if (m_bufSize > sizeof(m_StackBuf)) {
-            m_HeapBuf = new char[m_bufSize];
-            return m_HeapBuf;
-        }
-        return m_StackBuf; 
-    }
-
-    // Member vars
-    char* m_HeapBuf;
-    char m_StackBuf[1+sizeof(EmTagValueUnion)];
-    size_t m_bufSize;
 };
 
 
