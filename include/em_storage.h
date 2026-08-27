@@ -18,16 +18,11 @@
 
 using EmNvsKeyString = EmString<NVS_KEY_NAME_MAX_SIZE-1>;
 
-// The storage namespaces iteration callback
-// Note: a namespace name can be an hashed one due to user longer name
-typedef void (*EmStorageNamespaceInfoCallback)(void* user_arg, 
-                                               const char* namespaceName);
-
-// The storage key iteration callback
+// The storage namespaces & keys iteration callback
 // Note: a key can be an hashed one due to user longer key
-typedef void (*EmStorageKeyInfoCallback)(void* user_arg, 
-                                         const char* namespaceName, 
-                                         const char* keyName);
+typedef void (*EmStorageInfoCallback)(void* userArgs, 
+                                      const char* nameSpace, 
+                                      const char* keyName);
 
 // Possible storage items types (this is an extention of ESP-IDF ones)
 enum class EmStorageItemType: uint8_t {
@@ -74,7 +69,7 @@ constexpr const char* _nvs_errors[] = {"UNDEFINED ERROR",
 // allows to setup initial values before the storage is actually initialized.
 // This is usefull when using EmStorageValue classes in global objects providing an 'initValue'.
 class EmStorage: public EmLog {
-    static constexpr char c_ResetVersionKey[] = "!#rèsét_vèr#!"; // Let it be unique!
+    static constexpr char c_ResetVersionKey[] = "!#reset_ver#!"; // Let it be unique!
 public:
     EmStorage(const char* logContext="EmStorage", 
               EmLogLevel logLevel = EmLogLevel::global)
@@ -122,12 +117,11 @@ public:
     }
 
     // Sets the current reset version for this namespace (i.e. the name specified in the 'begin' method)
-    // Returns zero in case of error or storage object not being initialized.
+    // Returns the new version or zero in case of error or storage object not being initialized.
     uint16_t setCurrentResetVersion(uint16_t version) const {
-        if (isInitialized()) {
-            if (nvs_set_u16(m_handle, c_ResetVersionKey, version)==ESP_OK) {
-                return version;
-            }
+        if (isInitialized() &&
+            nvs_set_u16(m_handle, c_ResetVersionKey, version)==ESP_OK) {
+            return version;
         }
         return 0;
     }
@@ -250,7 +244,7 @@ public:
         }    
         // Check result
         if (err != ESP_OK) {
-            logError<100>("putValue failed: %s - %s", key, nvs_error(err));
+            logError<100>("setValue failed: %s - %s", key, nvs_error(err));
             return 0;
         }
         if (commit && !this->commit()) {
@@ -299,7 +293,7 @@ public:
     template<typename T>
     bool getValue(const char* key, T& value) const {
         if (!isInitialized() || !key) {
-            return 0;
+            return false;
         }
         // Key check (creating hash if key is too long!)
         EmNvsKeyString keyBuf;
@@ -308,7 +302,9 @@ public:
         using cleanType = std::decay_t<T>;
         esp_err_t err = ESP_FAIL;
         if constexpr (std::is_same_v<cleanType, bool>) {
-            err = nvs_get_i8(m_handle, key, (int8_t*)&value);
+            int8_t v;
+            err = nvs_get_i8(m_handle, key, &v);
+            value = static_cast<T>(v);
         } 
         else if constexpr (std::is_integral_v<T>) {
             if constexpr (sizeof(T) == 1) {
@@ -387,11 +383,11 @@ public:
             }
         } else {
             static_assert(always_false<cleanType>, "Unsupported value type!");
-            return 0;
+            return false;
         }    
         // Check result
         if (err != ESP_OK) {
-            logError<100>("putValue failed: %s - %s", key, nvs_error(err));
+            logError<100>("getValue failed: %s - %s", key, nvs_error(err));
             return false;
         }
         return true;
@@ -497,23 +493,23 @@ public:
     }
 
     
-    // Iterate al storage defined namespaces
-    static bool iterateNamespaces(EmStorageNamespaceInfoCallback callback, 
-                                  void* user_arg=nullptr);
-
-    // Iterate keys for current namespace
-    bool iterateNamespaceKeys(EmStorageKeyInfoCallback callback, 
-                              void* user_arg=nullptr) {
+    // Iterate keys for all namespaces
+    bool iterateKeys(EmStorageInfoCallback callback, void* userArgs=nullptr) {
         if (m_name != nullptr) {
-            return iterateNamespaceKeys(m_name, callback, user_arg);
+            return iterateNamespaceKeys(m_name, callback, userArgs);
         }
         return false;
     }
 
-    // Iterate key for a given namespace
+    // Iterate all storage defined namespaces and keys
+    static bool iterateNamespaces(EmStorageInfoCallback callback, void* userArgs=nullptr) {
+        return iterateNamespaceKeys(nullptr, callback, userArgs);
+    }
+
+    // Iterate keys for a given namespace
     static bool iterateNamespaceKeys(const char* name, 
-                                     EmStorageKeyInfoCallback callback, 
-                                     void* user_arg=nullptr);
+                                     EmStorageInfoCallback callback, 
+                                     void* userArgs=nullptr);
 
     // Generates a valid NVS key (NVS_KEY_NAME_MAX_SIZE-1 characters) from a long string.
     // If the input exceeds NVS_KEY_NAME_MAX_SIZE-1 chars, it computes a 56-bit hash and converts it to HEX.

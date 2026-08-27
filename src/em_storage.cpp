@@ -23,7 +23,7 @@ bool EmStorage::begin(const char * name, uint16_t resetVersion) {
     // Open ths nvs handle
     EmNvsKeyString keyBuf;
     err = nvs_open(getNvsKey(name, keyBuf), NVS_READWRITE, &m_handle);
-    if (err) {
+    if (err != ESP_OK) {
         logError<100>("Begin failed: %s", nvs_error(err));
         return false;
     }
@@ -142,7 +142,7 @@ bool EmStorage::clear() const {
         return false;
     }
     esp_err_t err = nvs_erase_all(m_handle);
-    if (err) {
+    if (err != ESP_OK) {
         logError<100>("nvs_erase_all fail: %s", nvs_error(err));
         return false;
     }
@@ -154,7 +154,7 @@ bool EmStorage::commit() const {
         return false;
     }
     esp_err_t err = nvs_commit(m_handle);
-    if (err) {
+    if (err != ESP_OK) {
         logError<100>("nvs_commit fail: %s", nvs_error(err));
         return false;
     }
@@ -183,7 +183,7 @@ bool EmStorage::setBytes(const char* key,
     }
     // Write the new value
     esp_err_t err = nvs_set_blob_(m_handle, key, value, len);
-    if (err) {
+    if (err != ESP_OK) {
         logError<100>("nvs_set_blob failed: %s - %s", key, nvs_error(err));
         return 0;
     }
@@ -202,7 +202,7 @@ bool EmStorage::getValue(const char* key, EmTagValue& value) const {
     if (getBytes(key, tagBuffer.getBuffer(), tagBuffer.getMaxSize()) != size) {
         return 0;
     }
-    return tagBuffer.toValue(value) ? size : 0;
+    return tagBuffer.toValue(value);
 }
 
 bool EmStorage::getString(const char* key, 
@@ -210,23 +210,23 @@ bool EmStorage::getString(const char* key,
                           const size_t maxLen) const {
     size_t len = 0;
     if (!isInitialized() || !key || !value || !maxLen) {
-        return 0;
+        return false;
     }
     esp_err_t err = nvs_get_str_(m_handle, key, NULL, &len);
-    if (err) {
-        logDebug<100>("nvs_get_str len failed: %s - %s", key, nvs_error(err));
-        return 0;
+    if (err != ESP_OK) {
+        logError<100>("nvs_get_str len failed: %s - %s", key, nvs_error(err));
+        return false;
     }
     if (len > maxLen) {
         logError<100>("not enough space in value: %u < %u", maxLen, len);
-        return 0;
+        return false;
     }
     err = nvs_get_str_(m_handle, key, value, &len);
-    if (err) {
+    if (err != ESP_OK) {
         logError<100>("nvs_get_str failed: %s - %s", key, nvs_error(err));
-        return 0;
+        return false;
     }
-    return len;
+    return true;
 }
 
 size_t EmStorage::getBytesLength(const char* key) const {
@@ -235,7 +235,7 @@ size_t EmStorage::getBytesLength(const char* key) const {
         return 0;
     }
     esp_err_t err = nvs_get_blob_(m_handle, key, NULL, &len);
-    if (err) {
+    if (err != ESP_OK) {
         logDebug<100>("nvs_get_blob len failed: %s - %s", key, nvs_error(err));
         return 0;
     }
@@ -248,7 +248,7 @@ size_t EmStorage::getStringLength(const char* key) const {
         return 0;
     }
     esp_err_t err = nvs_get_str_(m_handle, key, NULL, &len);
-    if (err) {
+    if (err != ESP_OK) {
         logDebug<100>("nvs_get_str len failed: %s - %s", key, nvs_error(err));
         return 0;
     }
@@ -260,18 +260,18 @@ bool EmStorage::getBytes(const char* key,
                          size_t maxLen) const {
     size_t len = getBytesLength(key);
     if (!len || !buf || !maxLen) {
-        return len;
+        return false;
     }
     if (len > maxLen) {
         logError<100>("not enough space in buffer: %u < %u", maxLen, len);
-        return 0;
+        return false;
     }
     esp_err_t err = nvs_get_blob_(m_handle, key, buf, &len);
-    if (err) {
+    if (err != ESP_OK) {
         logError<100>("nvs_get_blob failed: %s - %s", key, nvs_error(err));
-        return 0;
+        return false;
     }
-    return len;
+    return true;
 }
 
 bool EmStorage::isSameValue(const char* key, EmTagValue& value) const {
@@ -293,10 +293,10 @@ bool EmStorage::isSameString(const char* key, const char* value) const {
     // Check the actual string
     EmSboBuffer<char, 512> currBuf(len+1);
     esp_err_t err = nvs_get_str_(m_handle, key, currBuf.getBuffer(), &len);
-    if (err) {
+    if (err != ESP_OK) {
         return false;
     }
-    return memcmp(value, currBuf.getBuffer(), len);
+    return 0==memcmp(value, currBuf.getBuffer(), len);
 }
 
 bool EmStorage::isSameBytes(const char* key, const void * buf, size_t len) const {
@@ -308,7 +308,7 @@ bool EmStorage::isSameBytes(const char* key, const void * buf, size_t len) const
     // Check the actual bytes
     EmAutoPtr<char[]> currBuf(new char[len]);
     esp_err_t err = nvs_get_blob_(m_handle, key, currBuf.get(), &len);
-    if (err) {
+    if (err != ESP_OK) {
         return false;
     }
     return 0==memcmp(buf, currBuf.get(), len);
@@ -317,7 +317,7 @@ bool EmStorage::isSameBytes(const char* key, const void * buf, size_t len) const
 size_t EmStorage::getFreeEntriesCount() {
     nvs_stats_t nvs_stats;
     esp_err_t err = nvs_get_stats(m_name, &nvs_stats);
-    if (err) {
+    if (err != ESP_OK) {
         logError<100>("Failed to get nvs statistics");
         return 0;
     }
@@ -346,46 +346,24 @@ const char* EmStorage::getNvsKey(const char* key, EmNvsKeyString& keyBuffer) {
     }
 
     // Convert the 7 bytes (56 bits) into hex (avoids heavy sprintf)
-    const char hexChars[] = "0123456789ABCDF";
+    const char hexChars[] = "0123456789ABCDEF";
     for (int i = 14; i >= 0; --i) {
         keyBuffer.setAt(i, hexChars[hash & 0x0F]);
         hash >>= 4;
     }
     keyBuffer.setAt(NVS_KEY_NAME_MAX_SIZE-1, 0);
-::logInfo<100>("EmStorage", "Set hashed key: %s", keyBuffer.c_str()); // CABBI
     return keyBuffer.c_str();
 }
 
-bool EmStorage::iterateNamespaces(EmStorageNamespaceInfoCallback callback, void* user_arg) {
-    if (callback == NULL) {
-        return false;
-    }
-    
-    esp_partition_iterator_t part_it = esp_partition_find(ESP_PARTITION_TYPE_DATA, 
-                                                          ESP_PARTITION_SUBTYPE_DATA_NVS, 
-                                                          NULL);
-    if (part_it == NULL) {
-        return false;
-    }
-
-    while (part_it != NULL) {
-        const esp_partition_t* part = esp_partition_get(part_it);
-        callback(user_arg, part->label);
-        part_it = esp_partition_next(part_it);
-    }
-    
-    esp_partition_iterator_release(part_it);
-    return true;
-}
-
-bool EmStorage::iterateNamespaceKeys(const char* name, EmStorageKeyInfoCallback callback, void* user_arg) {
+bool EmStorage::iterateNamespaceKeys(const char* name, EmStorageInfoCallback callback, void* userArgs) {
     if (callback == NULL) {
         return false;
     }
 
     // "nvs.st.ns" is the internal NVS system namespace that indexes all user namespaces
+    EmNvsKeyString nameBuffer; 
     nvs_iterator_t it = NULL;
-    esp_err_t res = nvs_entry_find(name, "nvs.st.ns", NVS_TYPE_ANY, &it);
+    esp_err_t res = nvs_entry_find("nvs", getNvsKey(name, nameBuffer), NVS_TYPE_ANY, &it);
     if (res == ESP_ERR_NVS_NOT_FOUND) {
         return true;
     } else if (res != ESP_OK) {
@@ -395,7 +373,7 @@ bool EmStorage::iterateNamespaceKeys(const char* name, EmStorageKeyInfoCallback 
     while (res == ESP_OK) {
         nvs_entry_info_t info;
         nvs_entry_info(it, &info);
-        callback(user_arg, info.namespace_name, info.key);
+        callback(userArgs, info.namespace_name, info.key);
         res = nvs_entry_next(&it);
     }
     nvs_release_iterator(it);
