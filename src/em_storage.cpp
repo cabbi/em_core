@@ -30,15 +30,15 @@ bool EmStorage::begin(const char * name, uint16_t resetVersion) {
     m_name = name;
 
     // Reset version check
-    if (resetVersion > 0 &&                          // User asks version check!
-        resetVersion != getCurrentResetVersion() &&  // We have new version!
-        0 != setCurrentResetVersion(resetVersion)) { // We can set new version!
+    if (resetVersion > 0 && // User asks version check!
+        resetVersion != getCurrentResetVersion()) {
         if (!clear()) {
             nvs_close(m_handle);
             m_handle = EM_STORAGE_NULL_HANDLE;
             m_name = nullptr;
             return false;
         }
+        setCurrentResetVersion(resetVersion);
     }
 
     // Process pending initializations
@@ -46,7 +46,7 @@ bool EmStorage::begin(const char * name, uint16_t resetVersion) {
         bool commitNeeded = false;
         InitItem_* cur = m_initHead;
         while (cur) {
-            if (!hasKey(cur->key)) {
+            if (!hasKey(cur->key.c_str())) {
                 if (setValue_(cur->type, cur->key.c_str(), (void*)cur->bytes.getBuffer(), cur->len)) {
                     commitNeeded = true;
                 }
@@ -174,7 +174,7 @@ bool EmStorage::setBytes(const char* key,
                          size_t len, 
                          bool commit,
                          bool equalityCheckBeforeWrite) const {
-    if (!isInitialized() || !key || !value || !len) {
+    if (!isInitialized() || key == nullptr || value == nullptr || len == 0) {
         return false;
     }    
     // Avoid writing the same value again
@@ -196,10 +196,10 @@ bool EmStorage::setBytes(const char* key,
 bool EmStorage::getValue(const char* key, EmTagValue& value) const {
     size_t size = getBytesLength(key);
     if (size == 0) {
-        return 0;
+        return false;
     }
     EmTagValueBuffer tagBuffer(size);
-    if (getBytes(key, tagBuffer.getBuffer(), tagBuffer.getMaxSize()) != size) {
+    if (!getBytes(key, tagBuffer.getBuffer(), size)) {
         return 0;
     }
     return tagBuffer.toValue(value);
@@ -252,7 +252,7 @@ size_t EmStorage::getStringLength(const char* key) const {
         logDebug<100>("nvs_get_str len failed: %s - %s", key, nvs_error(err));
         return 0;
     }
-    return len;
+    return len-1; // -1 -> NVS gives back also null-terminator byte!
 }
 
 bool EmStorage::getBytes(const char* key, 
@@ -290,9 +290,9 @@ bool EmStorage::isSameString(const char* key, const char* value) const {
     if (currLen != len) {
         return false;
     }
-    // Check the actual string
+    // Check the actual string (+1 for the null termination)
     EmSboBuffer<char, 512> currBuf(len+1);
-    esp_err_t err = nvs_get_str_(m_handle, key, currBuf.getBuffer(), &len);
+    esp_err_t err = nvs_get_str_(m_handle, key, currBuf.getBuffer(), &len+1);
     if (err != ESP_OK) {
         return false;
     }
@@ -325,7 +325,7 @@ size_t EmStorage::getFreeEntriesCount() {
 }
 
 const char* EmStorage::getNvsKey(const char* key, EmNvsKeyString& keyBuffer) {
-    if (key == nullptr || keyBuffer == nullptr) {
+    if (key == nullptr) {
         return nullptr;
     }
 

@@ -215,7 +215,7 @@ public:
     int indexOf(const char* str, size_t fromIndex = 0) const;
 
     // 'const char*' casting operator.
-    operator const char*() const {
+    explicit operator const char*() const {
         return m_buf;
     }
     
@@ -307,14 +307,41 @@ private:
 inline bool operator==(const EmStringBase& a, const EmStringBase& b) {
     return a.equals(b, true);
 }
+inline bool operator==(const EmStringBase& a, const char* b) {
+    return a.equals(b, true);
+}
+inline bool operator==(const char* a, const EmStringBase& b) {
+    return b.equals(a, true);
+}
+// Avoid implicit conversions!
+template<typename T>
+bool operator==(const EmStringBase&, const T*) = delete;
+template<typename T>
+bool operator==(const T*, const EmStringBase&) = delete;
 
 inline bool operator!=(const EmStringBase& a, const EmStringBase& b) {
     return !a.equals(b, true);
 }
+inline bool operator!=(const EmStringBase& a, const char* b) {
+    return !a.equals(b, true);
+}
+inline bool operator!=(const char* a, const EmStringBase& b) {
+    return !b.equals(a, true);
+}
+// Avoid implicit conversions!
+template<typename T>
+bool operator!=(const EmStringBase&, const T*) = delete;
+template<typename T>
+bool operator!=(const T*, const EmStringBase&) = delete;
 
 inline bool operator >(const EmStringBase& a, const EmStringBase& b) {
     return strcmp(a.c_str(), b.c_str()) > 0;
 }
+// Avoid implicit conversions!
+template<typename T>
+bool operator>(const EmStringBase&, const T*) = delete;
+template<typename T>
+bool operator>(const T*, const EmStringBase&) = delete;
 
 inline bool operator >=(const EmStringBase& a, const EmStringBase& b) {
     return (a > b) || (a == b);

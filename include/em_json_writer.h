@@ -50,6 +50,9 @@ public:
         prefix();
         return m_target.appendFormat(false, "\"%s\":\"%s\"", key, value ? value : "") == EmStrResult::success;
     }
+    bool addString(const char* key, const EmStringBase& value) {
+        return addString(key, value.c_str());
+    }
 
     // Append Integer Values
     template<typename T>

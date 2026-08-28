@@ -119,9 +119,12 @@ public:
     // Sets the current reset version for this namespace (i.e. the name specified in the 'begin' method)
     // Returns the new version or zero in case of error or storage object not being initialized.
     uint16_t setCurrentResetVersion(uint16_t version) const {
-        if (isInitialized() &&
-            nvs_set_u16(m_handle, c_ResetVersionKey, version)==ESP_OK) {
-            return version;
+        if (isInitialized()) {
+            esp_err_t err = nvs_set_u16(m_handle, c_ResetVersionKey, version);
+            if (err == ESP_OK) {
+                return version;
+            }
+            logError<100>("setCurrentResetVersion FAILED! [%s]", nvs_error(err));
         }
         return 0;
     }
@@ -186,6 +189,7 @@ public:
         }    
         // Avoid writing the same value again
         if (equalityCheckBeforeWrite && isSameValue(key, value)) {
+            //logDebug<100>("'%s' already exists and has same value, no need to write it again!", key);
             return true; 
         }
         // Key check (creating hash if key is too long!)
