@@ -326,6 +326,7 @@ size_t EmStorage::getFreeEntriesCount() {
 
 const char* EmStorage::getNvsKey(const char* key, EmNvsKeyString& keyBuffer) {
     if (key == nullptr) {
+        keyBuffer.clear();
         return nullptr;
     }
 
@@ -333,6 +334,7 @@ const char* EmStorage::getNvsKey(const char* key, EmNvsKeyString& keyBuffer) {
 
     // Key already fits within the native NVS limits (i.e. < NVS_KEY_NAME_MAX_SIZE)
     if (len < NVS_KEY_NAME_MAX_SIZE) {
+        keyBuffer.set(key);
         return key;
     }
 

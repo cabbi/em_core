@@ -189,7 +189,7 @@ public:
         }    
         // Avoid writing the same value again
         if (equalityCheckBeforeWrite && isSameValue(key, value)) {
-            //logDebug<100>("'%s' already exists and has same value, no need to write it again!", key);
+            logDebug<100>("'%s' already exists and has same value, no need to write it again!", key);
             return true; 
         }
         // Key check (creating hash if key is too long!)
@@ -517,7 +517,7 @@ public:
 
     // Generates a valid NVS key (NVS_KEY_NAME_MAX_SIZE-1 characters) from a long string.
     // If the input exceeds NVS_KEY_NAME_MAX_SIZE-1 chars, it computes a 56-bit hash and converts it to HEX.
-    // keyBuffer is only used if input exceeds NVS_KEY_NAME_MAX_SIZE-1 chars.
+    // keyBuffer is always set to the 'key' even if input does not exceeds NVS_KEY_NAME_MAX_SIZE-1 chars.
     static const char* getNvsKey(const char* key, EmNvsKeyString& keyBuffer);
 
 protected:

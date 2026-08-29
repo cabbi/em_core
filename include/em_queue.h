@@ -2,6 +2,7 @@
 #define __EM_QUEUE_H__
 
 #include <stdint.h>
+#include "em_list.h"
 
 // Defines the queue type
 enum class EmQueueType : uint8_t {
