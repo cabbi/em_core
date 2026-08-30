@@ -57,7 +57,7 @@ public:
     bool getInt(const char* key, int32_t& outValue, const EmJsonInnerObj& scope = EmJsonInnerObj()) const;
     bool getFloat(const char* key, float& outValue, const EmJsonInnerObj& scope = EmJsonInnerObj()) const;
     bool getDouble(const char* key, double& outValue, const EmJsonInnerObj& scope = EmJsonInnerObj()) const;
-    bool getEpoch(const char* key, uint32_t& dest, const EmJsonInnerObj& scope = EmJsonInnerObj()) const;
+    bool getEpoch(const char* key, EmEpoch32& dest, const EmJsonInnerObj& scope = EmJsonInnerObj()) const;
     bool getTagValue(const char* key, EmTagValue& dest, const EmJsonInnerObj& scope = EmJsonInnerObj()) const;
 
     // Array handling methods

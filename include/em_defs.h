@@ -133,6 +133,82 @@
 #define MAX(x, y) ((x)>(y) ? (x) : (y))
 #endif
 
+// The explicit epoch type using 32 bits only
+// By using an uint32_t, the epoch will overflow on February 7, 2106
+struct EmEpoch32 {
+    uint32_t value;
+
+    EmEpoch32() : value(0) {}
+    explicit EmEpoch32(uint32_t val) : value(val) {}
+
+    static EmEpoch32 Zero() { return EmEpoch32(0); }
+    static EmEpoch32 Invalid() { return EmEpoch32(0); }
+
+    // Explicit conversion operator 
+    explicit operator uint32_t() const { return value; }
+
+    bool isZero() const { return value == 0; }
+    bool isInvalid() const { return value == 0; }
+    bool isValid() const { return value > 0; }
+
+    bool operator==(const EmEpoch32& other) const { return value == other.value; }
+    bool operator!=(const EmEpoch32& other) const { return value != other.value; }
+    bool operator< (const EmEpoch32& other) const { return value <  other.value; }
+    bool operator<=(const EmEpoch32& other) const { return value <= other.value; }
+    bool operator> (const EmEpoch32& other) const { return value >  other.value; }
+    bool operator>=(const EmEpoch32& other) const { return value >= other.value; }
+
+    EmEpoch32 operator+(uint32_t seconds) const {
+        return EmEpoch32(value + seconds);
+    }
+
+    EmEpoch32 operator-(uint32_t seconds) const {
+        return EmEpoch32(value - seconds);
+    }
+
+    EmEpoch32& operator+=(uint32_t seconds) {
+        value += seconds;
+        return *this;
+    }
+
+    EmEpoch32& operator-=(uint32_t seconds) {
+        value -= seconds;
+        return *this;
+    }
+
+    // Increment / Decrement
+    EmEpoch32& operator++() { 
+        ++value;
+        return *this;
+    }
+
+    EmEpoch32 operator++(int) { 
+        EmEpoch32 temp = *this;
+        ++value;
+        return temp;
+    }
+
+    EmEpoch32& operator--() { 
+        --value;
+        return *this;
+    }
+
+    EmEpoch32 operator--(int) { 
+        EmEpoch32 temp = *this;
+        --value;
+        return temp;
+    }
+};
+
+// Commutative helper: (seconds & epoch)
+inline EmEpoch32 operator+(uint32_t seconds, const EmEpoch32& epoch) {
+    return EmEpoch32(epoch.value + seconds);
+}
+inline EmEpoch32 operator-(uint32_t seconds, const EmEpoch32& epoch) {
+    return EmEpoch32(epoch.value - seconds);
+}
+
+
 // Returns the power of 10`^ exp as an integer number
 // This method will avoid using the "double pow10(...)" implementation
 inline int32_t iPow10(size_t exp) {

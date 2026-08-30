@@ -109,7 +109,7 @@ public:
     }
 
     // Append a timestamp epoch value
-    bool addTimestamp(const char* key, EmEpochType timestamp) {
+    bool addTimestamp(const char* key, const EmEpoch32& timestamp) {
         if (m_level == 0) {
             return false;
         }

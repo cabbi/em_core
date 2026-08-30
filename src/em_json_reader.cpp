@@ -83,7 +83,7 @@ bool EmJsonDictReader::getBool(const char* key, bool& outValue, const EmJsonInne
     return false;
 }
 
-bool EmJsonDictReader::getEpoch(const char* key, uint32_t& dest, const EmJsonInnerObj& scope) const {
+bool EmJsonDictReader::getEpoch(const char* key, EmEpoch32& dest, const EmJsonInnerObj& scope) const {
     const char* valptr = findValuePointer(key, scope);
     if (!valptr || *valptr != '"') {
         return false; // Key not found or value is not a string/timestamp
@@ -135,7 +135,7 @@ bool EmJsonDictReader::getEpoch(const char* key, uint32_t& dest, const EmJsonInn
     int32_t daysSinceEpoch = day + (153 * month - 457) / 5 + 365 * year + (year / 4) - (year / 100) + (year / 400) - 719469;
 
     // Convert total aggregated days and time offsets into final Unix seconds
-    dest = (uint32_t)(daysSinceEpoch * 86400) + (hour * 3600) + (minute * 60) + second;
+    dest.value = (uint32_t)(daysSinceEpoch * 86400) + (hour * 3600) + (minute * 60) + second;
     return true;
 }
 
@@ -168,7 +168,7 @@ bool EmJsonDictReader::getTagValue(const char* key, EmTagValue& dest, const EmJs
                 res = dest.setValue(value, true);
             } break;
         case (EmJsonValueType::vt_timestamp): {
-                uint32_t value;
+                EmEpoch32 value;
                 getEpoch(key, value);
                 res = dest.setEpoch(value, true);
             } break;

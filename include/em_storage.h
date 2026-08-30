@@ -591,7 +591,7 @@ private:
         }
         InitItem_(const char* key, const EmTagValue& value) {
             EmTagValueBuffer vb(value);
-            init_(key, EmStorageItemType::TagValue, vb.getBuffer(), vb.getMaxSize());
+            init_(key, EmStorageItemType::TagValue, vb.getBuffer(), vb.getSize());
         }
         ~InitItem_() = default;
 

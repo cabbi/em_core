@@ -166,7 +166,7 @@ bool EmStorage::setValue(const char* key,
                          bool commit,
                          bool equalityCheckBeforeWrite) const {
     EmTagValueBuffer tagBuffer(value);
-    return setBytes(key, tagBuffer.getBuffer(), tagBuffer.getMaxSize(), commit, equalityCheckBeforeWrite);
+    return setBytes(key, tagBuffer.getBuffer(), tagBuffer.getSize(), commit, equalityCheckBeforeWrite);
 }
 
 bool EmStorage::setBytes(const char* key, 
@@ -280,7 +280,8 @@ bool EmStorage::isSameValue(const char* key, EmTagValue& value) const {
         return isSameString(key, value.asString());
     }
     // Not a string, check the bytes
-    return isSameBytes(key, &value.asStruct(), sizeof(EmTagValueStruct));
+    EmTagValueBuffer vb(value);
+    return isSameBytes(key, vb.getBuffer(), vb.getSize());
 }
 
 bool EmStorage::isSameString(const char* key, const char* value) const {
@@ -306,12 +307,12 @@ bool EmStorage::isSameBytes(const char* key, const void * buf, size_t len) const
         return false;
     }
     // Check the actual bytes
-    EmAutoPtr<char[]> currBuf(new char[len]);
-    esp_err_t err = nvs_get_blob_(m_handle, key, currBuf.get(), &len);
+    EmSboBuffer<char, 512> currBuf(len);
+    esp_err_t err = nvs_get_blob_(m_handle, key, currBuf.getBuffer(), &len);
     if (err != ESP_OK) {
         return false;
     }
-    return 0==memcmp(buf, currBuf.get(), len);
+    return 0==memcmp(buf, currBuf.getBuffer(), len);
 }
 
 size_t EmStorage::getFreeEntriesCount() {

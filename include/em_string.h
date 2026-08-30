@@ -146,7 +146,7 @@ public:
     bool toUInt(uint32_t& value, bool strictParse = true) const;
 
     // Converts the string content to ISO8601 timestamp format (i.e. '%Y-%m-%dT%H:%M:%SZ')
-    bool toTimestamp(uint32_t epoch);    
+    bool toTimestamp(const EmEpoch32& epoch);    
 
     // Gets the string buffer.
     const char* c_str() const {
