@@ -9,6 +9,7 @@
 #include <ctype.h>
 
 #include "em_defs.h"
+#include "em_epoch.h"
 #include "em_optional.h"
 
 
@@ -146,7 +147,16 @@ public:
     bool toUInt(uint32_t& value, bool strictParse = true) const;
 
     // Converts the string content to ISO8601 timestamp format (i.e. '%Y-%m-%dT%H:%M:%SZ')
-    bool toTimestamp(const EmEpoch32& epoch);    
+    template<typename T>
+    bool toTimestamp(const EmEpoch<T>& epoch) {
+        if (m_capacity < 20) {
+            return false; // Not enough space for the timestamp
+        }
+        struct tm timeinfo;
+        time_t epochTime = static_cast<time_t>(epoch.value);
+        gmtime_r(&epochTime, &timeinfo); 
+        return strftime(m_buf, m_capacity, "%Y-%m-%dT%H:%M:%SZ", &timeinfo) > 0;
+    }    
 
     // Gets the string buffer.
     const char* c_str() const {
@@ -270,7 +280,7 @@ protected:
     EmStringBase(char* buffer, size_t capacity)
      : m_buf(buffer), m_capacity(capacity) {} 
 
-private:
+protected:
     char* const m_buf;
     const size_t m_capacity; // Capacity doesn't include null terminator
 };
@@ -300,8 +310,26 @@ public:
         set(initValue.c_str());
     }
 
-private:
+protected:
     char m_storage[Capacity + 1]; // Fixed-size memory block
+};
+
+// In case you really cannot live without a dynamically set string
+class EmHeapString : public EmStringBase {
+public:
+    EmHeapString(const char* initValue, size_t maxLen)
+     : EmStringBase(new char[maxLen+1], maxLen) {        
+        set(initValue);
+    }
+
+    EmHeapString(size_t maxLen)
+     : EmStringBase(new char[maxLen+1], maxLen){
+        clear();
+    }
+
+    ~EmHeapString() {
+        delete[] m_buf;
+    }
 };
 
 inline bool operator==(const EmStringBase& a, const EmStringBase& b) {

@@ -92,10 +92,12 @@ public:
     // Append Tag Value
     bool addTag(const char* key, const EmTagValue& value) {
         switch (value.getType()) {
-            case EmTagValueType::vt_boolean:
+            case EmTagValueType::vt_bool:
                 return addBool(key, value.asBool());
-            case EmTagValueType::vt_integer:
-                return addInt(key, value.asInteger());
+            case EmTagValueType::vt_int:
+                return addInt(key, value.asInt());
+            case EmTagValueType::vt_uint:
+                return addInt(key, value.asUInt());
             case EmTagValueType::vt_real:
                 return addReal(key, value.asReal());
             case EmTagValueType::vt_string:
@@ -109,7 +111,8 @@ public:
     }
 
     // Append a timestamp epoch value
-    bool addTimestamp(const char* key, const EmEpoch32& timestamp) {
+    template<typename T>
+    bool addTimestamp(const char* key, const EmEpoch<T>& timestamp) {
         if (m_level == 0) {
             return false;
         }

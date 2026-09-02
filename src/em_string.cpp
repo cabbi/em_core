@@ -128,16 +128,6 @@ bool EmStringBase::toUInt(uint32_t& value, bool strictParse) const {
     return success;
 }
 
-bool EmStringBase::toTimestamp(const EmEpoch32& epoch) {
-    if (m_capacity < 20) {
-        return false; // Not enough space for the timestamp
-    }
-    struct tm timeinfo;
-    time_t epochTime = static_cast<time_t>(epoch.value);
-    gmtime_r(&epochTime, &timeinfo); 
-    return strftime(m_buf, m_capacity, "%Y-%m-%dT%H:%M:%SZ", &timeinfo) > 0;
-}    
-
 bool EmStringBase::startsWith(const char* prefix) const {
     if (!prefix || strlen(prefix) == 0) {
         return false;

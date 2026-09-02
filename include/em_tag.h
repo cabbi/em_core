@@ -52,46 +52,36 @@ public:
     template<typename T>
     EmGetValueResult getValue(T& value) const {
         EmTagValue v;
-        getValue(v);
-        return v.getValue<T>(value);
+        if (getValue(v) != EmGetValueResult::failed) {
+            return v.getValue<T>(value);
+        }
+        return EmGetValueResult::failed;
     }
 
-    EmGetValueResult getValue(EmStringType& value) const {
+    EmGetValueResult getValue(EmStringBase& value) const {
         EmTagValue v;
-        getValue(v);
-        return v.getValue(value);
+        if (getValue(v) != EmGetValueResult::failed) {
+            return v.getValue(value);
+        }
+        return EmGetValueResult::failed;
     }
 
     // Convenience setValue overloads
-    virtual bool setValue(const bool value, bool forceType) {
+    template<typename T>
+    bool setValue(const T& value, bool forceType) {
         EmTagValue v;
         getValue(v);
         return v.setValue(value, forceType);
     }
-    virtual bool setValue(int32_t value, bool forceType) {
+    virtual bool setString(const EmStringBase& value) {
         EmTagValue v;
         getValue(v);
-        return v.setValue(value, forceType);
+        return v.setString(value);
     }
-    virtual bool setValue(float value, bool forceType) {
+    virtual bool setString(const char* value) {
         EmTagValue v;
         getValue(v);
-        return v.setValue(value, forceType);
-    }
-    virtual bool setValue(double value, bool forceType) {
-        EmTagValue v;
-        getValue(v);
-        return v.setValue(value, forceType);
-    }
-    virtual bool setValue(const EmStringType& value, bool forceType) {
-        EmTagValue v;
-        getValue(v);
-        return v.setValue(value, forceType);
-    }
-    virtual bool setValue(const char* value, bool forceType) {
-        EmTagValue v;
-        getValue(v);
-        return v.setValue(value, forceType);
+        return v.setString(value);
     }
 
     template<typename T>
@@ -147,14 +137,7 @@ public:
         m_value(initValue) {}
 
     EmTag(const char* id, 
-          const char* initValue,
-          EmSyncFlags flags)
-      : EmTagBase(flags), 
-        m_id(id), 
-        m_value(initValue) {}
-
-    EmTag(const char* id, 
-          const EmStringType& initValue,
+          EmStringBase& initValue, // Need a permanent string object to hold the value since it is a pointer within EmTagValue
           EmSyncFlags flags)
       : EmTagBase(flags), 
         m_id(id), 
@@ -339,8 +322,8 @@ public:
         return getValue_<double>(tagId, value);
     }
 
-    virtual EmGetValueResult getValue(const char* tagId, EmStringType& value) const {
-        return getValue_<EmStringType>(tagId, value);
+    virtual EmGetValueResult getValue(const char* tagId, EmStringBase& value) const {
+        return getValue_<EmStringBase>(tagId, value);
     }
 
     virtual EmGetValueResult getValue(const char* tagId, EmTagValue& value) const {
@@ -364,8 +347,8 @@ public:
         return setValue_<double>(tagId, value, doSync);
     }
 
-    virtual bool setValue(const char* tagId, const EmStringType& value, bool doSync) {
-        return setValue_<EmStringType>(tagId, value, doSync);
+    virtual bool setValue(const char* tagId, const EmStringBase& value, bool doSync) {
+        return setValue_<EmStringBase>(tagId, value, doSync);
     }
 
     virtual bool setValue(const char* tagId, const char* value, bool doSync) {

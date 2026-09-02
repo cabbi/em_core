@@ -83,62 +83,6 @@ bool EmJsonDictReader::getBool(const char* key, bool& outValue, const EmJsonInne
     return false;
 }
 
-bool EmJsonDictReader::getEpoch(const char* key, EmEpoch32& dest, const EmJsonInnerObj& scope) const {
-    const char* valptr = findValuePointer(key, scope);
-    if (!valptr || *valptr != '"') {
-        return false; // Key not found or value is not a string/timestamp
-    }
-
-    // Move past the opening quotation mark
-    valptr++;
-
-    // Validate minimum structural spacing for an ISO 8601 timestamp (YYYY-MM-DD)
-    // Indexes: 0123 4 56 7 89
-    // Format:  2026 - 07 - 05
-    if (valptr[4] != '-' || valptr[7] != '-') {
-        return false; 
-    }
-
-    // Lambda helper or inline conversion for zero-heap integer parsing
-    auto parse2Digits = [](const char* p) -> int {
-        return (p[0] - '0') * 10 + (p[1] - '0');
-    };
-
-    int year = (valptr[0] - '0') * 1000 + (valptr[1] - '0') * 100 + (valptr[2] - '0') * 10 + (valptr[3] - '0');
-    int month = parse2Digits(&valptr[5]);
-    int day = parse2Digits(&valptr[8]);
-
-    int hour = 0;
-    int minute = 0;
-    int second = 0;
-
-    // Optional: Parse time block if present (looks for 'T' or a space separating date and time)
-    if (valptr[10] == 'T' || valptr[10] == ' ') {
-        hour = parse2Digits(&valptr[11]);
-        minute = parse2Digits(&valptr[14]);
-        second = parse2Digits(&valptr[17]);
-    }
-
-    // Basic structural sanitization boundary limits
-    if (year < 1970 || month < 1 || month > 12 || day < 1 || day > 31 || 
-        hour > 23 || minute > 59 || second > 60) {
-        return false;
-    }
-
-    // Zero-heap UTC epoch conversion algorithm (Unix Time)
-    if (month < 3) {
-        month += 12;
-        year -= 1;
-    }
-
-    // Calculate total days since 1970 using standard Gregorian calendar rules
-    int32_t daysSinceEpoch = day + (153 * month - 457) / 5 + 365 * year + (year / 4) - (year / 100) + (year / 400) - 719469;
-
-    // Convert total aggregated days and time offsets into final Unix seconds
-    dest.value = (uint32_t)(daysSinceEpoch * 86400) + (hour * 3600) + (minute * 60) + second;
-    return true;
-}
-
 bool EmJsonDictReader::getTagValue(const char* key, EmTagValue& dest, const EmJsonInnerObj& scope) const {
     bool res = true;
     EmJsonValueType valueType = getValueType(key, scope);
@@ -147,7 +91,7 @@ bool EmJsonDictReader::getTagValue(const char* key, EmTagValue& dest, const EmJs
                 EmStringM value;
                 getString(key, value);
                 logDebug<100>("Json", "getTagValue(%s, %s) [STR]",key, value.c_str());                 
-                res = dest.setValue(value.c_str(), true);                
+                res = dest.setString(value.c_str());                
             } break;
         case (EmJsonValueType::vt_integer): {
                 int32_t value;
@@ -161,7 +105,7 @@ bool EmJsonDictReader::getTagValue(const char* key, EmTagValue& dest, const EmJs
                 logDebug<100>("Json", "getTagValue(%s, %g) [FLOAT]",key, value);                 
                 res = dest.setValue(value, true);
             } break;
-        case (EmJsonValueType::vt_boolean): {
+        case (EmJsonValueType::vt_bool): {
                 bool value;
                 getBool(key, value);
                 logDebug<100>("Json", "getTagValue(%s, %s) [BOOL]",key, value?"TRUE":"FALSE");                 
@@ -219,7 +163,7 @@ EmJsonValueType EmJsonDictReader::getValueType(const char* key, const EmJsonInne
 
     // 5. Boolean
     if (strncmp(valptr, "true", 4) == 0 || strncmp(valptr, "false", 5) == 0) {
-        return EmJsonValueType::vt_boolean;
+        return EmJsonValueType::vt_bool;
     }
 
     // 6. Numbers (Integer vs Real)
