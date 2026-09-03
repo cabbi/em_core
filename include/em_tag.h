@@ -15,7 +15,13 @@ class EmTagBase: public EmSyncValue<EmValue<EmTagValue>, EmTagValue>,
 public:
     EmTagBase(EmSyncFlags flags)
      : EmSyncValue<EmValue<EmTagValue>, EmTagValue>(flags) {}
-    
+
+    // No default copy and move constructor and assignment
+    EmTagBase(const EmTagBase& other) = delete;
+    EmTagBase(EmTagBase&& other) = delete;
+    EmTagBase& operator=(const EmTagBase& other) = delete;
+    EmTagBase& operator=(EmTagBase&& other) = delete;
+
     // Base methods to be implemented by derived classes
     virtual const char* getId() const = 0;
 
@@ -30,18 +36,18 @@ public:
 
     // Base operators
     virtual bool operator==(const EmTagBase& other) const {
+        if (!match(*this, other)) {
+            return false;
+        }
         EmTagValue thisValue, otherValue;
         getValue(thisValue);
         other.getValue(otherValue);
-        return match(*this, other) && thisValue == otherValue;
+        return thisValue == otherValue;
     }
 
     virtual bool operator!=(const EmTagBase& other) const {
         return !(*this == other);
     }
-
-    // It makes no sense to have the = operator since setting right Tag might fail if of different type.
-    EmTagBase& operator=(const EmTagBase& other) = delete;
 
     // Custom comparison function for EmList
     static bool match(const EmTagBase& item1, const EmTagBase& item2) {
@@ -52,46 +58,45 @@ public:
     template<typename T>
     EmGetValueResult getValue(T& value) const {
         EmTagValue v;
-        if (getValue(v) != EmGetValueResult::failed) {
+        EmGetValueResult res = getValue(v);
+        if (res != EmGetValueResult::failed) {
             return v.getValue<T>(value);
         }
-        return EmGetValueResult::failed;
+        return res;
     }
 
     EmGetValueResult getValue(EmStringBase& value) const {
         EmTagValue v;
-        if (getValue(v) != EmGetValueResult::failed) {
+        EmGetValueResult res = getValue(v);
+        if (res != EmGetValueResult::failed) {
             return v.getValue(value);
         }
-        return EmGetValueResult::failed;
-    }
-
-    // Convenience setValue overloads
-    template<typename T>
-    bool setValue(const T& value, bool forceType) {
-        EmTagValue v;
-        getValue(v);
-        return v.setValue(value, forceType);
-    }
-    virtual bool setString(const EmStringBase& value) {
-        EmTagValue v;
-        getValue(v);
-        return v.setString(value);
-    }
-    virtual bool setString(const char* value) {
-        EmTagValue v;
-        getValue(v);
-        return v.setString(value);
+        return res;
     }
 
     template<typename T>
     T as() const {
-        EmTagValue tagVal;
-        if (getValue(tagVal) != EmGetValueResult::failed) {
-            return tagVal.as<T>();
+        EmTagValue v;
+        EmGetValueResult res = getValue(v);
+        if (res != EmGetValueResult::failed) {
+            return v.as<T>();
         }
         return T();
     }
+
+    // Convenience setValue overloads
+/* TODO
+    template<typename T>
+    bool setValue(const T& value, bool forceType) {
+    }
+
+    virtual bool setString(const EmStringBase& value) {
+        return setString(value.c_str());
+    }
+
+    virtual bool setString(const char* value) {        
+    }
+*/        
 };
 
 class EmTagsAdd;
@@ -301,10 +306,33 @@ public:
     }
 
     EmTagSyncGroup* find(const char* tagId) const {
-        const EmTagSyncGroupBase* pGroup = m_groups.find(EmTagSyncGroupSearch(tagId));
-        return static_cast<EmTagSyncGroup*>(const_cast<EmTagSyncGroupBase*>(pGroup));
+        EmTagSyncGroupBase* pGroup = m_groups.find(EmTagSyncGroupSearch(tagId));
+        return static_cast<EmTagSyncGroup*>(pGroup);
     }
 
+    virtual EmGetValueResult getValue(const char* tagId, EmTagValue& value) {
+        // Find the group for the given tagId
+        EmTagSyncGroup* pTagGroup = find(tagId);
+        if (pTagGroup == nullptr) {
+            return EmGetValueResult::failed;
+        } 
+        // Retrieve the current value from the group and then get the value for the specific type.
+        return pTagGroup->getValue(value);
+    }    
+
+    virtual bool setValue(const char* tagId, const EmTagValue& value, bool doSync) {
+        EmTagSyncGroup* pTagGroup = find(tagId);
+        if (pTagGroup == nullptr) {
+            return false;
+        } 
+        bool res = pTagGroup->setValue(value, false);
+        if (res && doSync) {
+            return pTagGroup->doSync();
+        }
+        return res;
+    }
+
+/* TODO: review if those methods are needed
     // Convenience getValue overloads
     virtual EmGetValueResult getValue(const char* tagId, bool& value) const {
         return getValue_<bool>(tagId, value);
@@ -358,7 +386,7 @@ public:
     virtual bool setValue(const char* tagId, const EmTagValue& value, bool doSync) {
         return setValue_<EmTagValue>(tagId, value, doSync);
     }
-
+*/
 protected: 
     // A "dummy" class used to seach of existing groups.
     class EmTagSyncGroupSearch: public EmTagSyncGroupBase {
@@ -374,18 +402,21 @@ protected:
         const char* m_id; 
     };
 
+    /* TODO: review if those methods are needed
     template<typename T>
     EmGetValueResult getValue_(const char* tagId, T& value) const {
+        // Find the group for the given tagId
         EmTagSyncGroup* pTagGroup = find(tagId);
         if (pTagGroup == nullptr) {
             return EmGetValueResult::failed;
         } 
-        EmTagValue tagValue(value);
-        EmGetValueResult res = pTagGroup->getValue(tagValue);
-        if (res == EmGetValueResult::succeedNotEqualValue) {
-            tagValue.getValue(value);
+        // Retrieve the current value from the group and then get the value for the specific type.
+        EmTagValue currentValue;
+        EmGetValueResult res = pTagGroup->getValue(currentValue);
+        if (res == EmGetValueResult::failed) {
+            return res;
         }
-        return res;
+        return currentValue.getValue(value);
     }
 
     template<typename T>
@@ -394,9 +425,15 @@ protected:
         if (pTagGroup == nullptr) {
             return false;
         } 
-        return pTagGroup->setValue(value, doSync);
+        if (pTagGroup->setValue(value, false)) {
+            if (doSync) {
+                return pTagGroup->doSync();
+            }
+            return true;
+        }
+        return false;
     }
-
+    */
     EmList<EmTagSyncGroupBase> m_groups;
 };
 

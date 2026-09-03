@@ -267,6 +267,10 @@ public:
         return true;
     }
 
+    // Sets a value of any type. If forceType is true, the value type will be forced to   
+    // the new type, otherwise it will only be set if the type is same type or undefined.
+    // NOTE: setting a string (i.e. value being char*) will ignore the forceType 
+    //       parameter since a tag value string should be reference a EmString object.
     template<typename T>
     bool setValue(T value, bool forceType) {
         MUTEX_LOCK;
@@ -300,8 +304,8 @@ public:
             set_(EmTagValueType::vt_real, static_cast<EmRealType>(value));
         }            
         else if constexpr (std::is_same_v<cleanType, char*> || std::is_same_v<cleanType, const char*>) {
-            // TODO: this will IGNORE the forceType flag, since it is not possible to force a string type from a char*.
-            setString_(value);
+            // NOTE: this will IGNORE the forceType flag, since it is not possible to force a string type from a char*.
+            return setString_(value);
         } else {
             static_assert(always_false<cleanType>, "Unsupported value type!");
         }  
@@ -468,10 +472,11 @@ protected:
 
     bool setString_(const char* value) {  
         if (m_type == EmTagValueType::vt_string) {
-            // Already a string, just reassign the value to avoid delete/new cycle.
+            // Just reassign the value.
             m_value.as_string->set(value);
             return true;
         }
+        // If the type is undefined or not a string, we can create a new string object.
         return false;
     }
 
