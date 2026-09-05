@@ -194,11 +194,11 @@ bool EmStorage::setBytes(const char* key,
 }
 
 bool EmStorage::getValue(const char* key, EmTagValue& value) const {
+    EmTagValueBuffer tagBuffer;
     size_t size = getBytesLength(key);
-    if (size == 0) {
+    if (size == 0 || size != tagBuffer.getSize()) {
         return false;
     }
-    EmTagValueBuffer tagBuffer(size);
     if (!getBytes(key, tagBuffer.getBuffer(), size)) {
         return 0;
     }
@@ -275,11 +275,6 @@ bool EmStorage::getBytes(const char* key,
 }
 
 bool EmStorage::isSameValue(const char* key, EmTagValue& value) const {
-    // String special handling!?
-    if (value.getType() == EmTagValueType::vt_string) {
-        return isSameString(key, value.asString());
-    }
-    // Not a string, check the bytes
     EmTagValueBuffer vb(value);
     return isSameBytes(key, vb.getBuffer(), vb.getSize());
 }

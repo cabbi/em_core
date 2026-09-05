@@ -101,8 +101,8 @@
     #include "em_usb_serial.h"
 
     extern "C" {
-    inline uint32_t millis() {
-        return (uint32_t)(esp_timer_get_time() / 1000);
+    inline unsigned long millis() {
+        return (unsigned long)(esp_timer_get_time() / 1000);
     }
     }
     inline void restart() {

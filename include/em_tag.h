@@ -64,39 +64,6 @@ public:
         }
         return res;
     }
-
-    EmGetValueResult getValue(EmStringBase& value) const {
-        EmTagValue v;
-        EmGetValueResult res = getValue(v);
-        if (res != EmGetValueResult::failed) {
-            return v.getValue(value);
-        }
-        return res;
-    }
-
-    template<typename T>
-    T as() const {
-        EmTagValue v;
-        EmGetValueResult res = getValue(v);
-        if (res != EmGetValueResult::failed) {
-            return v.as<T>();
-        }
-        return T();
-    }
-
-    // Convenience setValue overloads
-/* TODO
-    template<typename T>
-    bool setValue(const T& value, bool forceType) {
-    }
-
-    virtual bool setString(const EmStringBase& value) {
-        return setString(value.c_str());
-    }
-
-    virtual bool setString(const char* value) {        
-    }
-*/        
 };
 
 class EmTagsAdd;
@@ -114,13 +81,6 @@ public:
     EmTag(const char* id, EmSyncFlags flags, EmTagsAdd& tags);
 
     EmTag(const char* id, 
-          const EmTagValue& initValue,
-          EmSyncFlags flags)
-      : EmTagBase(flags), 
-        m_id(id), 
-        m_value(initValue) {}
-
-    EmTag(const char* id, 
           bool initValue,
           EmSyncFlags flags)
       : EmTagBase(flags), 
@@ -128,7 +88,42 @@ public:
         m_value(initValue) {}
 
     EmTag(const char* id, 
-          int32_t initValue,
+          const EmTagValue& initValue,
+          EmSyncFlags flags)
+      : EmTagBase(flags), 
+        m_id(id), 
+        m_value(initValue) {}
+
+    EmTag(const char* id, 
+          EmIntType initValue,
+          EmSyncFlags flags)
+      : EmTagBase(flags), 
+        m_id(id), 
+        m_value(initValue) {}
+
+    EmTag(const char* id, 
+          EmUIntType initValue,
+          EmSyncFlags flags)
+      : EmTagBase(flags), 
+        m_id(id), 
+        m_value(initValue) {}
+
+    EmTag(const char* id, 
+          int initValue,
+          EmSyncFlags flags)
+      : EmTagBase(flags), 
+        m_id(id), 
+        m_value(initValue) {}
+
+    EmTag(const char* id, 
+          unsigned int initValue,
+          EmSyncFlags flags)
+      : EmTagBase(flags), 
+        m_id(id), 
+        m_value(initValue) {}
+
+    EmTag(const char* id, 
+          float initValue,
           EmSyncFlags flags)
       : EmTagBase(flags), 
         m_id(id), 
@@ -141,33 +136,45 @@ public:
         m_id(id), 
         m_value(initValue) {}
 
-    EmTag(const char* id, 
-          EmStringBase& initValue, // Need a permanent string object to hold the value since it is a pointer within EmTagValue
-          EmSyncFlags flags)
-      : EmTagBase(flags), 
-        m_id(id), 
-        m_value(initValue) {}
-
  
     virtual const char* getId() const override { return m_id; }
 
     using EmTagBase::getValue;
     using EmTagBase::setValue;
 
-    virtual EmTagValue getValue() const { return m_value; };
-
     virtual EmGetValueResult getValue(EmTagValue& value) const override {
         EmGetValueResult res = (value == m_value) ? EmGetValueResult::succeedEqualValue
                                                   : EmGetValueResult::succeedNotEqualValue;
         if (res == EmGetValueResult::succeedNotEqualValue) {
-            value = m_value;
+            if (!value.setValue(m_value)) {
+                return EmGetValueResult::failed;
+            }
         }
         return res;
     }
 
     virtual bool setValue(const EmTagValue& value) override {
-        m_value = value;
-        return true;
+        return m_value.setValue(value);
+    }
+
+    EmBoolType asBool() const {
+        return m_value.asBool();
+    }
+
+    EmIntType asInt() const {
+        return m_value.asInt();
+    }
+
+    EmUIntType asUInt() const {
+        return m_value.asUInt();
+    }
+
+    EmRealType asReal() const {
+        return m_value.asReal();
+    }
+
+    EmEpochType asEpoch() const {
+        return m_value.asEpoch();
     }
 };
 

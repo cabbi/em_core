@@ -23,9 +23,8 @@ enum class EmTagValueType: uint8_t {
     vt_uint      = 3,
     vt_real      = 4,
     vt_epoch     = 5,
-    vt_string    = 6,
     // Max enum value
-    _vt_MAX      = 6
+    _vt_MAX      = 5
 };
 
 inline bool isValidTagValueType(uint8_t type) {
@@ -50,12 +49,13 @@ class EmTagValueBuffer;
     #define MUTEX_LOCK
 #endif
 
-// The tag value class.
+// The numeric tag value class.
 //
 // This class is used to have a concrete implementation of value since 
 // 'EmTag' and 'EmTags' classes will not support templates.
 class EmTagValue: EmValue<EmTagValue> {
     friend class EmTagValueBuffer;
+    union EmTagValueUnion;
 public: 
     EmTagValue()
      : m_type(EmTagValueType::vt_undefined), m_value() {}
@@ -66,55 +66,35 @@ public:
     explicit EmTagValue(EmEpochType value)
      : m_type(EmTagValueType::vt_epoch), m_value(value) {}
 
-    explicit EmTagValue(EmStringBase& value)
-     : m_type(EmTagValueType::vt_string), m_value(value) {}
+    explicit EmTagValue(EmIntType value)
+     : m_type(EmTagValueType::vt_int), m_value(value) {}
 
-    template<typename T>
-    EmTagValue(const T& value) {
-        using cleanType = std::decay_t<T>;
-        if constexpr (std::is_integral_v<T>) {
-            if constexpr (std::is_signed_v<T>) {
-                set_(EmTagValueType::vt_int, static_cast<EmIntType>(value));
-            } else {
-                set_(EmTagValueType::vt_uint, static_cast<EmUIntType>(value));                
-            }
-        }
-        else if constexpr (std::is_enum_v<cleanType>) {
-            set_(EmTagValueType::vt_int, static_cast<EmIntType>(value));
-        }
-        else if constexpr (std::is_same_v<cleanType, float>) {
-            set_(EmTagValueType::vt_real, static_cast<EmRealType>(value));
-        }
-        else if constexpr (std::is_same_v<cleanType, double>) {
-            set_(EmTagValueType::vt_real, static_cast<EmRealType>(value));
-        }
-        else if constexpr (std::is_same_v<cleanType, char*> || std::is_same_v<cleanType, const char*>) {
-            static_assert(always_false<cleanType>, "Cannot initialize a string with a char*. Please use EmString object!");
-            
-        } else {
-            static_assert(always_false<cleanType>, "Unsupported value type!");
-        }    
-    }
+    explicit EmTagValue(EmUIntType value)
+     : m_type(EmTagValueType::vt_uint), m_value(value) {}
 
-    // Simple copy constructor
+    explicit EmTagValue(int value)
+     : m_type(EmTagValueType::vt_int), m_value(static_cast<EmIntType>(value)) {}
+
+    explicit EmTagValue(unsigned int value)
+     : m_type(EmTagValueType::vt_uint), m_value(static_cast<EmUIntType>(value)) {}
+
+    explicit EmTagValue(float value)
+     : m_type(EmTagValueType::vt_real), m_value(static_cast<EmRealType>(value)) {}
+
+    explicit EmTagValue(double value)
+     : m_type(EmTagValueType::vt_real), m_value(static_cast<EmRealType>(value)) {}
+
+
     EmTagValue(const EmTagValue& other) {
-        setValue(other);
-    }
+        m_type = other.m_type;
+        m_value = other.m_value; // TODO: can we have this? Not that other goes out of scope sooner than this!?
+    };
 
-    // Move constructor same as copy, non need to free anything!
-    EmTagValue(EmTagValue&& other) {
-        setValue(other);
-    }
-
-    // Simple copy operator
     EmTagValue& operator=(const EmTagValue& other) {
-        setValue(other);
-        return *this;
-    }
-
-    // Move operator same as copy, non need to free anything!
-    EmTagValue& operator=(EmTagValue&& other) {
-        setValue(other);
+        if (this != &other) {
+            m_type = other.m_type;
+            m_value = other.m_value; // TODO: can we have this? Not that other goes out of scope sooner than this!?
+        }
         return *this;
     }
 
@@ -131,6 +111,14 @@ public:
     bool isSameType(EmTagValueType type) const {
         MUTEX_LOCK;
         return m_type == type;
+    }
+
+    bool isNotSameType(const EmTagValue& other) const {
+        return !isSameType(other);
+    }
+
+    bool isNotSameType(EmTagValueType type) const {
+        return !isSameType(type);
     }
 
     bool isUndefinedType () const { 
@@ -177,88 +165,75 @@ public:
         return m_value.as_epoch;
     }
 
-    // Returns null if the value is not a string or if the string is empty.
-    const char* asString() const {
-        MUTEX_LOCK;
-        if (m_type != EmTagValueType::vt_string || m_value.as_string == nullptr) {
-            return nullptr;
-        }
-        return m_value.as_string->c_str();
-    }
-
-    template<typename T>
-    T as() const {
-        using cleanType = std::decay_t<T>;
-        if constexpr (std::is_same_v<cleanType, EmBoolType>) {
-            return asBool();
-        }
-        else if constexpr (std::is_enum_v<cleanType>) {
-            return static_cast<T>(asInt());
-        }
-        else if constexpr (std::is_integral_v<T>) {
-            if constexpr (std::is_signed_v<T>) {
-                return asInt();
-            } else {
-                return asUInt();
-            }
-        }
-        else if constexpr (std::is_same_v<cleanType, float> || std::is_same_v<cleanType, double>) {
-            return asReal();
-        }
-        else if constexpr (std::is_same_v<cleanType, EmEpoch32> || std::is_same_v<cleanType, EmEpoch64>) {
-            return asEpoch();
-        }
-        else if constexpr (std::is_same_v<cleanType, char*> || std::is_same_v<cleanType, const char*> ||
-                           std::is_same_v<cleanType, EmStringBase>) {
-            return asString();            
-        } else {
-            static_assert(always_false<cleanType>, "Unsupported value type!");
-        }  
-        return T();
-    }
-
-    // EmValue implementation
-    template<typename T>
-    EmGetValueResult getValue(T& value) const {
-        if (*this == value) {
-            return EmGetValueResult::succeedEqualValue;
-        }
-        value = as<T>();
-        return EmGetValueResult::succeedNotEqualValue;
-    }
-
-    EmGetValueResult getValue(EmStringBase& value) const {
-        MUTEX_LOCK;
-        if (m_type != EmTagValueType::vt_string) {
-            return EmGetValueResult::failed;
-        }
-        EmGetValueResult res = (value == *m_value.as_string)
-                               ? EmGetValueResult::succeedEqualValue 
-                               : EmGetValueResult::succeedNotEqualValue;
-        value.set(*m_value.as_string);
-        return res;
-    }
-
     EmGetValueResult getValue(EmTagValue& value) const {
         // Is already equal
         if (*this == value) {
             return EmGetValueResult::succeedEqualValue; 
         }
         // Compatible type?
-        if (!isSameType(value) && value.isNotUndefinedType()) {
+        if (isNotSameType(value) && value.isNotUndefinedType()) {
             return EmGetValueResult::failed;
         }
         // Set new value
-        value.setValue(*this);
-        return EmGetValueResult::succeedNotEqualValue;        
+        if (value.setValue(*this)) {
+            return EmGetValueResult::succeedNotEqualValue;
+        }
+        return EmGetValueResult::failed;
     }
-    
-    template<class T>
-    void set(EmTagValueType type, T value) { 
+
+    EmGetValueResult getValue(EmBoolType& value) const {
         MUTEX_LOCK;
-        set_(type, value);
+        if (m_value.as_bool == value) {
+            return EmGetValueResult::succeedEqualValue;
+        }
+        value = m_value.as_bool;
+        return EmGetValueResult::succeedNotEqualValue;
     }
-    
+
+    EmGetValueResult getValue(EmIntType& value) const {
+        MUTEX_LOCK;
+        if (m_value.as_int == value) {
+            return EmGetValueResult::succeedEqualValue;
+        }
+        value = m_value.as_int;
+        return EmGetValueResult::succeedNotEqualValue;
+    }
+
+    EmGetValueResult getValue(EmUIntType& value) const {
+        MUTEX_LOCK;
+        if (m_value.as_uint == value) {
+            return EmGetValueResult::succeedEqualValue;
+        }
+        value = m_value.as_uint;
+        return EmGetValueResult::succeedNotEqualValue;
+    }
+
+    EmGetValueResult getValue(int& value) const {
+        return getValue(reinterpret_cast<EmIntType&>(value));
+    }
+
+    EmGetValueResult getValue(unsigned int& value) const {
+        return getValue(reinterpret_cast<EmUIntType&>(value));
+    }
+
+    EmGetValueResult getValue(float& value) const {
+        MUTEX_LOCK;
+        if (static_cast<float>(m_value.as_real) == value) {
+            return EmGetValueResult::succeedEqualValue;
+        }
+        value = static_cast<float>(m_value.as_real);
+        return EmGetValueResult::succeedNotEqualValue;
+    }
+
+    EmGetValueResult getValue(double& value) const {
+        MUTEX_LOCK;
+        if (static_cast<double>(m_value.as_real) == value) {
+            return EmGetValueResult::succeedEqualValue;
+        }
+        value = static_cast<double>(m_value.as_real);
+        return EmGetValueResult::succeedNotEqualValue;
+    }
+  
     // EmValue implementation
     bool setValue(const EmTagValue& value) {
         MUTEX_LOCK;
@@ -267,71 +242,83 @@ public:
         return true;
     }
 
+    void setValue(EmTagValueType type, const EmTagValueUnion& value) { 
+        MUTEX_LOCK;
+        set_(type, value);
+    }
+
     // Sets a value of any type. If forceType is true, the value type will be forced to   
     // the new type, otherwise it will only be set if the type is same type or undefined.
-    // NOTE: setting a string (i.e. value being char*) will ignore the forceType 
-    //       parameter since a tag value string should be reference a EmString object.
-    template<typename T>
-    bool setValue(T value, bool forceType) {
+    bool setValue(EmBoolType value, bool forceType) {
         MUTEX_LOCK;
-        using cleanType = std::decay_t<T>;
-        if constexpr (std::is_same_v<cleanType, EmBoolType>) {
-            if (!forceType && m_type != EmTagValueType::vt_bool && m_type != EmTagValueType::vt_undefined) {
-                return false;
-            }
-            set_(EmTagValueType::vt_bool, value);
+        if (!forceType && m_type != EmTagValueType::vt_bool && m_type != EmTagValueType::vt_undefined) {
+            return false;
         }
-        else if constexpr (std::is_integral_v<T>) {
-            if (!forceType && m_type != EmTagValueType::vt_int && m_type != EmTagValueType::vt_undefined) {
-                return false;
-            }
-            if constexpr (std::is_signed_v<T>) {
-                set_(EmTagValueType::vt_int, static_cast<EmUIntType>(value));
-            } else {
-                set_(EmTagValueType::vt_uint, static_cast<EmUIntType>(value));                
-            }
-        }
-        else if constexpr (std::is_enum_v<cleanType>) {
-            if (!forceType && m_type != EmTagValueType::vt_int && m_type != EmTagValueType::vt_undefined) {
-                return false;
-            }
-            set_(EmTagValueType::vt_int, static_cast<EmIntType>(value));
-        }
-        else if constexpr (std::is_same_v<cleanType, float> || std::is_same_v<cleanType, double>) {
-            if (!forceType && m_type != EmTagValueType::vt_int && m_type != EmTagValueType::vt_undefined) {
-                return false;
-            }
-            set_(EmTagValueType::vt_real, static_cast<EmRealType>(value));
-        }            
-        else if constexpr (std::is_same_v<cleanType, char*> || std::is_same_v<cleanType, const char*>) {
-            // NOTE: this will IGNORE the forceType flag, since it is not possible to force a string type from a char*.
-            return setString_(value);
-        } else {
-            static_assert(always_false<cleanType>, "Unsupported value type!");
-        }  
+        m_type = EmTagValueType::vt_bool;
+        m_value.as_bool = value;
         return true;  
     }
 
-    // String value cannot be forced since it holds a pointer to the string object.
-    bool setString(const EmStringBase& value) {
-        return setString_(value.c_str());
-    }
-
-    bool setString(const char* value) {  
+    bool setValue(EmIntType value, bool forceType) {
         MUTEX_LOCK;
-        return setString_(value);
+        if (!forceType && m_type != EmTagValueType::vt_int && m_type != EmTagValueType::vt_undefined) {
+            return false;
+        }
+        m_type = EmTagValueType::vt_int;
+        m_value.as_int = value;
+        return true;  
     }
 
-    template<typename T>
-    bool setEpoch(const EmEpoch<T>& value, bool forceType) {
+    bool setValue(EmUIntType value, bool forceType) {
+        MUTEX_LOCK;
+        if (!forceType && m_type != EmTagValueType::vt_uint && m_type != EmTagValueType::vt_undefined) {
+            return false;
+        }
+        m_type = EmTagValueType::vt_uint;
+        m_value.as_uint = value;
+        return true;  
+    }
+
+    bool setValue(int value, bool forceType) {
+        return setValue(static_cast<EmIntType>(value), forceType);
+    }
+
+    bool setValue(unsigned int value, bool forceType) {
+        return setValue(static_cast<EmUIntType>(value), forceType); 
+    }
+
+    bool setValue(float value, bool forceType) {
+        MUTEX_LOCK;
+        if (!forceType && m_type != EmTagValueType::vt_real && m_type != EmTagValueType::vt_undefined) {
+            return false;
+        }
+        m_type = EmTagValueType::vt_real;
+        m_value.as_real = static_cast<EmRealType>(value);
+        return true;  
+    }
+
+    bool setValue(double value, bool forceType) {
+        MUTEX_LOCK;
+        if (!forceType && m_type != EmTagValueType::vt_real && m_type != EmTagValueType::vt_undefined) {
+            return false;
+        }
+        m_type = EmTagValueType::vt_real;
+        m_value.as_real = static_cast<EmRealType>(value);
+        return true;  
+    }
+
+    // Epoch value
+    bool setEpoch(const EmEpochType& value, bool forceType) {
         MUTEX_LOCK;
         if (!forceType && m_type != EmTagValueType::vt_epoch && m_type != EmTagValueType::vt_undefined) {
             return false;
         }
-        set_(EmTagValueType::vt_epoch, value);
+        m_type = EmTagValueType::vt_epoch;
+        m_value.as_epoch = value;
         return true;
     }
 
+    // Comparison operators
     bool operator==(const EmTagValue& other) const {
         MUTEX_LOCK;
         // Same type?
@@ -346,11 +333,6 @@ public:
             case EmTagValueType::vt_uint:      return this->m_value.as_uint == other.m_value.as_uint;
             case EmTagValueType::vt_real:      return this->m_value.as_real == other.m_value.as_real;
             case EmTagValueType::vt_epoch:     return this->m_value.as_epoch == other.m_value.as_epoch; // Richiede operator== su EmEpoch64/32
-            case EmTagValueType::vt_string: 
-                if (!m_value.as_string || !other.m_value.as_string) {
-                    return false;
-                } 
-                return *(m_value.as_string) == *(other.m_value.as_string);
         }
         return false;
     }
@@ -373,18 +355,13 @@ public:
             case EmTagValueType::vt_uint:      return m_value.as_uint > other.m_value.as_uint;
             case EmTagValueType::vt_real:      return m_value.as_real > other.m_value.as_real;
             case EmTagValueType::vt_epoch:     return m_value.as_epoch > other.m_value.as_epoch; // Richiede operator== su EmEpoch64/32
-            case EmTagValueType::vt_string: 
-                if (!m_value.as_string || !other.m_value.as_string) {
-                    return false;
-                } 
-                return *(m_value.as_string) > *(other.m_value.as_string);
         }
         return false;
     }
 
     bool operator >=(const EmTagValue& other) const {
         // Same type?
-        if (m_type != other.m_type) {
+        if (isNotSameType(other)) {
             return false;
         }
         return (*this > other) || (*this == other);
@@ -392,7 +369,7 @@ public:
 
     bool operator <=(const EmTagValue& other) const {
         // Same type?
-        if (m_type != other.m_type) {
+        if (isNotSameType(other)) {
             return false;
         }
         return !(*this > other);
@@ -400,7 +377,7 @@ public:
 
     bool operator <(const EmTagValue& other) const {
         // Same type?
-        if (m_type != other.m_type) {
+        if (isNotSameType(other)) {
             return false;
         }
         return !(*this >= other);
@@ -417,7 +394,6 @@ protected:
         EmUIntType    as_uint;
         EmRealType    as_real;
         EmEpochType   as_epoch;
-        EmStringBase* as_string;  // Storing pointers to keep size of union at 32/64 bit.
 
         EmTagValueUnion() = default;
         explicit EmTagValueUnion(EmBoolType value) { as_bool = value; }
@@ -426,7 +402,6 @@ protected:
         explicit EmTagValueUnion(EmUIntType value) { as_uint = value; }
         explicit EmTagValueUnion(float value) { as_real = value; }
         explicit EmTagValueUnion(double value) { as_real = value; }
-        explicit EmTagValueUnion(EmStringBase& value) { as_string = &value; }
     };
 
     void clear_() {
@@ -434,50 +409,18 @@ protected:
         m_value = {}; // Zero out the union
     }
     
-    template<class T>
-    void set_(EmTagValueType type, T value) { 
-        m_type = type;
-        m_value = EmTagValueUnion(value); 
-    }
-
     void set_(EmTagValueType type, const EmTagValueUnion& value) { 
         m_type = type;
         m_value = value; 
     }
 
-    void get_(EmTagValueType& type, EmTagValueUnion& value) { 
-        type = m_type;
-        value = m_value; 
-    }
-
-     size_t getValueBufferSize_() const {
-        MUTEX_LOCK;
-        switch (m_type) {
-            case EmTagValueType::vt_string:
-                return m_value.as_string ? m_value.as_string->length() + 1 : 0;
-            default:
-                return sizeof(m_value);
-        }
+    size_t getValueBufferSize_() const {
+        return sizeof(m_value);
     }
 
     const void* getValueBuffer_() const {
         MUTEX_LOCK;
-        switch (m_type) {
-            case EmTagValueType::vt_string:
-                return m_value.as_string ? m_value.as_string->c_str() : nullptr;
-            default:
-                return &m_value;
-        }
-    }
-
-    bool setString_(const char* value) {  
-        if (m_type == EmTagValueType::vt_string) {
-            // Just reassign the value.
-            m_value.as_string->set(value);
-            return true;
-        }
-        // If the type is undefined or not a string, we can create a new string object.
-        return false;
+        return &m_value;
     }
 
     // Membed vars
@@ -490,69 +433,50 @@ protected:
 
 
 // The tag value buffer class is used to read and write a tag value in a memory buffer.
-// It uses a small buffer optimization to avoid heap fragmentation when reading/writing tags from/to storage.
-class EmTagValueBuffer: public EmSboBuffer<char, 128> {
+class EmTagValueBuffer {
 public:
+    EmTagValueBuffer() {
+        clear();
+    }
+
     EmTagValueBuffer(const EmTagValue& tagValue) {
         fromValue(tagValue);
     }
-
-    EmTagValueBuffer(size_t bufMaxSize)
-     : EmSboBuffer(bufMaxSize) {}
 
     ~EmTagValueBuffer() {
         clear();
     }
 
     void clear() {
-        EmSboBuffer::clear();
-        m_size = 0;
+        memset(m_buf, 0, sizeof(m_buf));
     }
 
     void fromValue(const EmTagValue& tagValue) {
-        m_size = tagValue.getValueBufferSize_();
-        setMaxSize(m_size+1);
-        char* buf = getBuffer();
-        if (buf) {
-            buf[0] = static_cast<char>(tagValue.getType());
-            if (m_size > 0) {
-                memcpy(&buf[1], tagValue.getValueBuffer_(), m_size);
-            }
-        }
+        m_buf[0] = static_cast<char>(tagValue.getType());
+        memcpy(&m_buf[1], &tagValue.m_value, sizeof(EmTagValue::EmTagValueUnion));
     }   
 
     bool toValue(EmTagValue& tagValue) {
-        // Buffer stores a value?
-        if (getSize() == 0) {
+        // Read type
+        if (!isValidTagValueType(m_buf[0])) {
             return false;
         }
-        char* buf = getBuffer();
-        if (buf) {
-            // Read type
-            if (!isValidTagValueType(buf[0])) {
-                return false;
-            }
-            EmTagValueType type = static_cast<EmTagValueType>(buf[0]);
-            // Read value
-            if (type == EmTagValueType::vt_string) {
-                // For string type, the value is a null-terminated string stored in the buffer
-                const char* strValue = &buf[1];
-                tagValue.setString(strValue);
-            } else {
-                // For other types, the value is stored as binary data in the buffer
-                tagValue.set_(type, *reinterpret_cast<const EmTagValue::EmTagValueUnion*>(&buf[1]));
-            }
-            return true;
-        }
-        return false;
+        EmTagValueType type = static_cast<EmTagValueType>(m_buf[0]);
+        // Read value
+        tagValue.setValue(type, *reinterpret_cast<const EmTagValue::EmTagValueUnion*>(&m_buf[1]));
+        return true;
+    }
+
+    char* getBuffer() const {
+        return (char*)m_buf;
     }
 
     size_t getSize() const {
-        return m_size;
+        return sizeof(m_buf);
     }
 
-private:
-    size_t m_size = 0;
+protected:
+    char m_buf[sizeof(EmTagValueType) + sizeof(EmTagValue::EmTagValueUnion)];
 };
 
 #endif // EM_STD_LIB

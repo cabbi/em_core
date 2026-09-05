@@ -87,12 +87,6 @@ bool EmJsonDictReader::getTagValue(const char* key, EmTagValue& dest, const EmJs
     bool res = true;
     EmJsonValueType valueType = getValueType(key, scope);
     switch (valueType){
-        case (EmJsonValueType::vt_string): {
-                EmStringM value;
-                getString(key, value);
-                logDebug<100>("Json", "getTagValue(%s, %s) [STR]",key, value.c_str());                 
-                res = dest.setString(value.c_str());                
-            } break;
         case (EmJsonValueType::vt_integer): {
                 int32_t value;
                 getInt(key, value);
@@ -112,7 +106,7 @@ bool EmJsonDictReader::getTagValue(const char* key, EmTagValue& dest, const EmJs
                 res = dest.setValue(value, true);
             } break;
         case (EmJsonValueType::vt_timestamp): {
-                EmEpoch32 value;
+                EmEpoch value;
                 getEpoch(key, value);
                 res = dest.setEpoch(value, true);
             } break;

@@ -148,7 +148,7 @@ public:
 
     // Converts the string content to ISO8601 timestamp format (i.e. '%Y-%m-%dT%H:%M:%SZ')
     template<typename T>
-    bool toTimestamp(const EmEpoch<T>& epoch) {
+    bool toTimestamp(const EmEpochBase<T>& epoch) {
         if (m_capacity < 20) {
             return false; // Not enough space for the timestamp
         }

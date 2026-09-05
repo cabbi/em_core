@@ -8,7 +8,7 @@
 
 #include "em_epoch.h"
 #include "em_string.h"
-#include "em_tag.h"
+#include "em_tag_value.h"
 
 // The tag value type
 enum class EmJsonValueType: uint8_t {
@@ -62,7 +62,7 @@ public:
     bool getTagValue(const char* key, EmTagValue& dest, const EmJsonInnerObj& scope = EmJsonInnerObj()) const;
 
     template<typename T>
-    bool getEpoch(const char* key, EmEpoch<T>& dest, const EmJsonInnerObj& scope = EmJsonInnerObj()) const {
+    bool getEpoch(const char* key, EmEpochBase<T>& dest, const EmJsonInnerObj& scope = EmJsonInnerObj()) const {
         const char* valptr = findValuePointer(key, scope);
         if (!valptr || *valptr != '"') {
             return false; // Key not found or value is not a string/timestamp
@@ -242,11 +242,11 @@ public:
 
             // Parse the number inline based on the template type
             char* nextToken = nullptr;
-            if constexpr (std::is_same_v<T, float> || std::is_same_v<T, double>) {
+            if (std::is_same_v<T, float> || std::is_same_v<T, double>) {
                 double val = strtod(scanPtr, &nextToken);
                 if (nextToken == scanPtr) break; // Parse error
                 callback(static_cast<T>(val));
-            } else if constexpr (std::is_unsigned_v<T>) {
+            } else if (std::is_unsigned_v<T>) {
                 unsigned long val = strtoul(scanPtr, &nextToken, 10);
                 if (nextToken == scanPtr) break;
                 callback(static_cast<T>(val));

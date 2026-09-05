@@ -134,23 +134,23 @@ public:
     bool initValue(const char* key, const T& value, bool commit=true) const {
         if (isNotInitialized()) {
             addToInitValue_(key, value);
-            return sizeof(value);            
+            return true;            
         }
         if (!hasKey(key)) {
             return setValue(key, value, commit);
         }
-        return 0;
+        return false;
     }
 
     bool initValue(const char* key, const EmTagValue& value, bool commit=true) const {
         if (isNotInitialized()) {
             addToInitTags_(key, value);
-            return sizeof(value);            
+            return true;            
         }
         if (!hasKey(key)) {
             return setValue(key, value, commit);
         }
-        return 0;
+        return false;
     }   
     bool initString(const char* key, const char* value, bool commit=true) const {
         if (isNotInitialized()) {
@@ -492,8 +492,8 @@ public:
             return EmStorageItemType::Bytes;
         } else {
             static_assert(always_false<cleanType>, "Unsupported value type!");
-            return EmStorageItemType::Undefined;
-        }
+        } 
+        return EmStorageItemType::Undefined;
     }
 
     
@@ -654,9 +654,9 @@ public:
     virtual bool setValue(const T& value) override {
         // NOTE: we do not check == sizeof(value) since value might be EmTagValue
         //       and its size might differ from the stored one due to internal allocations.
-        return tStorage.setValue(getKey(), value) > 0;
+        return tStorage.setValue(getKey(), value);
     }
-    
+   
     virtual T getValue() const {
         T value;
         // NOTE: we do not check == sizeof(value) since value might be EmTagValue
@@ -665,10 +665,6 @@ public:
             return value;
         }
         return T();
-    }
-
-    virtual operator T() const {
-        return getValue();
     }
 
     // Initialization methods (i.e. value is set only if key does not exist)
@@ -828,7 +824,7 @@ public:
         EmTagValue tagValue;
         EmGetValueResult res = this->getValue(tagValue);
         if (res != EmGetValueResult::failed) {
-            return tagValue.getValue<T>(value);
+            return tagValue.getValue(value);
         }
         return res;
     }
