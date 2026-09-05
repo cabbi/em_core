@@ -1,6 +1,7 @@
 #ifndef __EM_EPOCH_H__
 #define __EM_EPOCH_H__
 
+#include <type_traits>
 #include <stdint.h>
 #include <time.h>
 

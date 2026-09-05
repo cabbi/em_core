@@ -55,7 +55,6 @@ class EmTagValueBuffer;
 // 'EmTag' and 'EmTags' classes will not support templates.
 class EmTagValue: EmValue<EmTagValue> {
     friend class EmTagValueBuffer;
-    union EmTagValueUnion;
 public: 
     EmTagValue()
      : m_type(EmTagValueType::vt_undefined), m_value() {}
@@ -242,11 +241,6 @@ public:
         return true;
     }
 
-    void setValue(EmTagValueType type, const EmTagValueUnion& value) { 
-        MUTEX_LOCK;
-        set_(type, value);
-    }
-
     // Sets a value of any type. If forceType is true, the value type will be forced to   
     // the new type, otherwise it will only be set if the type is same type or undefined.
     bool setValue(EmBoolType value, bool forceType) {
@@ -414,6 +408,11 @@ protected:
         m_value = value; 
     }
 
+    void setValue_(EmTagValueType type, const EmTagValueUnion& value) { 
+        MUTEX_LOCK;
+        set_(type, value);
+    }
+
     size_t getValueBufferSize_() const {
         return sizeof(m_value);
     }
@@ -463,7 +462,7 @@ public:
         }
         EmTagValueType type = static_cast<EmTagValueType>(m_buf[0]);
         // Read value
-        tagValue.setValue(type, *reinterpret_cast<const EmTagValue::EmTagValueUnion*>(&m_buf[1]));
+        tagValue.setValue_(type, *reinterpret_cast<const EmTagValue::EmTagValueUnion*>(&m_buf[1]));
         return true;
     }
 

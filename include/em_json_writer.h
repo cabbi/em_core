@@ -100,8 +100,8 @@ public:
                 return addInt(key, value.asUInt());
             case EmTagValueType::vt_real:
                 return addReal(key, value.asReal());
-            case EmTagValueType::vt_string:
-                return addString(key, value.asString());
+            //case EmTagValueType::vt_string:
+            //    return addString(key, value.asString());
             case EmTagValueType::vt_epoch:
                 return addTimestamp(key, value.asEpoch());
             case EmTagValueType::vt_undefined:
@@ -112,7 +112,7 @@ public:
 
     // Append a timestamp epoch value
     template<typename T>
-    bool addTimestamp(const char* key, const EmEpoch<T>& timestamp) {
+    bool addTimestamp(const char* key, const EmEpochBase<T>& timestamp) {
         if (m_level == 0) {
             return false;
         }

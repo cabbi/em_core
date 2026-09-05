@@ -60,7 +60,7 @@ public:
         EmTagValue v;
         EmGetValueResult res = getValue(v);
         if (res != EmGetValueResult::failed) {
-            return v.getValue<T>(value);
+            return v.getValue(value);
         }
         return res;
     }

@@ -674,7 +674,11 @@ public:
     }   
 
     size_t initValue(const EmTag& tag, bool commit=true) const {
-        return initValue(static_cast<const EmTagValue&>(tag.getValue()), commit);
+        EmTagValue value;
+        if (tag.getValue(value) != EmGetValueResult::failed) {
+            return initValue(value, commit);
+        }
+        return 0;
     }
 
     size_t initValue(const EmTagValue& value, bool commit=true) const {
@@ -773,13 +777,12 @@ public:
         EmTag::m_value.setUndefinedType();
      }
 
+    template<typename T>
     EmStorageTag(const char* key,
-                 const EmTagValue& initValue, 
+                 const T& initValue, 
                  EmSyncFlags flags)
      : EmStorageValueBase<EmTag, EmTagValue, tStorage>(key, initValue, flags) {
         tStorage.initValue(key, initValue, true);
-        // Set the tag as undefined to read it the for the first time
-        EmTag::m_value.setUndefinedType();
      }
 
     EmStorageTag(const char* key, 
@@ -789,8 +792,9 @@ public:
         tags.add(*this);
     }
 
+    template<typename T>
     EmStorageTag(const char* key,
-                 const EmTagValue& initValue, 
+                 const T& initValue, 
                  EmSyncFlags flags,
                  EmTagsAdd& tags)
      : EmStorageTag<tStorage>(key, initValue, flags) {
