@@ -31,7 +31,7 @@ bool EmStorage::begin(const char * name, uint16_t resetVersion) {
 
     // Reset version check
     if (resetVersion > 0 && // User asks version check!
-        resetVersion != getCurrentResetVersion()) {
+        resetVersion != getCurrentResetVersion()) {            
         if (!clear()) {
             nvs_close(m_handle);
             m_handle = EM_STORAGE_NULL_HANDLE;
@@ -200,7 +200,7 @@ bool EmStorage::getValue(const char* key, EmTagValue& value) const {
         return false;
     }
     if (!getBytes(key, tagBuffer.getBuffer(), size)) {
-        return 0;
+        return false;
     }
     return tagBuffer.toValue(value);
 }

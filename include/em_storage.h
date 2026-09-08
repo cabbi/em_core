@@ -671,7 +671,7 @@ public:
     template<typename V>
     size_t initValue(const V& value, bool commit=true) const {
         return tStorage.initValue<V>(getKey(), value, commit);
-    }   
+    } 
 
     size_t initValue(const EmTag& tag, bool commit=true) const {
         EmTagValue value;
@@ -773,7 +773,7 @@ public:
     EmStorageTag(const char* key, 
                  EmSyncFlags flags)
      : EmStorageValueBase<EmTag, EmTagValue, tStorage>(key, flags) {
-        // Set the tag as undefined to read it the for the first time
+        // Set the tag as undefined to read it from storage the for the first time
         EmTag::m_value.setUndefinedType();
      }
 
@@ -782,7 +782,9 @@ public:
                  const T& initValue, 
                  EmSyncFlags flags)
      : EmStorageValueBase<EmTag, EmTagValue, tStorage>(key, initValue, flags) {
-        tStorage.initValue(key, initValue, true);
+        tStorage.initValue(key, EmTagValue(initValue), true);
+        // Set the tag as undefined to read it from storage the for the first time
+        EmTag::m_value.setUndefinedType();
      }
 
     EmStorageTag(const char* key, 
