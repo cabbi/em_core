@@ -5,16 +5,73 @@
 
 #ifdef EM_STD_LIB // Need standard library 
 
+#include "em_list.h"
+#include "em_value_sync.h"
 #include "em_tag_value.h"
 
 
+// The tag hold in a tag list
+class EmTagElement: public EmUpdatable,
+                    public EmSyncValue<EmValue<EmTagElement>, EmTagElement> {
+public:    
+    virtual const char* getId() const = 0;
+    virtual EmTagValueType getType() const = 0;
+    virtual bool operator ==(const EmTagElement& other) const = 0;
+    
+    // EmValue overrides
+    virtual EmGetValueResult getValue(EmTagElement& value) const = 0;
+    virtual bool setValue(const EmTagElement& value) = 0;
+
+    // Default update doing nothing.
+    // This method is called by EmTagList::update.
+    virtual void update() override {
+    }
+    
+    // Used to sync tags with same id when list 'update' is called
+    template<typename T>
+    EmGetValueResult syncValue(EmTagValue<T>& dest, EmTagValue<T>& source) const {
+        return source.getValue(dest);
+    }
+
+    // Custom comparison function for EmList
+    static bool match(EmTagElement& item1, EmTagElement& item2) {
+        return strcmp(item1.getId(), item2.getId()) == 0;
+    }
+    static bool match(EmTagElement* const & item1, EmTagElement* const & item2) {
+        return strcmp(item1->getId(), item2->getId()) == 0;
+    }
+};
+
+
+// Forward declaration
+class EmTagSyncGroup;
+
+// This is the EmSyncValues class used for the EmTagElement.
+class EmSyncTagValues: public EmSyncValues<EmTagElement, EmTagElement> {
+    friend class EmTagSyncGroup;
+public:
+    EmSyncTagValues(EmTagElement& value)
+     : m_currentValue(value) {}
+
+protected:    
+    virtual EmTagElement& getCurrentValue_() const override {
+        return m_currentValue;
+    }
+
+    virtual bool setCurrentValue_(const EmTagElement& value) override {
+        m_currentValue = value;
+    }
+
+    EmTagElement& m_currentValue;
+};
+
 // The abstract tag class that provides synchronizable value identified by a string id.
 // Tags are syncable and updatable. Sync and Update is called from a tag list on its update. 
-class EmTagBase: public EmSyncValue<EmValue<EmTagValue>, EmTagValue>, 
-                 public EmUpdatable {
+template<typename T>
+class EmTagBase: public EmTagSyncElement {
 public:
     EmTagBase(EmSyncFlags flags)
-     : EmSyncValue<EmValue<EmTagValue>, EmTagValue>(flags) {}
+     : EmTagSyncElement(flags) {}
 
     // No default copy and move constructor and assignment
     EmTagBase(const EmTagBase& other) = delete;
@@ -22,127 +79,77 @@ public:
     EmTagBase& operator=(const EmTagBase& other) = delete;
     EmTagBase& operator=(EmTagBase&& other) = delete;
 
-    // Base methods to be implemented by derived classes
-    virtual const char* getId() const = 0;
-
     // 'EmValue' interface to be implemented by derived classes
-    virtual EmGetValueResult getValue(EmTagValue& value) const = 0;
-    virtual bool setValue(const EmTagValue& value) = 0;
+    virtual EmGetValueResult getValue(EmTagValue<T>& value) const = 0;
+    virtual bool setValue(const EmTagValue<T>& value) = 0;
+    
+    // Convenience methods
+    virtual EmTagValue<T>& getValue() const = 0;
 
-    virtual void update() override {
-        // Default update doing nothing.
-        // This method is called by EmTagList::update.
+    virtual EmGetValueResult getValue(T& value) const {
+        return getValue().getValue(value);
+    }
+    
+    virtual bool setValue(const T& value) {
+        return setValue(EmTagValue<T>(value));
     }
 
     // Base operators
-    virtual bool operator==(const EmTagBase& other) const {
+    virtual bool operator==(const EmTagBase& other) const override {
         if (!match(*this, other)) {
             return false;
         }
-        EmTagValue thisValue, otherValue;
-        getValue(thisValue);
-        other.getValue(otherValue);
-        return thisValue == otherValue;
+        return this->getValue() == other.getValue();
     }
 
     virtual bool operator!=(const EmTagBase& other) const {
         return !(*this == other);
     }
-
-    // Custom comparison function for EmList
-    static bool match(const EmTagBase& item1, const EmTagBase& item2) {
-        return strcmp(item1.getId(), item2.getId()) == 0;
-    }
-
-    // Convenience getValue overloads
-    template<typename T>
-    EmGetValueResult getValue(T& value) const {
-        EmTagValue v;
-        EmGetValueResult res = getValue(v);
-        if (res != EmGetValueResult::failed) {
-            return v.getValue(value);
-        }
-        return res;
-    }
 };
 
-class EmTagsAdd;
+// Forward declaration
+class EmTagSyncGroup;
 
-// A tag implementation. 
-class EmTag: public EmTagBase {
+// Abstract class used to define a tag list that allows adding tags.
+class EmTagsAdd {
+public:    
+    virtual void add(EmTagElement& tag) = 0;
+    virtual void add(EmTagElement& tag, EmTagSyncGroup*& group) = 0;
+};
+
+// The simple EmTagBase implementation holding the string id and the tag value. 
+template<typename T>
+class EmTag: public EmTagBase<T> {
 protected:
     const char* m_id;
-    EmTagValue m_value;
+    EmTagValue<T>& m_value;
 
 public:
-    EmTag(const char* id, EmSyncFlags flags)
-      : EmTagBase(flags), m_id(id) {}
-
-    EmTag(const char* id, EmSyncFlags flags, EmTagsAdd& tags);
-
     EmTag(const char* id, 
-          bool initValue,
+          EmTagValue<T>& initValue,
           EmSyncFlags flags)
-      : EmTagBase(flags), 
+      : EmTagBase<T>(flags), 
         m_id(id), 
         m_value(initValue) {}
 
     EmTag(const char* id, 
-          const EmTagValue& initValue,
-          EmSyncFlags flags)
-      : EmTagBase(flags), 
-        m_id(id), 
-        m_value(initValue) {}
-
-    EmTag(const char* id, 
-          EmIntType initValue,
-          EmSyncFlags flags)
-      : EmTagBase(flags), 
-        m_id(id), 
-        m_value(initValue) {}
-
-    EmTag(const char* id, 
-          EmUIntType initValue,
-          EmSyncFlags flags)
-      : EmTagBase(flags), 
-        m_id(id), 
-        m_value(initValue) {}
-
-    EmTag(const char* id, 
-          int initValue,
-          EmSyncFlags flags)
-      : EmTagBase(flags), 
-        m_id(id), 
-        m_value(initValue) {}
-
-    EmTag(const char* id, 
-          unsigned int initValue,
-          EmSyncFlags flags)
-      : EmTagBase(flags), 
-        m_id(id), 
-        m_value(initValue) {}
-
-    EmTag(const char* id, 
-          float initValue,
-          EmSyncFlags flags)
-      : EmTagBase(flags), 
-        m_id(id), 
-        m_value(initValue) {}
-
-    EmTag(const char* id, 
-          double initValue,
-          EmSyncFlags flags)
-      : EmTagBase(flags), 
-        m_id(id), 
-        m_value(initValue) {}
-
- 
+          EmTagValue<T>& initValue,
+          EmSyncFlags flags, 
+          EmTagsAdd& tags);
+    
+    // EmTagElement implementation
     virtual const char* getId() const override { return m_id; }
+    virtual EmTagValueType getType() const override { return m_value.getType(); }
 
-    using EmTagBase::getValue;
-    using EmTagBase::setValue;
 
-    virtual EmGetValueResult getValue(EmTagValue& value) const override {
+    using EmTagBase<T>::getValue;
+    using EmTagBase<T>::setValue;
+
+    virtual EmTagValue<T>& getValue() const override {
+        return m_value;
+    }
+
+    virtual EmGetValueResult getValue(EmTagValue<T>& value) const override {
         EmGetValueResult res = (value == m_value) ? EmGetValueResult::succeedEqualValue
                                                   : EmGetValueResult::succeedNotEqualValue;
         if (res == EmGetValueResult::succeedNotEqualValue) {
@@ -153,45 +160,25 @@ public:
         return res;
     }
 
-    virtual bool setValue(const EmTagValue& value) override {
+    virtual bool setValue(const EmTagValue<T>& value) override {
         return m_value.setValue(value);
-    }
-
-    EmBoolType asBool() const {
-        return m_value.asBool();
-    }
-
-    EmIntType asInt() const {
-        return m_value.asInt();
-    }
-
-    EmUIntType asUInt() const {
-        return m_value.asUInt();
-    }
-
-    EmRealType asReal() const {
-        return m_value.asReal();
-    }
-
-    EmEpochType asEpoch() const {
-        return m_value.asEpoch();
     }
 };
 
 
 // This class provides 'EmTagBase' plus an 'onSetValue' callback.
-template<EmOnSetValueCallbackType<EmTagBase, EmTagValue> OnSetValue>
-class EmTagBaseEx: public EmValueEx<EmTagBase, EmTagBase, EmTagValue, OnSetValue> {
+template<typename T, EmOnSetValueCallbackType<EmTagBase<T>, EmTagValue<T>> OnSetValue>
+class EmTagBaseEx: public EmValueEx<EmTagBase<T>, EmTagBase<T>, EmTagValue<T>, OnSetValue> {
 public:
-    using EmValueEx<EmTagBase, EmTagBase, EmTagValue, OnSetValue>::EmValueEx;
+    using EmValueEx<EmTagBase<T>, EmTagBase<T>, EmTagValue<T>, OnSetValue>::EmValueEx;
 };
 
 
 // This class provides 'EmTag' plus an 'onSetValue' callback.
-template<EmOnSetValueCallbackType<EmTag, EmTagValue> OnSetValue>
-class EmTagEx: public EmValueEx<EmTag, EmTag, EmTagValue, OnSetValue> {
+template<typename T, EmOnSetValueCallbackType<EmTag<T>, EmTagValue<T>> OnSetValue>
+class EmTagEx: public EmValueEx<EmTag<T>, EmTag<T>, EmTagValue<T>, OnSetValue> {
 public:
-    using EmValueEx<EmTag, EmTag, EmTagValue, OnSetValue>::EmValueEx;
+    using EmValueEx<EmTag<T>, EmTag<T>, EmTagValue<T>, OnSetValue>::EmValueEx;
 };
 
 
@@ -213,24 +200,36 @@ class EmTagSyncGroupBase: public EmUpdatable {
     }
 };
 
-
 // A basic concrete implementation of 'EmTagSyncGroupBase' class.
 class EmTagSyncGroup: public EmTagSyncGroupBase, 
-                      public EmSyncValues<EmTagBase, EmTagValue> {
+                      public EmSyncTagValues {
 protected:
-    EmList<EmTagBase> m_tagList;
+    EmList<EmTagSyncElement> m_tagList;
+    EmListIterator<EmTagSyncElement> m_iterator;
+
+    static bool match(const EmTagSyncElement& item1, const EmTagSyncElement& item2) {
+        return strcmp(item1.getId(), item2.getId()) == 0;
+    }
 
 public:
-    EmTagSyncGroup() : m_tagList(&EmTagBase::match) {}
+    EmTagSyncGroup(EmTagElement& currentElement)
+     : EmTagSyncGroupBase(), 
+       EmSyncTagValues(currentElement),
+       m_tagList(&EmTagSyncGroup::match),
+       m_iterator(m_tagList) {}
+
     virtual ~EmTagSyncGroup() = default;
 
     virtual const char* getId() const override { 
-        const EmTagBase* first = m_tagList.first();
+        EmTagSyncElement* first = m_tagList.first();
         return first ? first->getId() : nullptr;
     }
 
-    virtual EmIterator<EmTagBase>* iterator() {
-        return new EmListIterator<EmTagBase>(m_tagList);
+    virtual EmIterator<EmTagSyncElement>& iterator(bool reset) override {
+        if (reset) {
+            m_iterator.reset();
+        }
+        return m_iterator;
     }
 
     virtual void update() override {
@@ -239,7 +238,7 @@ public:
         }
     }
 
-    virtual void add(EmTagBase& tag) {
+    virtual void add(EmTagSyncElement& tag) {
         m_tagList.appendUnowned(tag);
     }
 
@@ -248,12 +247,6 @@ public:
     } 
 };
 
-// Abstract class used to define a tag list that allows adding tags.
-class EmTagsAdd {
-public:    
-    virtual void add(EmTagBase& tag) = 0;
-    virtual void add(EmTagBase& tag, EmTagSyncGroup*& group) = 0;
-};
 
 // This class holds a list of tags. Each tag with same id is considered as a group that
 // will be synchronized on each 'update'.
@@ -268,6 +261,7 @@ public:
         m_groups.clear();
     }
 
+    // This will synch all the tags by its 'id' (tags with same id will be synched)
     virtual void update() override {
         // Do the groups synch and update
         for(auto& group : m_groups) {
@@ -280,12 +274,12 @@ public:
 
     virtual size_t count() const { return m_groups.count(); }
     
-    virtual void add(EmTagBase& tag) override { 
+    virtual void add(EmTagElement& tag) override { 
         EmTagSyncGroup* group;
         add(tag, group);
     }
 
-    virtual void add(EmTagBase& tag, EmTagSyncGroup*& group) override {
+    virtual void add(EmTagElement& tag, EmTagSyncGroup*& group) override {
         // Create a temporary group to search for an existing one.
         EmTagSyncGroupSearch searchGroup(tag.getId());
         group = static_cast<EmTagSyncGroup*>(m_groups.find(searchGroup));
@@ -298,18 +292,18 @@ public:
 
     // Convenience add overloads to add multiple tag pointers at once.
     // NOTE: the list MUST end with a nullptr.
-    virtual void add(EmTagBase* tag, ...) {
+    virtual void add(EmTagElement* tag, ...) {
         va_list args;
         va_start(args, tag);
         add(tag, args);
         va_end(args);
     }
 
-    virtual void add(EmTagBase* tag, va_list args) {
-        EmTagBase* pTag = tag;
+    virtual void add(EmTagElement* tag, va_list args) {
+        EmTagElement* pTag = tag;
         do {
             add(*pTag);
-        } while ((pTag = va_arg(args, EmTagBase*)) != nullptr);
+        } while ((pTag = va_arg(args, EmTagElement*)) != nullptr);
     }
 
     EmTagSyncGroup* find(const char* tagId) const {
@@ -317,7 +311,8 @@ public:
         return static_cast<EmTagSyncGroup*>(pGroup);
     }
 
-    virtual EmGetValueResult getValue(const char* tagId, EmTagValue& value) {
+    template<typename T>
+    EmGetValueResult getValue(const char* tagId, EmTagValue<T>& value) {
         // Find the group for the given tagId
         EmTagSyncGroup* pTagGroup = find(tagId);
         if (pTagGroup == nullptr) {
@@ -327,7 +322,8 @@ public:
         return pTagGroup->getValue(value);
     }    
 
-    virtual bool setValue(const char* tagId, const EmTagValue& value, bool doSync) {
+    template<typename T>
+    bool setValue(const char* tagId, const EmTagValue<T>& value, bool doSync) {
         EmTagSyncGroup* pTagGroup = find(tagId);
         if (pTagGroup == nullptr) {
             return false;
@@ -339,61 +335,6 @@ public:
         return res;
     }
 
-/* TODO: review if those methods are needed
-    // Convenience getValue overloads
-    virtual EmGetValueResult getValue(const char* tagId, bool& value) const {
-        return getValue_<bool>(tagId, value);
-    }
-
-    virtual EmGetValueResult getValue(const char* tagId, int32_t& value) const {
-        return getValue_<int32_t>(tagId, value);
-    }
-
-    virtual EmGetValueResult getValue(const char* tagId, float& value) const {
-        return getValue_<float>(tagId, value);
-    }
-
-    virtual EmGetValueResult getValue(const char* tagId, double& value) const {
-        return getValue_<double>(tagId, value);
-    }
-
-    virtual EmGetValueResult getValue(const char* tagId, EmStringBase& value) const {
-        return getValue_<EmStringBase>(tagId, value);
-    }
-
-    virtual EmGetValueResult getValue(const char* tagId, EmTagValue& value) const {
-        return getValue_<EmTagValue>(tagId, value);
-    }
-
-    // Convenience setValue overloads
-    virtual bool setValue(const char* tagId, bool value, bool doSync) {
-        return setValue_<bool>(tagId, value, doSync);
-    }
-
-    virtual bool setValue(const char* tagId, int32_t value, bool doSync) {
-        return setValue_<int32_t>(tagId, value, doSync);
-    }
-
-    virtual bool setValue(const char* tagId, float value, bool doSync) {
-        return setValue_<float>(tagId, value, doSync);
-    }
-
-    virtual bool setValue(const char* tagId, double value, bool doSync) {
-        return setValue_<double>(tagId, value, doSync);
-    }
-
-    virtual bool setValue(const char* tagId, const EmStringBase& value, bool doSync) {
-        return setValue_<EmStringBase>(tagId, value, doSync);
-    }
-
-    virtual bool setValue(const char* tagId, const char* value, bool doSync) {
-        return setValue_<const char*>(tagId, value, doSync);
-    }
-
-    virtual bool setValue(const char* tagId, const EmTagValue& value, bool doSync) {
-        return setValue_<EmTagValue>(tagId, value, doSync);
-    }
-*/
 protected: 
     // A "dummy" class used to seach of existing groups.
     class EmTagSyncGroupSearch: public EmTagSyncGroupBase {
@@ -409,45 +350,15 @@ protected:
         const char* m_id; 
     };
 
-    /* TODO: review if those methods are needed
-    template<typename T>
-    EmGetValueResult getValue_(const char* tagId, T& value) const {
-        // Find the group for the given tagId
-        EmTagSyncGroup* pTagGroup = find(tagId);
-        if (pTagGroup == nullptr) {
-            return EmGetValueResult::failed;
-        } 
-        // Retrieve the current value from the group and then get the value for the specific type.
-        EmTagValue currentValue;
-        EmGetValueResult res = pTagGroup->getValue(currentValue);
-        if (res == EmGetValueResult::failed) {
-            return res;
-        }
-        return currentValue.getValue(value);
-    }
-
-    template<typename T>
-    bool setValue_(const char* tagId, const T& value, bool doSync) {
-        EmTagSyncGroup* pTagGroup = find(tagId);
-        if (pTagGroup == nullptr) {
-            return false;
-        } 
-        if (pTagGroup->setValue(value, false)) {
-            if (doSync) {
-                return pTagGroup->doSync();
-            }
-            return true;
-        }
-        return false;
-    }
-    */
     EmList<EmTagSyncGroupBase> m_groups;
 };
 
-inline EmTag::EmTag(const char* id, EmSyncFlags flags, EmTagsAdd& tags)
-  : EmTagBase(flags), m_id(id) {
+
+template<typename T>
+inline EmTag<T>::EmTag(const char* id, EmTagValue<T>& value, EmSyncFlags flags, EmTagsAdd& tags)
+  : EmTag<T>(id, value,flags) {
     tags.add(*this);
 }
-#endif // EM_STD_LIB
 
+#endif // EM_STD_LIB
 #endif // _EM_TAG_H__

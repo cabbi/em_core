@@ -5,7 +5,7 @@
 #include "em_value.h"
 
 
-// The flags assigned to each synchronized item
+// The sync capability flags assigned to each synchronized item
 enum class EmSyncFlags: uint8_t {
     none = 0x00,     // No syncing
     canRead  = 0x01, // The item can be read but read can fail and synching moves forward
@@ -25,6 +25,7 @@ inline EmSyncFlags operator|(EmSyncFlags a, EmSyncFlags b) { return static_cast<
 inline EmSyncFlags operator&(EmSyncFlags a, EmSyncFlags b) { return static_cast<EmSyncFlags>(static_cast<int>(a) & static_cast<int>(b)); }
 inline EmSyncFlags& operator|=(EmSyncFlags& a, EmSyncFlags b) { return (EmSyncFlags&)((int&)(a) |= static_cast<int>(b)); }
 inline EmSyncFlags& operator&=(EmSyncFlags& a, EmSyncFlags b) { return (EmSyncFlags&)((int&)(a) &= static_cast<int>(b)); }
+
 
 enum class CheckNewValueResult: int8_t {
     noChange = 0,
@@ -155,33 +156,36 @@ protected:
 };
 
 
-// This is tha base abstract class that keeps multiple instances of EmSyncValue synchronized.
+// This is the base abstract class that keeps multiple instances of EmSyncValue synchronized.
 template <class EmSyncItemOfT, class T>
 class EmSyncValues: public EmUpdatable {
 public:
     EmSyncValues() = default;
     virtual ~EmSyncValues() = default;
 
-    virtual EmIterator<EmSyncItemOfT>* iterator() = 0;
+    virtual EmIterator<EmSyncItemOfT>& iterator(bool reset) = 0;
 
     virtual void update() override {
         doSync();
     }
 
     virtual EmGetValueResult getValue(T& value) const {
-        if (value == m_currentValue) {
+        T& currentValue = this->getCurrentValue_();
+        if (value == currentValue) {
             return EmGetValueResult::succeedEqualValue;
         }
-        value = m_currentValue;
+        value = currentValue;
         return EmGetValueResult::succeedNotEqualValue;
     }
 
     virtual bool setValue(const T& value, bool doSyncNow) {
-        m_currentValue = value;
+        if (!this->setCurrentValue_(value)) {
+            return false;
+        }
         // Set pending write for all items that can be written
-        EmAutoPtr<EmIterator<EmSyncItemOfT>> it(iterator());
+        EmIterator<EmSyncItemOfT>& it = iterator(true);
         EmSyncItemOfT* pItem = nullptr;
-        while (it->next(pItem)) {
+        while (it.next(pItem)) {
             pItem->setPendingWrite(true);
         }
         // Synch requested?
@@ -192,19 +196,20 @@ public:
     }
 
     virtual bool doSync() {
-        EmAutoPtr<EmIterator<EmSyncItemOfT>> it(iterator());
+        T& currentValue = this->getCurrentValue_();
+        EmIterator<EmSyncItemOfT>& it = iterator(true);
         EmSyncItemOfT* pItem = nullptr;
-        while (it->next(pItem)) {
-            switch (pItem->checkNewValue(this->m_currentValue)) {
+        while (it.next(pItem)) {
+            switch (pItem->checkNewValue(currentValue)) {
                 case CheckNewValueResult::valueChanged:
                     // First changed value found: lets write all the others! 
-                    return updateToNewValue_(it.get(), pItem);
+                    return updateToNewValue_(it, pItem);
                 case CheckNewValueResult::mustReadFailed:
                     // A "must read" value failed to read, cannot proceed with synch!
                     return false;
                 case CheckNewValueResult::pendingWrite:
                     // An "old" pending write
-                    pItem->doPendingWrite(this->m_currentValue);
+                    pItem->doPendingWrite(currentValue);
                     break;
                 case CheckNewValueResult::noChange:
                     break;
@@ -214,15 +219,16 @@ public:
     }
 
 protected:
-    virtual bool updateToNewValue_(EmIterator<EmSyncItemOfT>* it, 
+    virtual bool updateToNewValue_(EmIterator<EmSyncItemOfT>& it, 
                                    EmSyncItemOfT* pUpdatedItem) {
+        T& currentValue = this->getCurrentValue_();
         bool res = true;
         EmSyncItemOfT* pItem = nullptr;
         it->reset();
         while (it->next(pItem)) {
             // Value item that gave this new value?
             if (pUpdatedItem != pItem) {
-                if (!pItem->setCurrentValue_(this->m_currentValue)) {
+                if (!pItem->setCurrentValue_(currentValue)) {
                     res = false;
                 }
             }
@@ -230,16 +236,36 @@ protected:
         return res;
     }
 
+    virtual T& getCurrentValue_() const = 0;
+    virtual bool setCurrentValue_(const T& value) = 0;
+};
+
+// This is the EmSyncValues class used for types that have a default constructor (i.e. T()).
+template <class EmSyncItemOfT, class T>
+class EmSyncBaseValues: public EmSyncValues<EmSyncItemOfT, T> {
+public:
+    using EmSyncValues<EmSyncItemOfT, T>::EmSyncValues;
+
+protected:    
+    virtual T& getCurrentValue_() const override {
+        return m_currentValue;
+    }
+
+    virtual bool setCurrentValue_(const T& value) override {
+        m_currentValue = value;
+    }
+
     T m_currentValue;
 };
 
-// The simple array priority based values synchronization class.
+// A simple array priority based values synchronization class.
 // The values order is set as the priority, the first that
 // changes sets other values.
 template <class EmSyncItemOfT, class T, uint8_t size>
 class EmSimpleSyncValue: public EmSyncValues<EmSyncItemOfT, T> {
 public:
-    EmSimpleSyncValue(EmSyncItemOfT* firstItem, ...) {
+    EmSimpleSyncValue(EmSyncItemOfT* firstItem, ...)
+     : m_iterator(m_items, size) {
         m_items[0] = firstItem;
         va_list args;
         va_start(args, firstItem);
@@ -251,12 +277,16 @@ public:
 
     virtual ~EmSimpleSyncValue() = default;
 
-    virtual EmIterator<EmSyncItemOfT>* iterator() {
-        return new EmArrayIterator<EmSyncItemOfT>(m_items, size);
+    virtual EmIterator<EmSyncItemOfT>& iterator(bool reset) override {
+        if (reset) {
+            m_iterator.reset();
+        }
+        return m_iterator;
     }
 
 protected:
     EmSyncItemOfT* m_items[size];
+    EmArrayIterator<EmSyncItemOfT*> m_iterator;
 };
 
 #endif

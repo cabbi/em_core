@@ -836,7 +836,7 @@ public:
     virtual bool setValue(const EmTagValue& value) override {
         // Perform an equality check in case tag value is already available
         // This is done to avoid NVS reading.
-        if (EmTag::m_value.isNotUndefinedType() && EmTag::m_value == value) {
+        if (EmTag::m_value == value) {
             return true;
         }
         // Value is different, lets store it!

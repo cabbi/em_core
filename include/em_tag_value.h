@@ -4,27 +4,28 @@
 #include "em_defs.h"
 
 #ifdef EM_STD_LIB // Need standard library 
-
 #include <type_traits>
 
-#include "em_list.h"
 #include "em_value.h"
 #include "em_epoch.h"
 #include "em_string.h"
 #include "em_threading.h"
 #include "em_value_sync.h"
-#include "em_sbo_buffer.h"
 
-// The tag value type
+
 enum class EmTagValueType: uint8_t {
     vt_undefined = 0,
+    // The base types
     vt_bool      = 1,
     vt_int       = 2,
     vt_uint      = 3,
     vt_real      = 4,
     vt_epoch     = 5,
+    vt_string    = 6,
+    // Any other custom object type
+    vt_object    = 7,
     // Max enum value
-    _vt_MAX      = 5
+    _vt_MAX      = vt_object
 };
 
 inline bool isValidTagValueType(uint8_t type) {
@@ -40,405 +41,372 @@ using EmRealType  = typename std::conditional<is_64bit, double, float>::type;
 using EmEpochType = typename std::conditional<is_64bit, EmEpoch64, EmEpoch32>::type;
 
 // Forward declaration
-class EmTagValueBuffer;
+template<size_t SizeOfT> class EmTagValueBuffer;
 
 // Tag value is thread safe in multithreaded capable environments.
 #ifdef EM_MULTITHREAD
-    #define MUTEX_LOCK EmMutexLock lock(m_mutex)
+    #define MUTEX_LOCK EmMutexLock lock(this->m_mutex)
+    #define MUTEX_DUAL_LOCK(other) EmDualLock dual_lock(this->m_mutex, other.m_mutex)
 #else
     #define MUTEX_LOCK
+    #define MUTEX_DUAL_LOCK(other)
 #endif
 
-// The numeric tag value class.
-//
-// This class is used to have a concrete implementation of value since 
-// 'EmTag' and 'EmTags' classes will not support templates.
-class EmTagValue: EmValue<EmTagValue> {
+// The base tag value class holding a value of type T.
+// NOTES: 
+//   - derived classes SHOULD override the 'getType()' method!
+//     This class is not abstract because in some cases we need to create a default value of it.
+//   - T must have the '==' operator defined for returning  
+//     the correct 'EmGetValueResult' in the 'getValue' method.
+template<typename T>
+class EmTagValue: public EmValue<T> {
+    template<size_t SizeOfT>
     friend class EmTagValueBuffer;
-public: 
-    EmTagValue()
-     : m_type(EmTagValueType::vt_undefined), m_value() {}
+public:
+    EmTagValue() = default;
+    explicit EmTagValue(const EmTagValue& value) : m_value(value.m_value) {}
+    explicit EmTagValue(EmTagValue&& value) noexcept : m_value(std::move(value.m_value)) {}
+    explicit EmTagValue(const T& value) : m_value(value) {}
+    explicit EmTagValue(T&& value) noexcept : m_value(std::move(value)) {}
+    
+    virtual ~EmTagValue() = default;
 
-    explicit EmTagValue(EmBoolType value)
-     : m_type(EmTagValueType::vt_bool), m_value(value) {} 
+    // Need to be overridden on derived class.
+    // Type is used as "kind of" reflection in some classes like EmStorage.
+    virtual EmTagValueType getType() const {
+        return EmTagValueType::vt_undefined;
+    }
 
-    explicit EmTagValue(EmEpochType value)
-     : m_type(EmTagValueType::vt_epoch), m_value(value) {}
-
-    explicit EmTagValue(EmIntType value)
-     : m_type(EmTagValueType::vt_int), m_value(value) {}
-
-    explicit EmTagValue(EmUIntType value)
-     : m_type(EmTagValueType::vt_uint), m_value(value) {}
-
-    explicit EmTagValue(int value)
-     : m_type(EmTagValueType::vt_int), m_value(static_cast<EmIntType>(value)) {}
-
-    explicit EmTagValue(unsigned int value)
-     : m_type(EmTagValueType::vt_uint), m_value(static_cast<EmUIntType>(value)) {}
-
-    explicit EmTagValue(float value)
-     : m_type(EmTagValueType::vt_real), m_value(static_cast<EmRealType>(value)) {}
-
-    explicit EmTagValue(double value)
-     : m_type(EmTagValueType::vt_real), m_value(static_cast<EmRealType>(value)) {}
-
-
-    EmTagValue(const EmTagValue& other) {
-        m_type = other.m_type;
-        m_value = other.m_value; // TODO: can we have this? Not that other goes out of scope sooner than this!?
-    };
-
-    EmTagValue& operator=(const EmTagValue& other) {
-        if (this != &other) {
-            m_type = other.m_type;
-            m_value = other.m_value; // TODO: can we have this? Not that other goes out of scope sooner than this!?
+    // Copy and move operators
+    EmTagValue& operator =(const EmTagValue& value) {
+        if (this == &value) {
+            return *this;
         }
+        MUTEX_DUAL_LOCK(value);
+        assign_(this->m_value, value.m_value);
         return *this;
     }
 
-    EmTagValueType getType() const { 
+    EmTagValue& operator =(EmTagValue&& value) noexcept {
+        if (this == &value) {
+            return *this;
+        } 
+        MUTEX_DUAL_LOCK(value);
+        move_(this->m_value, value.m_value);
+        return *this;
+    }
+
+    EmTagValue& operator =(const T& value) {
         MUTEX_LOCK;
-        return m_type; 
+        assign_(this->m_value, value);
+        return *this;
     }
 
-    bool isSameType(const EmTagValue& other) const {
+    EmTagValue& operator =(T&& value) noexcept {
         MUTEX_LOCK;
-        return m_type == other.m_type;
+        move_(this->m_value, value);
+        return *this;
     }
 
-    bool isSameType(EmTagValueType type) const {
+    // The 'getValue' methods
+    virtual EmGetValueResult getValue(T& value) const override {
         MUTEX_LOCK;
-        return m_type == type;
-    }
-
-    bool isNotSameType(const EmTagValue& other) const {
-        return !isSameType(other);
-    }
-
-    bool isNotSameType(EmTagValueType type) const {
-        return !isSameType(type);
-    }
-
-    bool isUndefinedType () const { 
-        MUTEX_LOCK;
-        return m_type == EmTagValueType::vt_undefined; 
-    }
-
-    bool isNotUndefinedType () const { 
-        return !isUndefinedType();
-    }
-
-    void setUndefinedType() {
-        MUTEX_LOCK;
-        clear_();
-    }
-
-    void clear() {
-        MUTEX_LOCK;
-        clear_();
-    }
-
-    EmBoolType asBool() const {
-        MUTEX_LOCK;
-        return m_value.as_bool;
-    }
-
-    EmIntType asInt() const {
-        MUTEX_LOCK;
-        return m_value.as_int;
-    }
-
-    EmUIntType asUInt() const {
-        MUTEX_LOCK;
-        return m_value.as_uint;
-    }
-
-    EmRealType asReal() const {
-        MUTEX_LOCK;
-        return m_value.as_real;
-    }
-
-    EmEpochType asEpoch() const {
-        MUTEX_LOCK;
-        return m_value.as_epoch;
-    }
-
-    EmGetValueResult getValue(EmTagValue& value) const {
-        // Is already equal
-        if (*this == value) {
-            return EmGetValueResult::succeedEqualValue; 
-        }
-        // Compatible type?
-        if (isNotSameType(value) && value.isNotUndefinedType()) {
-            return EmGetValueResult::failed;
-        }
-        // Set new value
-        if (value.setValue(*this)) {
-            return EmGetValueResult::succeedNotEqualValue;
-        }
-        return EmGetValueResult::failed;
-    }
-
-    EmGetValueResult getValue(EmBoolType& value) const {
-        MUTEX_LOCK;
-        if (m_value.as_bool == value) {
+        if (m_value == value) {
             return EmGetValueResult::succeedEqualValue;
         }
-        value = m_value.as_bool;
+        assign_(value, this->m_value);
         return EmGetValueResult::succeedNotEqualValue;
-    }
+    }        
 
-    EmGetValueResult getValue(EmIntType& value) const {
-        MUTEX_LOCK;
-        if (m_value.as_int == value) {
+    virtual EmGetValueResult getValue(EmTagValue& value) const {
+        if (this == &value) {
             return EmGetValueResult::succeedEqualValue;
         }
-        value = m_value.as_int;
-        return EmGetValueResult::succeedNotEqualValue;
-    }
-
-    EmGetValueResult getValue(EmUIntType& value) const {
-        MUTEX_LOCK;
-        if (m_value.as_uint == value) {
+        MUTEX_DUAL_LOCK(value);
+        if (this->m_value == value.m_value) {
             return EmGetValueResult::succeedEqualValue;
         }
-        value = m_value.as_uint;
+        assign_(value.m_value, this->m_value);
         return EmGetValueResult::succeedNotEqualValue;
-    }
-
-    EmGetValueResult getValue(int& value) const {
-        return getValue(reinterpret_cast<EmIntType&>(value));
-    }
-
-    EmGetValueResult getValue(unsigned int& value) const {
-        return getValue(reinterpret_cast<EmUIntType&>(value));
-    }
-
-    EmGetValueResult getValue(float& value) const {
+    }        
+    
+    // The 'setValue' methods
+    virtual bool setValue(const T& value) override {
         MUTEX_LOCK;
-        if (static_cast<float>(m_value.as_real) == value) {
-            return EmGetValueResult::succeedEqualValue;
-        }
-        value = static_cast<float>(m_value.as_real);
-        return EmGetValueResult::succeedNotEqualValue;
-    }
-
-    EmGetValueResult getValue(double& value) const {
-        MUTEX_LOCK;
-        if (static_cast<double>(m_value.as_real) == value) {
-            return EmGetValueResult::succeedEqualValue;
-        }
-        value = static_cast<double>(m_value.as_real);
-        return EmGetValueResult::succeedNotEqualValue;
-    }
-  
-    // EmValue implementation
-    bool setValue(const EmTagValue& value) {
-        MUTEX_LOCK;
-        m_type = value.m_type;
-        m_value = value.m_value;
+        assign_(this->m_value, value);
         return true;
-    }
-
-    // Sets a value of any type. If forceType is true, the value type will be forced to   
-    // the new type, otherwise it will only be set if the type is same type or undefined.
-    bool setValue(EmBoolType value, bool forceType) {
-        MUTEX_LOCK;
-        if (!forceType && m_type != EmTagValueType::vt_bool && m_type != EmTagValueType::vt_undefined) {
-            return false;
-        }
-        m_type = EmTagValueType::vt_bool;
-        m_value.as_bool = value;
-        return true;  
-    }
-
-    bool setValue(EmIntType value, bool forceType) {
-        MUTEX_LOCK;
-        if (!forceType && m_type != EmTagValueType::vt_int && m_type != EmTagValueType::vt_undefined) {
-            return false;
-        }
-        m_type = EmTagValueType::vt_int;
-        m_value.as_int = value;
-        return true;  
-    }
-
-    bool setValue(EmUIntType value, bool forceType) {
-        MUTEX_LOCK;
-        if (!forceType && m_type != EmTagValueType::vt_uint && m_type != EmTagValueType::vt_undefined) {
-            return false;
-        }
-        m_type = EmTagValueType::vt_uint;
-        m_value.as_uint = value;
-        return true;  
-    }
-
-    bool setValue(int value, bool forceType) {
-        return setValue(static_cast<EmIntType>(value), forceType);
-    }
-
-    bool setValue(unsigned int value, bool forceType) {
-        return setValue(static_cast<EmUIntType>(value), forceType); 
-    }
-
-    bool setValue(float value, bool forceType) {
-        MUTEX_LOCK;
-        if (!forceType && m_type != EmTagValueType::vt_real && m_type != EmTagValueType::vt_undefined) {
-            return false;
-        }
-        m_type = EmTagValueType::vt_real;
-        m_value.as_real = static_cast<EmRealType>(value);
-        return true;  
-    }
-
-    bool setValue(double value, bool forceType) {
-        MUTEX_LOCK;
-        if (!forceType && m_type != EmTagValueType::vt_real && m_type != EmTagValueType::vt_undefined) {
-            return false;
-        }
-        m_type = EmTagValueType::vt_real;
-        m_value.as_real = static_cast<EmRealType>(value);
-        return true;  
-    }
-
-    // Epoch value
-    bool setEpoch(const EmEpochType& value, bool forceType) {
-        MUTEX_LOCK;
-        if (!forceType && m_type != EmTagValueType::vt_epoch && m_type != EmTagValueType::vt_undefined) {
-            return false;
-        }
-        m_type = EmTagValueType::vt_epoch;
-        m_value.as_epoch = value;
-        return true;
-    }
-
-    // Comparison operators
-    bool operator==(const EmTagValue& other) const {
-        MUTEX_LOCK;
-        // Same type?
-        if (m_type != other.m_type) {
-            return false;
-        }
-        // Same value?
-        switch (m_type) {
-            case EmTagValueType::vt_undefined: return false; 
-            case EmTagValueType::vt_bool:      return this->m_value.as_bool == other.m_value.as_bool;
-            case EmTagValueType::vt_int:       return this->m_value.as_int == other.m_value.as_int;
-            case EmTagValueType::vt_uint:      return this->m_value.as_uint == other.m_value.as_uint;
-            case EmTagValueType::vt_real:      return this->m_value.as_real == other.m_value.as_real;
-            case EmTagValueType::vt_epoch:     return this->m_value.as_epoch == other.m_value.as_epoch; // Richiede operator== su EmEpoch64/32
-        }
-        return false;
-    }
-
-    bool operator !=(const EmTagValue& other) const {
-        return !(*this == other);
-    }
-
-    bool operator >(const EmTagValue& other) const {
-        MUTEX_LOCK;
-        // Same type?
-        if (m_type != other.m_type) {
-            return false;
-        }
-        // Same value?
-        switch (m_type) {
-            case EmTagValueType::vt_undefined: return false; 
-            case EmTagValueType::vt_bool:      return m_value.as_bool > other.m_value.as_bool;
-            case EmTagValueType::vt_int:       return m_value.as_int > other.m_value.as_int;
-            case EmTagValueType::vt_uint:      return m_value.as_uint > other.m_value.as_uint;
-            case EmTagValueType::vt_real:      return m_value.as_real > other.m_value.as_real;
-            case EmTagValueType::vt_epoch:     return m_value.as_epoch > other.m_value.as_epoch; // Richiede operator== su EmEpoch64/32
-        }
-        return false;
-    }
-
-    bool operator >=(const EmTagValue& other) const {
-        // Same type?
-        if (isNotSameType(other)) {
-            return false;
-        }
-        return (*this > other) || (*this == other);
-    }
-
-    bool operator <=(const EmTagValue& other) const {
-        // Same type?
-        if (isNotSameType(other)) {
-            return false;
-        }
-        return !(*this > other);
-    }
-
-    bool operator <(const EmTagValue& other) const {
-        // Same type?
-        if (isNotSameType(other)) {
-            return false;
-        }
-        return !(*this >= other);
-    }
-
-protected:
-    // Type traits helper
-    template<typename...> static constexpr bool always_false = false;
-
-    // The tag value union is used to store the actual value of the tag. 
-    union EmTagValueUnion {
-        EmBoolType    as_bool = false;
-        EmIntType     as_int;
-        EmUIntType    as_uint;
-        EmRealType    as_real;
-        EmEpochType   as_epoch;
-
-        EmTagValueUnion() = default;
-        explicit EmTagValueUnion(EmBoolType value) { as_bool = value; }
-        explicit EmTagValueUnion(EmEpochType value) { as_epoch = value; }
-        explicit EmTagValueUnion(EmIntType value) { as_int = value; }
-        explicit EmTagValueUnion(EmUIntType value) { as_uint = value; }
-        explicit EmTagValueUnion(float value) { as_real = value; }
-        explicit EmTagValueUnion(double value) { as_real = value; }
-    };
-
-    void clear_() {
-        m_type = EmTagValueType::vt_undefined;
-        m_value = {}; // Zero out the union
     }
     
-    void set_(EmTagValueType type, const EmTagValueUnion& value) { 
-        m_type = type;
-        m_value = value; 
+    virtual bool setValue(const EmTagValue& value) {
+        if (this == &value) {
+            return true;
+        }            
+        MUTEX_DUAL_LOCK(value);
+        assign_(this->m_value, value.m_value);
+        return true;
     }
 
-    void setValue_(EmTagValueType type, const EmTagValueUnion& value) { 
+    // Equality operators
+    bool operator==(const EmTagValue& value) const {
+        if (this == &value) {
+            return true;
+        }
+        MUTEX_DUAL_LOCK(value);
+        return this->m_value == value.m_value;
+    } 
+
+    bool operator!=(const EmTagValue& value) const {
+       !(*this == value);
+    } 
+
+    bool operator==(const T& value) const {
         MUTEX_LOCK;
-        set_(type, value);
-    }
+        return this->m_value == value;
+    } 
 
-    size_t getValueBufferSize_() const {
-        return sizeof(m_value);
-    }
-
-    const void* getValueBuffer_() const {
+    bool operator!=(const T& value) const {
         MUTEX_LOCK;
-        return &m_value;
+        return this->m_value != value;
+    } 
+
+protected:
+    explicit EmTagValue(T& value) : m_value(value) {}
+
+    // The two methods used by the 'EmTagValueBuffer' class
+    // NOTE: 
+    // you need to override those two methods in case of "complex" T class!
+    virtual size_t getValueSize_() const {
+        return sizeof(T);
+    }
+    virtual char* getValueBuffer_() {
+        return reinterpret_cast<char*>(&this->m_value);
     }
 
-    // Membed vars
-    EmTagValueType m_type;
-    EmTagValueUnion m_value;
+    // Internal assignment and move methods
+    void assign_(T& dest, const T& src) const {
+        if constexpr (std::is_base_of_v<EmStringBase, T>) {
+            dest.set(src); 
+        } else {
+            dest = src;
+        }
+    }
+    void move_(T& dest, const T& src) const {
+        if constexpr (std::is_base_of_v<EmStringBase, T>) {
+            dest = std::move(src);
+        } else {
+            dest = src;
+        }
+    }
+
+    // Member vars
+    T m_value; 
 #ifdef EM_MULTITHREAD
     mutable EmMutex m_mutex;
 #endif
+};    
+
+// The abstract tag value class where T is comparable (>, >=, < and <= ). 
+template<typename T>
+class EmTagComparableValue: public EmTagValue<T> {
+public:
+    using EmTagValue<T>::EmTagValue;
+
+    bool operator>(const EmTagComparableValue& value) const {
+        if (this == &value) {
+            return true;
+        }
+        MUTEX_DUAL_LOCK(value);
+        return this->m_value > value.m_value;
+    } 
+
+    bool operator<(const EmTagComparableValue& value) const {
+        if (this == &value) {
+            return true;
+        }
+        MUTEX_DUAL_LOCK(value);
+        return this->m_value < value.m_value;
+    } 
+
+    bool operator>=(const EmTagComparableValue& value) const {
+        if (this == &value) {
+            return true;
+        }
+        MUTEX_DUAL_LOCK(value);
+        return this->m_value >= value.m_value;
+    } 
+
+    bool operator<=(const EmTagComparableValue& value) const {
+        if (this == &value) {
+            return true;
+        }
+        MUTEX_DUAL_LOCK(value);
+        return this->m_value <= value.m_value;
+    } 
+
+    bool operator>(const T& value) const { MUTEX_LOCK; return this->m_value > value; } 
+    bool operator<(const T& value) const { MUTEX_LOCK; return this->m_value < value; } 
+    bool operator>=(const T& value) const { MUTEX_LOCK; return this->m_value >= value; } 
+    bool operator<=(const T& value) const { MUTEX_LOCK; return this->m_value <= value; } 
+};
+
+// The abstract "basic" type tag value class where T is a base type (e.g. int, float, etc.)
+// This class defines basic methods
+template<typename T>
+class EmTagBaseTypeValue: public EmTagComparableValue<T> {
+public:
+    using EmTagComparableValue<T>::EmTagComparableValue;
+    EmTagBaseTypeValue() : EmTagComparableValue<T>(0) {}
+
+    using EmTagComparableValue<T>::getValue;
+    virtual T getValue() const { 
+        MUTEX_LOCK;
+        return this->m_value; 
+    }
+};
+
+// The basic types' tag value classes. 
+class EmBoolTagValue: public EmTagBaseTypeValue<EmBoolType> {
+public:
+    using EmTagBaseTypeValue::EmTagBaseTypeValue;
+
+    virtual EmTagValueType getType() const override { 
+        return EmTagValueType::vt_bool; 
+    }
+};
+
+class EmIntTagValue: public EmTagBaseTypeValue<EmIntType> {
+public:
+    using EmTagBaseTypeValue::EmTagBaseTypeValue;
+
+    virtual EmTagValueType getType() const override { 
+        return EmTagValueType::vt_int; 
+    }
+};
+
+class EmUIntTagValue: public EmTagBaseTypeValue<EmUIntType> {
+public:
+    using EmTagBaseTypeValue::EmTagBaseTypeValue;
+
+    virtual EmTagValueType getType() const override { 
+        return EmTagValueType::vt_uint; 
+    }
+};
+
+class EmRealTagValue: public EmTagBaseTypeValue<EmRealType> {
+public:
+    using EmTagBaseTypeValue::EmTagBaseTypeValue;
+
+    virtual EmTagValueType getType() const override { 
+        return EmTagValueType::vt_real; 
+    }
+};
+
+class EmEpochTagValue: public EmTagBaseTypeValue<EmEpochType> {
+public:
+    using EmTagBaseTypeValue::EmTagBaseTypeValue;
+
+    virtual EmTagValueType getType() const override { 
+        return EmTagValueType::vt_epoch; 
+    }
+};
+
+// The string tag value class. 
+class EmStringTagValue: public EmTagComparableValue<EmStringBase> {
+public:  
+    // Explict string constructor
+    explicit EmStringTagValue(EmStringBase& value)
+     : EmTagComparableValue<EmStringBase>(value) {}
+
+    // No copy and move constructors for a string tag!
+    EmStringTagValue(const EmStringTagValue&) = delete;
+    EmStringTagValue(EmStringTagValue&&) = delete;
+
+    virtual EmTagValueType getType() const override { 
+        return EmTagValueType::vt_string; 
+    }
+
+    // Removed assignment operators
+    EmStringTagValue& operator =(const EmStringTagValue& value) = delete;
+    EmStringTagValue& operator =(EmStringTagValue&& value) = delete;
+    EmStringTagValue& operator =(const EmStringBase& value) = delete;
+    EmStringTagValue& operator =(EmStringBase&& value) = delete;
+
+    // The 'getValue' methods
+    virtual EmGetValueResult getValue(EmStringBase& value) const override {
+        MUTEX_LOCK;
+        if (this->m_value == value) {
+            return EmGetValueResult::succeedEqualValue;
+        }
+        if (value.set(this->m_value)) {
+            return EmGetValueResult::succeedNotEqualValue;
+        }
+        return EmGetValueResult::failed;
+    }        
+
+    virtual EmGetValueResult getValue(EmStringTagValue& value) const {
+        if (this == &value) {
+            return EmGetValueResult::succeedEqualValue;
+        }
+        MUTEX_DUAL_LOCK(value);
+        if (this->m_value == value.m_value) {
+            return EmGetValueResult::succeedEqualValue;
+        }
+        if (value.m_value.set(this->m_value)) {
+            return EmGetValueResult::succeedNotEqualValue;
+        }
+        return EmGetValueResult::failed;
+    }        
+    
+    // The 'setValue' methods
+    virtual bool setValue(const EmStringBase& value) override {
+        MUTEX_LOCK;
+        return this->m_value.set(value);
+    }
+    
+    virtual bool setValue(const EmStringTagValue& value) {
+        if (this == &value) {
+            return true;
+        }            
+        MUTEX_DUAL_LOCK(value);
+        return this->m_value.set(value.m_value);
+    }
+
+    virtual bool setValue(const char* value) {
+        MUTEX_LOCK;
+        return this->m_value.set(value);
+    }
+
+    bool operator==(const char* value) const {
+        MUTEX_LOCK;
+        return this->m_value == value;
+    } 
+
+    // String handling methods
+    const char* c_str() const {
+        return this->m_value.c_str();
+    }
+
+protected:
+    // The two methods used by the 'EmTagValueBuffer' class
+    virtual size_t getValueSize_() const override {
+        return this->m_value.length();
+    }
+    virtual char* getValueBuffer_() override {
+        return this->m_value.buffer();
+    }
 };
 
 
-// The tag value buffer class is used to read and write a tag value in a memory buffer.
+// The generic tag value buffer class is used to read and write a tag value in a memory buffer.
+template<size_t SizeOfTBuf>
 class EmTagValueBuffer {
 public:
     EmTagValueBuffer() {
         clear();
     }
 
-    EmTagValueBuffer(const EmTagValue& tagValue) {
+    template<typename T>
+    EmTagValueBuffer(const EmTagValue<T>& tagValue) {
         fromValue(tagValue);
     }
 
@@ -450,19 +418,21 @@ public:
         memset(m_buf, 0, sizeof(m_buf));
     }
 
-    void fromValue(const EmTagValue& tagValue) {
+    template<typename T>
+    void fromValue(const EmTagValue<T>& tagValue) {
         m_buf[0] = static_cast<char>(tagValue.getType());
-        memcpy(&m_buf[1], &tagValue.m_value, sizeof(EmTagValue::EmTagValueUnion));
+        memcpy(&m_buf[1], tagValue.getValueBuffer_(), tagValue.getValueSize_());
     }   
 
-    bool toValue(EmTagValue& tagValue) {
+    template<typename T>
+    bool toValue(EmTagValue<T>& tagValue) {
         // Read type
         if (!isValidTagValueType(m_buf[0])) {
             return false;
         }
         EmTagValueType type = static_cast<EmTagValueType>(m_buf[0]);
         // Read value
-        tagValue.setValue_(type, *reinterpret_cast<const EmTagValue::EmTagValueUnion*>(&m_buf[1]));
+        memcpy(&tagValue.getValueBuffer_(), &m_buf[1], getSize());
         return true;
     }
 
@@ -475,8 +445,18 @@ public:
     }
 
 protected:
-    char m_buf[sizeof(EmTagValueType) + sizeof(EmTagValue::EmTagValueUnion)];
+    char m_buf[sizeof(EmTagValueType) + SizeOfTBuf];
 };
+
+
+// The value buffer for base types (i.e. EmTagBaseTypeValue)
+template<typename T>
+using EmTagBaseValueBuffer = EmTagValueBuffer<sizeof(T)>;
+
+// The string value buffer (just a redefinition to have clear naming)
+template<size_t Capacity>
+using EmTagStringValueBuffer = EmTagValueBuffer<Capacity>;
+
 
 #endif // EM_STD_LIB
 #endif // _EM_TAG_VALUE_H__

@@ -25,6 +25,21 @@ using EmMutex = std::mutex;
 using EmMutexLock = std::lock_guard<std::mutex>;
 using EmMutexLockISR = std::lock_guard<std::mutex>;
 
+struct EmDualLock {
+    EmDualLock(EmMutex& m1, EmMutex& m2) {
+        std::lock(m1, m2);
+        m_ptr1 = &m1;
+        m_ptr2 = &m2;
+    }
+    ~EmDualLock() {
+        m_ptr1->unlock();
+        m_ptr2->unlock();
+    }
+    private:
+        EmMutex* m_ptr1;
+        EmMutex* m_ptr2;
+};
+
 #ifdef EM_ESP
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"

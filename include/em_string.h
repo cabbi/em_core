@@ -31,7 +31,7 @@ enum EmStrResult : uint8_t {
     partial = 2   // Succeeded, a partial string as result (i.e. buffer too small)
 };
 
-// This tiny string class uses a fixed sizeed buffer and no virtual methods to minimize RAM footprint.
+// This tiny string class uses a fixed sized buffer and no virtual methods to minimize RAM footprint.
 // Capacity is the number of characters, not including the null terminator.
 // The internal buffer will be Capacity + 1.
 class EmStringBase {
@@ -39,12 +39,16 @@ public:
     // Destructor (non-virtual to save Flash and eliminate VTable RAM)
     ~EmStringBase() = default;
 
-    // Copy & move constructors are set as default to let this class be trivially copyable (i.e. is_trivially_copyable_v will pass)
-    EmStringBase(const EmStringBase&) = default;
-    EmStringBase(EmStringBase&&) = default;
+    // Copy constructor is set as default to let this class be trivially copyable (i.e. is_trivially_copyable_v will pass)
+    explicit EmStringBase(const EmStringBase& value) = default;
+     
+    // This method might NOT copy all content of 'other' in case of too few capacity of 'this'
+    EmStringBase& operator=(const EmStringBase& other) = delete;
+
+    // Each string object owns its buffer, no move allowed
+    EmStringBase(EmStringBase&&) = delete;
 
     // Const member vars of this class cannot be re-assigned
-    EmStringBase& operator=(const EmStringBase&) = delete;
     EmStringBase& operator=(EmStringBase&&) = delete;
 
     // Returns the current length of this string object.
@@ -53,6 +57,7 @@ public:
     }
 
     // Returns the max capacity of this string object.
+    // Capacity doesn't include null terminator (i.e. buffer size must be capacity + 1)
     size_t capacity() const {
         return m_capacity;
     }
@@ -269,7 +274,6 @@ public:
         return equals(value.c_str(), caseSensitive);
     } 
 
-
 protected:
     static EmStrResult set_(char* buf, 
                             size_t capacity, 
@@ -280,9 +284,10 @@ protected:
     EmStringBase(char* buffer, size_t capacity)
      : m_buf(buffer), m_capacity(capacity) {} 
 
-protected:
+    // Member vars
     char* const m_buf;
-    const size_t m_capacity; // Capacity doesn't include null terminator
+    // Capacity doesn't include null terminator (i.e. buffer size must be capacity + 1)
+    const size_t m_capacity; 
 };
 
 
@@ -295,20 +300,22 @@ public:
         clear();
     }
 
-    EmString(const char* initValue)
+    explicit EmString(const char* initValue)
      : EmStringBase(m_storage, Capacity) {
         set(initValue);
     }
 
-    EmString(const char* initValue, size_t maxLen)
+    explicit EmString(const char* initValue, size_t maxLen)
      : EmStringBase(m_storage, Capacity) {
         set_(m_storage, capacity(), initValue, maxLen);
     }
 
-    EmString(const EmStringBase& initValue)
+    explicit EmString(const EmStringBase& initValue)
      : EmStringBase(m_storage, Capacity) {
         set(initValue.c_str());
     }
+
+    EmString(EmStringBase&& initValue) = delete;
 
 protected:
     char m_storage[Capacity + 1]; // Fixed-size memory block
@@ -341,11 +348,6 @@ inline bool operator==(const EmStringBase& a, const char* b) {
 inline bool operator==(const char* a, const EmStringBase& b) {
     return b.equals(a, true);
 }
-// Avoid implicit conversions!
-template<typename T>
-bool operator==(const EmStringBase&, const T*) = delete;
-template<typename T>
-bool operator==(const T*, const EmStringBase&) = delete;
 
 inline bool operator!=(const EmStringBase& a, const EmStringBase& b) {
     return !a.equals(b, true);
@@ -356,20 +358,10 @@ inline bool operator!=(const EmStringBase& a, const char* b) {
 inline bool operator!=(const char* a, const EmStringBase& b) {
     return !b.equals(a, true);
 }
-// Avoid implicit conversions!
-template<typename T>
-bool operator!=(const EmStringBase&, const T*) = delete;
-template<typename T>
-bool operator!=(const T*, const EmStringBase&) = delete;
 
 inline bool operator >(const EmStringBase& a, const EmStringBase& b) {
     return strcmp(a.c_str(), b.c_str()) > 0;
 }
-// Avoid implicit conversions!
-template<typename T>
-bool operator>(const EmStringBase&, const T*) = delete;
-template<typename T>
-bool operator>(const T*, const EmStringBase&) = delete;
 
 inline bool operator >=(const EmStringBase& a, const EmStringBase& b) {
     return (a > b) || (a == b);
@@ -387,7 +379,7 @@ inline bool operator <=(const EmStringBase& a, const EmStringBase& b) {
 namespace std {
     template<>
     struct hash<EmStringBase> {
-        std::size_t operator()(const EmStringBase& s) const noexcept;
+        size_t operator()(const EmStringBase& s) const noexcept;
     };
 }
 
