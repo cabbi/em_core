@@ -162,7 +162,7 @@ public:
     EmSyncValues() = default;
     virtual ~EmSyncValues() = default;
 
-    virtual EmIterator<EmSyncItemOfT>* iterator() = 0;
+    virtual EmIterator<EmSyncItemOfT>& iterator(bool reset) = 0;
 
     virtual void update() override {
         doSync();
@@ -179,9 +179,9 @@ public:
     virtual bool setValue(const T& value, bool doSyncNow) {
         m_currentValue = value;
         // Set pending write for all items that can be written
-        EmAutoPtr<EmIterator<EmSyncItemOfT>> it(iterator());
+        EmIterator<EmSyncItemOfT>& it = iterator(true);
         EmSyncItemOfT* pItem = nullptr;
-        while (it->next(pItem)) {
+        while (it.next(pItem)) {
             pItem->setPendingWrite(true);
         }
         // Synch requested?
@@ -192,13 +192,13 @@ public:
     }
 
     virtual bool doSync() {
-        EmAutoPtr<EmIterator<EmSyncItemOfT>> it(iterator());
+        EmIterator<EmSyncItemOfT>& it = iterator(true);
         EmSyncItemOfT* pItem = nullptr;
-        while (it->next(pItem)) {
+        while (it.next(pItem)) {
             switch (pItem->checkNewValue(this->m_currentValue)) {
                 case CheckNewValueResult::valueChanged:
                     // First changed value found: lets write all the others! 
-                    return updateToNewValue_(it.get(), pItem);
+                    return updateToNewValue_(it, pItem);
                 case CheckNewValueResult::mustReadFailed:
                     // A "must read" value failed to read, cannot proceed with synch!
                     return false;
@@ -214,12 +214,12 @@ public:
     }
 
 protected:
-    virtual bool updateToNewValue_(EmIterator<EmSyncItemOfT>* it, 
+    virtual bool updateToNewValue_(EmIterator<EmSyncItemOfT>& it, 
                                    EmSyncItemOfT* pUpdatedItem) {
         bool res = true;
         EmSyncItemOfT* pItem = nullptr;
-        it->reset();
-        while (it->next(pItem)) {
+        it.reset();
+        while (it.next(pItem)) {
             // Value item that gave this new value?
             if (pUpdatedItem != pItem) {
                 if (!pItem->setCurrentValue_(this->m_currentValue)) {
@@ -251,7 +251,7 @@ public:
 
     virtual ~EmSimpleSyncValue() = default;
 
-    virtual EmIterator<EmSyncItemOfT>* iterator() {
+    virtual EmIterator<EmSyncItemOfT>& iterator(bool reset) override {
         return new EmArrayIterator<EmSyncItemOfT>(m_items, size);
     }
 

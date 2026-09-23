@@ -118,7 +118,7 @@ public:
         return !isExpired();
     }
 
-    bool isNotExpired(bool restartIfExpired) const {
+    bool isNotExpired(bool restartIfExpired) {
         return !isExpired(restartIfExpired);
     }
     

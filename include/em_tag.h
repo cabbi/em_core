@@ -219,9 +219,12 @@ class EmTagSyncGroup: public EmTagSyncGroupBase,
                       public EmSyncValues<EmTagBase, EmTagValue> {
 protected:
     EmList<EmTagBase> m_tagList;
+    EmListIterator<EmTagBase> m_iterator;
 
 public:
-    EmTagSyncGroup() : m_tagList(&EmTagBase::match) {}
+    EmTagSyncGroup()
+     : m_tagList(&EmTagBase::match),
+       m_iterator(m_tagList) {}
     virtual ~EmTagSyncGroup() = default;
 
     virtual const char* getId() const override { 
@@ -229,8 +232,11 @@ public:
         return first ? first->getId() : nullptr;
     }
 
-    virtual EmIterator<EmTagBase>* iterator() {
-        return new EmListIterator<EmTagBase>(m_tagList);
+    virtual EmIterator<EmTagBase>& iterator(bool reset) override {
+        if (reset) {
+            m_iterator.reset();
+        }
+        return m_iterator;
     }
 
     virtual void update() override {
