@@ -12,6 +12,15 @@
 #include <cstdint>
 #include <stddef.h>
 
+#ifdef __cplusplus
+extern "C" {
+    unsigned long millis();
+}
+#else
+    unsigned long millis();
+#endif    
+void tDelay(uint32_t pauseMs, bool yieldIfNoTicks);
+
 // The abstract stream class used by devices that need a read stream interface
 class EmStreamRx {
 public:
@@ -19,11 +28,27 @@ public:
     virtual int peek() = 0;
     virtual int read() = 0;
     virtual size_t read(uint8_t*, size_t) = 0;
-    virtual size_t readBytes(char *buffer, size_t length) {
+    virtual size_t readBytes(char* buffer, size_t length) {
         return read((uint8_t*)buffer, length);
     }
-    virtual size_t readBytes(uint8_t *buffer, size_t length) {
+    virtual size_t readBytes(uint8_t* buffer, size_t length) {
         return read(buffer, length);
+    }
+    virtual size_t readBytes(char* buffer, size_t length, size_t timeoutMillis) {
+        return readBytes((uint8_t*)buffer, length, timeoutMillis);
+    }
+    virtual size_t readBytes(uint8_t* buffer, size_t length, size_t timeoutMillis) {
+        size_t startMillis = millis();
+        size_t bytesRead = 0;
+        while (bytesRead < length && (millis() - startMillis) < timeoutMillis) {
+            int bytesAvailable = available(); 
+            if (bytesAvailable > 0) {
+                size_t bytesRemaining = length - bytesRead;
+                bytesRead += readBytes(&buffer[bytesRead], 
+                                       bytesAvailable > bytesRemaining ? bytesRemaining : bytesAvailable);
+            }
+        }
+        return bytesRead;
     }
 };
 
@@ -74,9 +99,28 @@ public:
 	virtual bool begin(const uart_config_t& uart_config, int8_t rxPin=-1, int8_t txPin=-1) = 0;
 #endif        
 	virtual void end() = 0;
+    virtual bool isInitialized() const = 0;
 	virtual void flush(bool txOnly=true) = 0;
     virtual void flushRxBuffer() = 0;
-    virtual int baudRate() = 0;
+    virtual int getBaudRate() = 0;
+    virtual bool setBaudRate(int baudRate) = 0;
+};
+
+// Helper to change baud rate within a specific session
+struct EmSerialBaudSession {
+    EmSerialBaudSession(EmSerialStream& serial, int sessionBaudRate)
+        : m_serial(serial), m_curBaud(serial.getBaudRate()), m_newBaud(sessionBaudRate) {
+        if (m_curBaud != m_newBaud) {
+            m_serial.setBaudRate(m_newBaud);
+        }
+        }
+    ~EmSerialBaudSession() {
+        if (m_curBaud != m_newBaud) {
+            m_serial.setBaudRate(m_curBaud);
+        }
+    }
+    EmSerialStream& m_serial;
+    int m_curBaud, m_newBaud;
 };
 
 #endif //__EM_STREAM_H_

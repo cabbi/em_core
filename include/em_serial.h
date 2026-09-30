@@ -101,12 +101,13 @@ protected:
 class EmHardwareSerial : public EmSerialStream {
 private:
     uart_port_t m_uartNum;
+    uint32_t m_currentBaud;
     bool m_isInitialized;
     static const int RX_BUF_SIZE = 1024;
 
 public:
     EmHardwareSerial(uart_port_t uart_num = UART_NUM_0)
-     : m_uartNum(uart_num), m_isInitialized(false) {}
+     : m_uartNum(uart_num), m_currentBaud(0), m_isInitialized(false) {}
 
      EmHardwareSerial(int uart_num)
      : EmHardwareSerial(static_cast<uart_port_t>(uart_num)) {}
@@ -114,7 +115,7 @@ public:
 	virtual bool begin(unsigned long baud, int8_t rxPin=-1, int8_t txPin=-1) override;
 	virtual bool begin(const uart_config_t& uart_config, int8_t rxPin=-1, int8_t txPin=-1) override;
     
-    virtual bool isInitialized() const {
+    virtual bool isInitialized() const override {
         return m_isInitialized;
     }
 	virtual void end() override;
@@ -131,7 +132,8 @@ public:
 	virtual size_t write(const void* buffer, int buffLen) override;
 	virtual void flush(bool txOnly=true) override;
     virtual void flushRxBuffer() override;
-    virtual int baudRate() override;
+    virtual int getBaudRate() override;
+    virtual bool setBaudRate(int baudRate) override;
 };
 
 #endif

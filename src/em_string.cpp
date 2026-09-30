@@ -317,24 +317,26 @@ EmStrResult EmStringBase::set_(char* buf,
 }
 
 // Hash specialization for EmStringBase to be used in unordered containers
+template<size_t Size> struct FnvConstants;
+template<> struct FnvConstants<8> {
+    static constexpr size_t offsetBasis = (size_t)14695981039346656037ULL; // Casting to avoid compilation error!
+    static constexpr size_t prime       = (size_t)1099511628211ULL;
+};
+template<> struct FnvConstants<4> {
+    static constexpr size_t offsetBasis = 2166136261U;
+    static constexpr size_t prime       = 16777619U;
+};
+
 size_t calculateHash(const char* str) {
+    using Traits = FnvConstants<sizeof(size_t)>;
+    
     const char* p = str;
-    // This check happens at compile-time, choosing the right block for your target architecture
-    if constexpr (sizeof(std::size_t) == 8) {
-        std::size_t hash = 14695981039346656037ULL;
-        while (*p) {
-            hash ^= static_cast<std::size_t>(*p++);
-            hash *= 1099511628211ULL;
-        }
-        return hash;
-    } else {
-        std::size_t hash = 2166136261U;
-        while (*p) {
-            hash ^= static_cast<std::size_t>(*p++);
-            hash *= 16777619U;
-        }
-        return hash;
+    size_t hash = Traits::offsetBasis;    
+    while (*p) {
+        hash ^= static_cast<size_t>(*p++);
+        hash *= Traits::prime;
     }
+    return hash;
 }
 
 namespace std {

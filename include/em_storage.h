@@ -142,15 +142,18 @@ public:
         return false;
     }
 
-    bool initValue(const char* key, const EmTagValue& value, bool commit=true) const {
+    bool initValue(const char* key, EmTagValue& value, bool commit=true) const {
+        // Storage initialized?
         if (isNotInitialized()) {
             addToInitTags_(key, value);
             return true;            
         }
+        // Value already stored?
         if (!hasKey(key)) {
             return setValue(key, value, commit);
         }
-        return false;
+        // Get the stored value
+        return getValue(key, value);
     }   
     bool initString(const char* key, const char* value, bool commit=true) const {
         if (isNotInitialized()) {
@@ -433,6 +436,10 @@ public:
     bool isSameString(const char* key, const char* value) const;
     bool isSameBytes(const char* key, const void * buf, size_t len) const;
 
+    bool hasKey(const EmStringBase& key) const {
+        return hasKey(key.c_str()); 
+    }
+
     bool hasKey(const char* key) const { 
         EmNvsKeyString keyBuffer;
         return nvs_find_key(m_handle, getNvsKey(key, keyBuffer), nullptr) == ESP_OK;
@@ -527,7 +534,7 @@ protected:
     void addToInitStrings_(const char* key, const char* value) const {
         addInitItem_(new InitItem_(key, value));
     }
-    void addToInitTags_(const char* key, const EmTagValue& value) const {
+    void addToInitTags_(const char* key, EmTagValue& value) const {
         addInitItem_(new InitItem_(key, value));
     }
     template<typename T>
@@ -575,11 +582,12 @@ private:
         EmNvsKeyString key;
         EmStorageItemType type = EmStorageItemType::Undefined;
         EmSboBuffer<char, 16> bytes;
+        EmTagValue* tagValue = nullptr;
         size_t len = 0;
         InitItem_* next = nullptr;
 
         template<typename T>
-        InitItem_(const char* key, T value) {
+        InitItem_(const char* key, T& value) {
             EmStorageItemType type = getItemType<T>();                        
             init_(key, type, &value, sizeof(T));
         }
@@ -589,9 +597,11 @@ private:
         InitItem_(const char* key, const char* value) {
             init_(key, EmStorageItemType::String, value, strlen(value)+1);
         }
-        InitItem_(const char* key, const EmTagValue& value) {
-            EmTagValueBuffer vb(value);
-            init_(key, EmStorageItemType::TagValue, vb.getBuffer(), vb.getSize());
+        InitItem_(const char* k, EmTagValue& value) {
+            this->next = nullptr;
+            getNvsKey(k, this->key);
+            this->type = EmStorageItemType::TagValue;
+            this->tagValue = &value;
         }
         ~InitItem_() = default;
 
@@ -669,19 +679,11 @@ public:
 
     // Initialization methods (i.e. value is set only if key does not exist)
     template<typename V>
-    size_t initValue(const V& value, bool commit=true) const {
+    bool initValue(const V& value, bool commit=true) const {
         return tStorage.initValue<V>(getKey(), value, commit);
     } 
 
-    size_t initValue(const EmTag& tag, bool commit=true) const {
-        EmTagValue value;
-        if (tag.getValue(value) != EmGetValueResult::failed) {
-            return initValue(value, commit);
-        }
-        return 0;
-    }
-
-    size_t initValue(const EmTagValue& value, bool commit=true) const {
+    bool initValue(EmTagValue& value, bool commit=true) const {
         return tStorage.initValue(getKey(), value, commit);
     }
 
@@ -782,9 +784,8 @@ public:
                  const T& initValue, 
                  EmSyncFlags flags)
      : EmStorageValueBase<EmTag, EmTagValue, tStorage>(key, initValue, flags) {
-        tStorage.initValue(key, EmTagValue(initValue), true);
-        // Set the tag as undefined to read it from storage the for the first time
-        EmTag::m_value.setUndefinedType();
+        EmTag::m_value.setValue(initValue, true);
+        tStorage.initValue(key, EmTag::m_value, true);
      }
 
     EmStorageTag(const char* key, 

@@ -60,7 +60,7 @@ void TEST_NVS() {
     if (intStTag.getValue(iv) == EmGetValueResult::failed) {
         logError("TS---->", "Get 'intStTag' FAILED!");
     } else {
-        logInfo<100>("TS---->", "Get 'intStTag' = %d", intStTag.getValue().asInteger());
+        logInfo<100>("TS---->", "Get 'intStTag' = %d", intStTag.getValue().asInt());
     }
 
 

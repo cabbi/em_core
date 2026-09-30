@@ -14,8 +14,7 @@
 
 #if defined(ESP_PLATFORM) || defined(ESP32) || defined(ESP8266)
     #include <freertos/FreeRTOS.h>
-    #include <freertos/task.h>
-    
+    #include <freertos/task.h>    
     #define EM_ESP
     #define EM_STD_LIB  // Use of standard library (AVR arduinos does not have it!)
     #define EM_WIFI

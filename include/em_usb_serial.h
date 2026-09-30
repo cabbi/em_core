@@ -50,7 +50,8 @@ public:
     virtual size_t read(uint8_t*, size_t) { return -1; }  
     virtual void flush(bool txOnly=true) override { fflush(stdout); }
     virtual void flushRxBuffer() override {}
-    virtual int baudRate() override { return 115200; }
+    virtual int getBaudRate() override { return 0; }
+    virtual bool setBaudRate(int) override { return false; }
 
 protected:        
     virtual bool begin(unsigned long baud, int8_t rxPin=-1, int8_t txPin=-1) override {

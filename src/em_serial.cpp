@@ -21,6 +21,7 @@ bool EmHardwareSerial::begin(const uart_config_t& uart_config, int8_t rxPin, int
     if (isInitialized()) {
         return true;
     }
+    m_currentBaud = 0;
     esp_err_t res = uart_param_config(m_uartNum, &uart_config);
     if (res != ESP_OK) {
         logError<100>("EmHardwareSerial", "[%d] 'uart_param_config' failed!", res);
@@ -36,6 +37,7 @@ bool EmHardwareSerial::begin(const uart_config_t& uart_config, int8_t rxPin, int
         logError<100>("EmHardwareSerial", "[%d] 'uart_driver_install' failed!", res);
         return false;
     }
+    m_currentBaud = uart_config.baud_rate;
     m_isInitialized = true;
     return true;
 }
@@ -66,20 +68,32 @@ void EmHardwareSerial::flushRxBuffer() {
     }
 }
 
-int EmHardwareSerial::baudRate() {
+int EmHardwareSerial::getBaudRate() {
     if (!isInitialized()) {
         return -1;
     }
-
-    uint32_t current_baud = 0;
-    
+    // NOTE: 
+    // 'uart_get_baudrate' does NOT return the accurate baudrate set in the configuration!
+    // (https://github.com/espressif/esp-idf/issues/3885)
+    return m_currentBaud;
+    /*
     // Natively query the ESP32 hardware driver registers
+    uint32_t current_baud = 0;    
     esp_err_t err = uart_get_baudrate(m_uartNum, &current_baud);
     if (err != ESP_OK) {
         return -1;
     }
 
     return (int)current_baud;
+    */
+}
+
+bool EmHardwareSerial::setBaudRate(int baudRate) {
+    if (!isInitialized()) {
+        return false;
+    }
+    m_currentBaud = baudRate;
+    return uart_set_baudrate(m_uartNum, baudRate) == ESP_OK;
 }
 
 int EmHardwareSerial::available() {
@@ -139,6 +153,7 @@ void EmHardwareSerial::end() {
     flush();
     uart_driver_delete(m_uartNum);
     m_isInitialized = false;
+    m_currentBaud = 0;
 }
 
 #endif //ESP_PLATFORM

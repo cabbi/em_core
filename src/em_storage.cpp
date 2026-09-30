@@ -46,9 +46,22 @@ bool EmStorage::begin(const char * name, uint16_t resetVersion) {
         bool commitNeeded = false;
         InitItem_* cur = m_initHead;
         while (cur) {
-            if (!hasKey(cur->key.c_str())) {
+            if (!hasKey(cur->key)) {
+                if (cur->type == EmStorageItemType::TagValue) {
+                    if (cur->tagValue != nullptr) {
+                        EmTagValueBuffer tagBuffer(*cur->tagValue);
+                        if (setValue_(cur->type, cur->key.c_str(), (void*)tagBuffer.getBuffer(), tagBuffer.getSize())) {
+                            commitNeeded = true;
+                        }
+                    }
+                } else
                 if (setValue_(cur->type, cur->key.c_str(), (void*)cur->bytes.getBuffer(), cur->len)) {
                     commitNeeded = true;
+                }
+            } else {
+                // Key exists, lets read it case of tag value
+                if (cur->type == EmStorageItemType::TagValue && cur->tagValue != nullptr) {
+                    getValue(cur->key.c_str(), *cur->tagValue);
                 }
             }
             cur = cur->next;
@@ -335,13 +348,7 @@ const char* EmStorage::getNvsKey(const char* key, EmNvsKeyString& keyBuffer) {
     }
 
     // Key is too long (i.e >= NVS_KEY_NAME_MAX_SIZE). Compute FNV-1a 64-bit Hash
-    uint64_t hash = 14695981039346656037ULL; // FNV offset basis
-    const uint64_t fnvPrime = 1099511628211ULL; // FNV prime
-
-    for (size_t i = 0; i < len; ++i) {
-        hash ^= static_cast<uint8_t>(key[i]);
-        hash *= fnvPrime;
-    }
+    size_t hash = calculateHash(key);
 
     // Convert the 7 bytes (56 bits) into hex (avoids heavy sprintf)
     const char hexChars[] = "0123456789ABCDEF";
