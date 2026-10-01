@@ -80,61 +80,20 @@ public:
 
     EmTag(const char* id, EmSyncFlags flags, EmTagsAdd& tags);
 
+    template<typename T>
     EmTag(const char* id, 
-          bool initValue,
+          T initValue,
           EmSyncFlags flags)
       : EmTagBase(flags), 
         m_id(id), 
         m_value(initValue) {}
 
+    template<typename T>
     EmTag(const char* id, 
-          const EmTagValue& initValue,
-          EmSyncFlags flags)
-      : EmTagBase(flags), 
-        m_id(id), 
-        m_value(initValue) {}
+          T initValue,
+          EmSyncFlags flags,
+          EmTagsAdd& tags);
 
-    EmTag(const char* id, 
-          EmIntType initValue,
-          EmSyncFlags flags)
-      : EmTagBase(flags), 
-        m_id(id), 
-        m_value(initValue) {}
-
-    EmTag(const char* id, 
-          EmUIntType initValue,
-          EmSyncFlags flags)
-      : EmTagBase(flags), 
-        m_id(id), 
-        m_value(initValue) {}
-
-    EmTag(const char* id, 
-          int initValue,
-          EmSyncFlags flags)
-      : EmTagBase(flags), 
-        m_id(id), 
-        m_value(initValue) {}
-
-    EmTag(const char* id, 
-          unsigned int initValue,
-          EmSyncFlags flags)
-      : EmTagBase(flags), 
-        m_id(id), 
-        m_value(initValue) {}
-
-    EmTag(const char* id, 
-          float initValue,
-          EmSyncFlags flags)
-      : EmTagBase(flags), 
-        m_id(id), 
-        m_value(initValue) {}
-
-    EmTag(const char* id, 
-          double initValue,
-          EmSyncFlags flags)
-      : EmTagBase(flags), 
-        m_id(id), 
-        m_value(initValue) {}
 
  
     virtual const char* getId() const override { return m_id; }
@@ -451,7 +410,15 @@ protected:
 };
 
 inline EmTag::EmTag(const char* id, EmSyncFlags flags, EmTagsAdd& tags)
-  : EmTagBase(flags), m_id(id) {
+  : EmTag(id, flags) {
+    tags.add(*this);
+}
+template<typename T>
+inline EmTag::EmTag(const char* id, 
+                    T initValue,
+                    EmSyncFlags flags,
+                    EmTagsAdd& tags)
+  : EmTag(id, initValue, flags) {
     tags.add(*this);
 }
 #endif // EM_STD_LIB
