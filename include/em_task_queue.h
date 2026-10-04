@@ -60,13 +60,17 @@ public:
 
     // Pull an item from the queue
     bool pull(T& item, uint32_t waitIfEmptyMillis = 0) {
-        if (m_handle == nullptr) return false;
+        if (m_handle == nullptr) {
+            return false;
+        }
         return xQueueReceive(m_handle, &item, pdMS_TO_TICKS(waitIfEmptyMillis)) == pdTRUE;
     }
 
     // Pull an item from an Interrupt Service Routine (ISR)
     bool pullFromISR(T& item, BaseType_t* higher_priority_task_woken) {
-        if (m_handle == nullptr) return false;
+        if (m_handle == nullptr) {
+            return false;
+        }
         return xQueueReceiveFromISR(m_handle, &item, higher_priority_task_woken) == pdTRUE;
     }
 
@@ -80,6 +84,7 @@ public:
 
     // Check if the queue handle is valid
     bool isValid() const { return m_handle != nullptr; }
+    bool isNotValid() const { return !isValid(); }
 
     // --- Status Verification Methods ---
 

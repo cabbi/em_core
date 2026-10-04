@@ -18,12 +18,15 @@ void vLoopTask(void *pvParameters) {
 }
 
 extern "C" {
+    #ifndef EM_MAIN_TASK_STACK_SIZE
+        #define EM_MAIN_TASK_STACK_SIZE 8192    
+    #endif        
     void app_main(void) {
     #ifdef EM_MULTICORE
         xTaskCreatePinnedToCore(
             vLoopTask, 
             "main_loop_task", 
-            8192, 
+            EM_MAIN_TASK_STACK_SIZE, 
             nullptr, 
             1, // Priority 1
             nullptr, 
