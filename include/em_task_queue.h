@@ -12,8 +12,8 @@ class EmTaskQueue {
 
 public:
     // Create a queue with a maximum number of items
-    explicit EmTaskQueue(UBaseType_t queue_length) {
-        m_handle = xQueueCreate(queue_length, sizeof(T));
+    explicit EmTaskQueue(UBaseType_t queueLength) {
+        m_handle = xQueueCreate(queueLength, sizeof(T));
     }
 
     ~EmTaskQueue() {

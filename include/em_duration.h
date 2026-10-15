@@ -2,6 +2,7 @@
 #define __EM_DURATION_H__
 
 #include "em_defs.h"
+#include "em_string.h"
 #include "em_threading.h"
 
 // The default duration that supports milliseconds for a maximum of 49 days and 17 hours time.
@@ -151,6 +152,45 @@ public:
         totalUnits %= (60);
         seconds = static_cast<uint16_t>(totalUnits);
     }
+    
+    // Formats the duration into a string representation in the format of "_d_h_m_s".
+    // Use the provided 'separator' between each components. 
+    // Note that d, h, m, s are only included if they are non-zero.
+    // E.g. "5d", "1d2h", "2h15m", "5m10s", "30s"
+    EmStrResult toString(EmStringBase& str, const char* separator = "") const {
+        str.clear();
+        EmStrResult res;
+        uint16_t days, hours, minutes, seconds;
+        to(days, hours, minutes, seconds);
+        if (days > 0) {
+            res = str.appendFormat(false, "%ud%s", days, separator);
+            if (res != EmStrResult::success) {
+                return res;
+            }
+        }
+        if (hours > 0) {
+            res = str.appendFormat(false, "%uh%s", hours, separator);
+            if (res != EmStrResult::success) {
+                return res;
+            }
+        }  
+        if (minutes > 0) {
+            res = str.appendFormat(false, "%um%s", minutes, separator);
+            if (res != EmStrResult::success) {
+                return res;
+            }   
+        }
+        if (seconds > 0) {
+            res = str.appendFormat(false, "%us%s", seconds, separator);
+            if (res != EmStrResult::success) {
+                return res;
+            }
+        }
+        if (separator != nullptr && strlen(separator) > 0 && str.isNotEmpty()) {
+            str.reduceLen(strlen(separator)); // Remove the last separator
+        }
+        return EmStrResult::success;
+    }    
 };
 
 // EmHiResDuration class for handling duration-related operations up to milliseconds
@@ -187,10 +227,49 @@ public:
         milliseconds = static_cast<uint16_t>(totalUnits % 1000);
     }
 
+    // Formats the duration into a string representation in the format of "_h_m_s_ms".
+    // Use the provided 'separator' between each components. 
+    // Note that h, m, s, ms are only included if they are non-zero.
+    // E.g. "1d2h", "2h15m", "5m10s", "300ms"
+    EmStrResult toString(EmStringBase& str, const char* separator = "") const {
+        str.clear();
+        EmStrResult res;
+        uint16_t hours, minutes, seconds, millis;
+        to(hours, minutes, seconds, millis);
+        if (hours > 0) {
+            res = str.appendFormat(false, "%uh%s", hours, separator);
+            if (res != EmStrResult::success) {
+                return res;
+            }
+        }  
+        if (minutes > 0) {
+            res = str.appendFormat(false, "%um%s", minutes, separator);
+            if (res != EmStrResult::success) {
+                return res;
+            }   
+        }
+        if (seconds > 0) {
+            res = str.appendFormat(false, "%us%s", seconds, separator);
+            if (res != EmStrResult::success) {
+                return res;
+            }
+        }
+        if (millis > 0) {
+            res = str.appendFormat(false, "%ums%s", millis, separator);
+            if (res != EmStrResult::success) {
+                return res;
+            }
+        }
+        if (separator != nullptr && strlen(separator) > 0 && str.isNotEmpty()) {
+            str.reduceLen(strlen(separator)); // Remove the last separator
+        }
+        return EmStrResult::success;
+    } 
+
     // Get the duration in milliseconds
     T milliseconds() const {
         return this->durationUnits();
-    }
+    }    
 };
 
 // The default duration that supports milliseconds for a maximum of 49 days and 17 hours time.

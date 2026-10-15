@@ -201,22 +201,24 @@ public:
 
     // Extracts a substring from this string into the 'out' parameter.
     // The substring begins at the specified 'beginIndex' and extends to the end.
+    // If 'beginIndex' is negative it returns the char starting from end.
     // Returns true on success, false if 'beginIndex' is out of bounds.
-    EmStrResult substring(size_t beginIndex, EmStringBase& out) const {
+    EmStrResult substring(int beginIndex, EmStringBase& out) const {
         return substring(beginIndex, out.buffer(), out.capacity());
     }
 
-    EmStrResult substring(size_t beginIndex, char* out, size_t outMaxStrLen) const {
+    EmStrResult substring(int beginIndex, char* out, size_t outMaxStrLen) const {
         return substring(beginIndex, length(), out, outMaxStrLen);
     }
 
     // Extracts a substring from this string into the 'out' parameter.
     // The substring begins at 'beginIndex' and extends to the character at index 'endIndex' - 1.
+    // If 'beginIndex' and/or 'endIndex' are negative it returns the char starting from end.
     // Returns true on success, false if indices are invalid.
-    EmStrResult substring(size_t beginIndex, size_t endIndex, EmStringBase& out) const {
+    EmStrResult substring(int beginIndex, int endIndex, EmStringBase& out) const {
         return substring(beginIndex, endIndex, out.buffer(), out.capacity());
     }
-    EmStrResult substring(size_t beginIndex, size_t endIndex, char* out, size_t outMaxStrLen) const;
+    EmStrResult substring(int beginIndex, int endIndex, char* out, size_t outMaxStrLen) const;
 
     // Finds the first occurrence of a character in the string.
     // Returns the index of the first occurrence, or -1 if not found.

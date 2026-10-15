@@ -27,6 +27,18 @@ enum class EmTagValueType: uint8_t {
     _vt_MAX      = 5
 };
 
+inline const char* tagValueTypeToText(EmTagValueType type) {
+    switch (type) {
+        case EmTagValueType::vt_undefined: return "undefined";
+        case EmTagValueType::vt_bool:      return "boolean";
+        case EmTagValueType::vt_int:       return "integer";
+        case EmTagValueType::vt_uint:      return "unsigned integer";
+        case EmTagValueType::vt_real:      return "real";
+        case EmTagValueType::vt_epoch:     return "timestamp";
+        default: return "<unknown>";
+    }
+}
+
 inline bool isValidTagValueType(uint8_t type) {
     return type <= static_cast<uint8_t>(EmTagValueType::_vt_MAX);
 }

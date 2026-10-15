@@ -240,7 +240,10 @@ bool EmStringBase::isToken(size_t tokenIndex, char separator, const char* token)
     }
 }
 
-EmStrResult EmStringBase::substring(size_t beginIndex, size_t endIndex, char* out, size_t outMaxStrLen) const {
+EmStrResult EmStringBase::substring(int beginIndex, int endIndex, char* out, size_t outMaxStrLen) const {
+    if (!normalizeIndex(beginIndex) || !normalizeIndex(endIndex)) {
+        return EmStrResult::failure;
+    }
     if (!out){
         return EmStrResult::failure;
     }
