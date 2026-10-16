@@ -162,7 +162,7 @@ public:
     }
 
     // Adds a generic object content (e.g.dict or list)
-    // This method is used in case you already have a well formattes dict or list string.
+    // This method is used in case you already have a well formatters dict or list string.
     bool addObject(const char* key, const char* content) {
         if (m_level == 0) {
             return false;
@@ -188,26 +188,29 @@ public:
     }
 
     template<typename... Args>
-    void addStringList(const char* key, Args... args) {
-        prefix(); m_target.appendFormat(false, "\"%s\":[", key);
-        appendListItems_(args...);
-        m_target.append("]");
-    }
-
-    template<typename... Args>
     void addBoolList(const char* key, Args... args) {
         prefix(); 
         m_target.appendFormat(false, "\"%s\":[", key);
         appendListItems_(args...);
         m_target.append("]");
     }
-private:
 
+    template<typename... Args>
+    void addStringList(bool discardNullsOrEmpty, const char* key, Args... args) {
+        prefix(); 
+        m_target.appendFormat(false, "\"%s\":[", key);
+        
+        bool hasElements = false; 
+        appendStrListItems_(hasElements, discardNullsOrEmpty, args...);
+        
+        m_target.append("]");
+    }
+
+protected:
     // Base case: exactly one item remaining (no trailing comma needed)
     void appendListItem_(int32_t item)      { m_target.appendFormat(false, "%d", item); }
     void appendListItem_(uint32_t item)     { m_target.appendFormat(false, "%u", item); }
     void appendListItem_(double item)       { m_target.appendFormat(false, "%.4f", item); }
-    void appendListItem_(const char* item)  { m_target.appendFormat(false, "\"%s\"", item ? item : ""); }
     void appendListItem_(bool item)         { m_target.appendFormat(false, "%s", item ? "true" : "false"); }
 
     // Fallback base case for completely empty lists e.g. addIntList("empty")
@@ -222,9 +225,50 @@ private:
     // Multiple items remaining: print head, add comma separator, recurse tail
     template<typename T, typename... Args>
     void appendListItems_(T head, Args... tail) {
-        appendListItem(head);
+        appendListItem_(head);
         m_target.append(",");
         appendListItems_(tail...); // Tail recursion unrolling
+    }
+    
+    // Single item in 
+    void appendStrListItem_(const char* item) {
+        m_target.appendFormat(false, "\"%s\"", item ? item : ""); 
+    }
+
+    // Fallback base case for completely empty string lists e.g. addStrList("empty")
+    void appendStrListItems_(bool& hasElements, bool discardNullsOrEmpty) {
+    } 
+
+    // Single item left base case
+    void appendStrListItems_(bool& hasElements, bool discardNullsOrEmpty, const char* item) {
+        if (discardIfNullOrEmpty_(discardNullsOrEmpty, item)) {
+            if (hasElements) {
+                m_target.append(",");
+            }
+            appendStrListItem_(item);
+            hasElements = true;
+        }
+    }
+
+    // Multiple items remaining: print head, add comma separator, recurse tail
+    template<typename... Args>
+    void appendStrListItems_(bool& hasElements, bool discardNullsOrEmpty, const char* head, Args... tail) {
+        if (discardIfNullOrEmpty_(discardNullsOrEmpty, head)) {
+            if (hasElements) {
+                m_target.append(",");
+            }
+            appendStrListItem_(head);
+            hasElements = true;
+        }       
+        appendStrListItems_(hasElements, discardNullsOrEmpty, tail...);
+    }
+
+    // Helper to discard null or empty strings if requested
+    bool discardIfNullOrEmpty_(bool discardNullsOrEmpty, const char* item) {
+        if (!discardNullsOrEmpty) {
+            return true;
+        }
+        return item != nullptr && item[0] != '\0';
     }
 
     // Helper to handle commas between key-value pairs automatically
