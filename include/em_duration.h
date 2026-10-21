@@ -17,6 +17,12 @@ class EmDurationLong;
 // The low resolution duration up to seconds
 class EmLowResDuration;
 
+// The string conversion modes
+enum class EmDurationPrintMode {
+    PrintAll =  0,             // Prints all duration elements (e.g. 0d 5h 0m 0s)
+    PrintOnlyNonZero = 1,      // Prints only non zero duration elements (e.g. 5h)
+    PrintAllAfterNonZero = 2   // Prints all duration elements after the first non zero (e.g. 5h 0m 0s)
+};
 
 // EmDuration class for handling duration-related operations
 template<uint32_t UnitxSec, typename T, typename I>
@@ -118,6 +124,24 @@ protected:
     I m_durationUnits;  
 };
 
+// String conversion helper
+inline bool shouldPrint_(uint16_t element,
+                         int8_t printedElements,
+                         EmDurationPrintMode mode,
+                         int8_t maxElements) {
+    maxElements = maxElements > 0 ? maxElements : 100;
+    switch (mode) { 
+        case EmDurationPrintMode::PrintAll: 
+            return printedElements < maxElements;
+        case EmDurationPrintMode::PrintOnlyNonZero: 
+            return element > 0 && printedElements < maxElements;
+        case EmDurationPrintMode::PrintAllAfterNonZero:
+            return (element > 0 || printedElements > 0) && 
+                    printedElements < maxElements;
+    }
+    return false;
+}
+
 // Class for handling duration-related operations up to seconds
 class EmLowResDuration: public EmDuration_<1, uint32_t, ts_uint32> {
 public:
@@ -154,34 +178,46 @@ public:
     }
     
     // Formats the duration into a string representation in the format of "_d_h_m_s".
-    // Use the provided 'separator' between each components. 
+    // Use the provided 'separator' between each components.
+    // If printNextElementsEvenIfZero is set to true, then all the elements
     // Note that d, h, m, s are only included if they are non-zero.
     // E.g. "5d", "1d2h", "2h15m", "5m10s", "30s"
-    EmStrResult toString(EmStringBase& str, const char* separator = "") const {
+    EmStrResult toString(EmStringBase& str, 
+                         const char* separator = "",
+                         EmDurationPrintMode mode = EmDurationPrintMode::PrintAllAfterNonZero,
+                         int8_t maxElementsToPrint=-1,
+                         const char* daysTag = "d",
+                         const char* hoursTag = "h",
+                         const char* minsTag = "m",
+                         const char* secsTag = "s") const {
         str.clear();
+        int8_t printedElements = 0;
         EmStrResult res;
         uint16_t days, hours, minutes, seconds;
         to(days, hours, minutes, seconds);
-        if (days > 0) {
-            res = str.appendFormat(false, "%ud%s", days, separator);
+        if (shouldPrint_(days, printedElements, mode, maxElementsToPrint)) {
+            res = str.appendFormat(false, "%u%s%s", days, daysTag, separator);
             if (res != EmStrResult::success) {
                 return res;
             }
         }
-        if (hours > 0) {
-            res = str.appendFormat(false, "%uh%s", hours, separator);
+        if (shouldPrint_(hours, printedElements, mode, maxElementsToPrint)) {
+            printedElements++;
+            res = str.appendFormat(false, "%u%s%s", hours, hoursTag, separator);
             if (res != EmStrResult::success) {
                 return res;
             }
         }  
-        if (minutes > 0) {
-            res = str.appendFormat(false, "%um%s", minutes, separator);
+        if (shouldPrint_(minutes, printedElements, mode, maxElementsToPrint)) {
+            printedElements++;
+            res = str.appendFormat(false, "%u%s%s", minutes, minsTag, separator);
             if (res != EmStrResult::success) {
                 return res;
             }   
         }
-        if (seconds > 0) {
-            res = str.appendFormat(false, "%us%s", seconds, separator);
+        if (shouldPrint_(seconds, printedElements, mode, maxElementsToPrint)) {
+            printedElements++;
+            res = str.appendFormat(false, "%u%s%s", seconds, secsTag, separator);
             if (res != EmStrResult::success) {
                 return res;
             }
@@ -231,31 +267,39 @@ public:
     // Use the provided 'separator' between each components. 
     // Note that h, m, s, ms are only included if they are non-zero.
     // E.g. "1d2h", "2h15m", "5m10s", "300ms"
-    EmStrResult toString(EmStringBase& str, const char* separator = "") const {
+    EmStrResult toString(EmStringBase& str, 
+                         const char* separator = "",
+                         EmDurationPrintMode mode = EmDurationPrintMode::PrintAllAfterNonZero,
+                         int8_t maxElementsToPrint=-1,
+                         const char* hoursTag = "h",
+                         const char* minsTag = "m",
+                         const char* secsTag = "s",
+                         const char* millisTag = "ms") const {
         str.clear();
+        int8_t printedElements = 0;
         EmStrResult res;
         uint16_t hours, minutes, seconds, millis;
         to(hours, minutes, seconds, millis);
-        if (hours > 0) {
-            res = str.appendFormat(false, "%uh%s", hours, separator);
+        if (shouldPrint_(hours, printedElements, mode, maxElementsToPrint)) {
+            res = str.appendFormat(false, "%u%s%s", hours, hoursTag, separator);
             if (res != EmStrResult::success) {
                 return res;
             }
         }  
-        if (minutes > 0) {
-            res = str.appendFormat(false, "%um%s", minutes, separator);
+        if (shouldPrint_(minutes, printedElements, mode, maxElementsToPrint)) {
+            res = str.appendFormat(false, "%u%s%s", minutes, minsTag, separator);
             if (res != EmStrResult::success) {
                 return res;
             }   
         }
-        if (seconds > 0) {
-            res = str.appendFormat(false, "%us%s", seconds, separator);
+        if (shouldPrint_(seconds, printedElements, mode, maxElementsToPrint)) {
+            res = str.appendFormat(false, "%u%s%s", seconds, secsTag, separator);
             if (res != EmStrResult::success) {
                 return res;
             }
         }
-        if (millis > 0) {
-            res = str.appendFormat(false, "%ums%s", millis, separator);
+        if (shouldPrint_(milliseconds, printedElements, mode, maxElementsToPrint)) {
+            res = str.appendFormat(false, "%u%s%s", millis, millisTag, separator);
             if (res != EmStrResult::success) {
                 return res;
             }
