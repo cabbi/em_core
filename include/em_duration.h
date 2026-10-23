@@ -18,7 +18,7 @@ class EmDurationLong;
 class EmLowResDuration;
 
 // The string conversion modes
-enum class EmDurationPrintMode {
+enum class EmDurationPrintMode: uint8_t {
     PrintAll =  0,             // Prints all duration elements (e.g. 0d 5h 0m 0s)
     PrintOnlyNonZero = 1,      // Prints only non zero duration elements (e.g. 5h)
     PrintAllAfterNonZero = 2   // Prints all duration elements after the first non zero (e.g. 5h 0m 0s)
