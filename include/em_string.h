@@ -15,13 +15,20 @@
 
 // Pre-allocated architecture sizes. 
 template<size_t Capacity> class EmString;
-using EmStringXXS  = EmString<8>;
-using EmStringXS   = EmString<16>;
-using EmStringS    = EmString<32>;
-using EmStringM    = EmString<128>;
-using EmStringL    = EmString<512>;    
-using EmStringXL   = EmString<1024>;    
-using EmStringXXL  = EmString<2048>;    
+#define EMSTRING_CAPACITY_XXS 8
+#define EMSTRING_CAPACITY_XS 16
+#define EMSTRING_CAPACITY_S 32
+#define EMSTRING_CAPACITY_M 128
+#define EMSTRING_CAPACITY_L 512
+#define EMSTRING_CAPACITY_XL 1024
+#define EMSTRING_CAPACITY_XXL 2028
+using EmStringXXS  = EmString<EMSTRING_CAPACITY_XXS>;
+using EmStringXS   = EmString<EMSTRING_CAPACITY_XS>;
+using EmStringS    = EmString<EMSTRING_CAPACITY_S>;
+using EmStringM    = EmString<EMSTRING_CAPACITY_M>;
+using EmStringL    = EmString<EMSTRING_CAPACITY_L>;    
+using EmStringXL   = EmString<EMSTRING_CAPACITY_XL>;    
+using EmStringXXL  = EmString<EMSTRING_CAPACITY_XXL>;    
 
 // Result codes for EmString operations.
 enum EmStrResult : uint8_t {

@@ -804,6 +804,30 @@ public:
         tags.add(*this);
      }
 
+    template<typename T>
+    EmStorageTag(const char* key,
+                 const T& initValue, 
+                 EmSyncFlags flags,
+                 EmTagsAdd& tags1,
+                 EmTagsAdd& tags2)
+     : EmStorageTag<tStorage>(key, initValue, flags) {
+        tags1.add(*this);
+        tags2.add(*this);
+     }
+
+    template<typename T>
+    EmStorageTag(const char* key,
+                 const T& initValue, 
+                 EmSyncFlags flags,
+                 EmTagsAdd& tags1,
+                 EmTagsAdd& tags2,
+                 EmTagsAdd& tags3)
+     : EmStorageTag<tStorage>(key, initValue, flags) {
+        tags1.add(*this);
+        tags2.add(*this);
+        tags3.add(*this);
+     }
+
     virtual const char* getKey() const { 
         return EmTag::getId(); 
     }
