@@ -24,6 +24,18 @@ using ts_uint32 = std::atomic<uint32_t>;
 using EmMutex = std::mutex;
 using EmMutexLock = std::lock_guard<std::mutex>;
 using EmMutexLockISR = std::lock_guard<std::mutex>;
+class EmMutexDualLock {
+public:
+    EmMutexDualLock(EmMutex& m1, EmMutex& m2)
+     : lock1(m1, std::defer_lock), 
+       lock2(m2, std::defer_lock) {
+        std::lock(lock1, lock2);
+    }
+
+private:
+    std::unique_lock<EmMutex> lock1;
+    std::unique_lock<EmMutex> lock2;
+};
 
 #ifdef EM_ESP
 #include "freertos/FreeRTOS.h"

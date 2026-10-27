@@ -145,6 +145,14 @@ inline int32_t iRound(real_type num) {
                       static_cast<int32_t>(num-0.5);
 }
 
+// Returns the float or double rounded number with the required decimal digits precision
+template <class real_type>
+inline real_type fRound(real_type num, uint8_t decimal_digits) {
+    float digitsFactor = pow(10, decimal_digits);
+    return round(num*digitsFactor)/digitsFactor;
+}
+
+
 // Returns the integer multiplied number: num1 * num2
 template <class real_type>
 inline int32_t iMolt(real_type num1, real_type num2) {
