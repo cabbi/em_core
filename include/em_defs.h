@@ -132,6 +132,10 @@
 #define MAX(x, y) ((x)>(y) ? (x) : (y))
 #endif
 
+inline bool isNullOrEmpty(const char* str) {
+    return str==nullptr || str[0]==0;
+}
+
 // Returns the power of 10`^ exp as an integer number
 // This method will avoid using the "double pow10(...)" implementation
 inline int32_t iPow10(size_t exp) {
