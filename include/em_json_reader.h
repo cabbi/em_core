@@ -43,6 +43,8 @@ public:
             m_jsonLen = strlen(m_jsonStr);
         }
     }
+    EmJsonDictReader(const EmStringBase& jsonStr)
+     : EmJsonDictReader(jsonStr.c_str()) {}
 
     bool isValidJson() const;
 

@@ -46,7 +46,7 @@ class EmTaskStaticQueue {
 public:
     // Callback types for push and pull operations
     typedef void (*PushCallback)(T& internalSlot, void* context);
-    typedef void (*PullCallback)(const T& internalSlot, void* context);
+    typedef void (*PullCallback)(T& internalSlot, void* context);
 
     EmTaskStaticQueue(T items[])
      : m_queue(QueueSize), 
@@ -110,7 +110,7 @@ public:
 
     // Free the oldest item in the queue, if any.
     virtual EmQueueResult freeOldest() { 
-        return pull([](const T&, void*) {}, nullptr, 0); 
+        return pull([](T&, void*) {}, nullptr, 0); 
     }
 
     virtual bool isValid() const { return m_queue.isValid() && m_freeSlots != nullptr; }

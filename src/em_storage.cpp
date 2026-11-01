@@ -222,7 +222,7 @@ bool EmStorage::getString(const char* key,
                           char* value, 
                           const size_t maxLen) const {
     size_t len = 0;
-    if (!isInitialized() || !key || !value || !maxLen) {
+    if (!isInitialized() || isNullOrEmpty(key) || !value || !maxLen) {
         return false;
     }
     esp_err_t err = nvs_get_str_(m_handle, key, NULL, &len);
@@ -244,7 +244,7 @@ bool EmStorage::getString(const char* key,
 
 size_t EmStorage::getBytesLength(const char* key) const {
     size_t len = 0;
-    if (!isInitialized() || !key) {
+    if (!isInitialized() || isNullOrEmpty(key)) {
         return 0;
     }
     esp_err_t err = nvs_get_blob_(m_handle, key, NULL, &len);
@@ -257,7 +257,7 @@ size_t EmStorage::getBytesLength(const char* key) const {
 
 size_t EmStorage::getStringLength(const char* key) const {
     size_t len = 0;
-    if (!isInitialized() || !key) {
+    if (!isInitialized() || isNullOrEmpty(key)) {
         return 0;
     }
     esp_err_t err = nvs_get_str_(m_handle, key, NULL, &len);
@@ -265,7 +265,7 @@ size_t EmStorage::getStringLength(const char* key) const {
         logDebug<100>("nvs_get_str len failed: %s - %s", key, nvs_error(err));
         return 0;
     }
-    return len-1; // -1 -> NVS gives back also null-terminator byte!
+    return len > 0 ? len-1 : 0; // -1 -> NVS gives back also null-terminator byte!
 }
 
 bool EmStorage::getBytes(const char* key, 
