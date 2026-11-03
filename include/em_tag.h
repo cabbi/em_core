@@ -5,6 +5,7 @@
 
 #ifdef EM_STD_LIB // Need standard library 
 
+#include "esp_heap_caps.h"
 #include "em_tag_value.h"
 
 
@@ -421,6 +422,82 @@ inline EmTag::EmTag(const char* id,
   : EmTag(id, initValue, flags) {
     tags.add(*this);
 }
+
+// Read-only tag
+class EmReadOnlyTag: public EmTagBase {
+public:
+    EmReadOnlyTag(const char* id)
+     : EmTagBase(EmSyncFlags::canRead), m_id(id) {}
+    EmReadOnlyTag(const char* id, EmTagsAdd& tags)
+     : EmReadOnlyTag(id) {
+        tags.add(*this);
+    }
+    EmReadOnlyTag(const char* id,
+                  EmTagsAdd& tags1, 
+                  EmTagsAdd& tags2) : EmReadOnlyTag(id) {
+        tags1.add(*this);
+        tags2.add(*this);
+    }
+    EmReadOnlyTag(const char* id,
+                  EmTagsAdd& tags1, 
+                  EmTagsAdd& tags2,
+                  EmTagsAdd& tags3) : EmReadOnlyTag(id) {
+        tags1.add(*this);
+        tags2.add(*this);
+        tags3.add(*this);
+    }
+
+    virtual const char* getId() const override { return m_id; }
+    virtual bool setValue(const EmTagValue& value) override { return false; }
+
+protected:
+    const char* m_id;
+};
+
+// The system uptime in seconds as a read-only tag
+class EmUptimeTag: public EmReadOnlyTag {
+public:
+    using EmReadOnlyTag::EmReadOnlyTag;
+
+    virtual EmGetValueResult getValue(EmTagValue& value) const {       
+        value.setValue(static_cast<EmUIntType>(esp_timer_get_time()/1000000), true);
+        return EmGetValueResult::succeedNotEqualValue;
+    }
+};
+
+// The system heap free size in bytes as a read-only tag
+class EmHeapFreeSizeTag: public EmReadOnlyTag {
+public:
+    using EmReadOnlyTag::EmReadOnlyTag;
+
+    virtual EmGetValueResult getValue(EmTagValue& value) const {       
+        value.setValue(static_cast<EmUIntType>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)), true);
+        return EmGetValueResult::succeedNotEqualValue;
+    }
+};
+
+// The system heap max allocable block memory in bytes as a read-only tag
+class EmHeapMaxAllocBlockTag: public EmReadOnlyTag {
+public:
+    using EmReadOnlyTag::EmReadOnlyTag;
+
+    virtual EmGetValueResult getValue(EmTagValue& value) const {       
+        value.setValue(static_cast<EmUIntType>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)), true);
+        return EmGetValueResult::succeedNotEqualValue;
+    }
+};
+
+// The system heap historical minimum free size (aka heap watermark) in bytes as a read-only tag
+class EmHeapMinFreeSizeTag: public EmReadOnlyTag {
+public:
+    using EmReadOnlyTag::EmReadOnlyTag;
+
+    virtual EmGetValueResult getValue(EmTagValue& value) const {       
+        value.setValue(static_cast<EmUIntType>(heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)), true);
+        return EmGetValueResult::succeedNotEqualValue;
+    }
+};
+
 #endif // EM_STD_LIB
 
 #endif // _EM_TAG_H__

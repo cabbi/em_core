@@ -16,9 +16,18 @@ struct EmEpochBase {
     static EmEpochBase Zero() { return EmEpochBase(0); }
     static EmEpochBase Invalid() { return EmEpochBase(0); }
 
-    bool getTime(struct tm& timeinfo) {
+    bool getTime(tm& timeinfo) const {
         time_t time = static_cast<time_t>(value);
         return localtime_r(&time, &timeinfo) != nullptr;
+    }
+
+    bool fromTime(tm& timeinfo) {
+        time_t time = mktime(&timeinfo);
+        if (time < 0) {
+            return false;
+        }
+        value = static_cast<T>(time);
+        return true;
     }
 
     // Explicit conversion operator 
