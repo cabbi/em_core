@@ -98,13 +98,14 @@ public:
 
     EmTagValue(const EmTagValue& other) {
         m_type = other.m_type;
-        m_value = other.m_value; // TODO: can we have this? Not that other goes out of scope sooner than this!?
+        m_value = other.m_value;
     };
 
     EmTagValue& operator=(const EmTagValue& other) {
         if (this != &other) {
+            EmMutexDualLock lock(m_mutex, other.m_mutex);
             m_type = other.m_type;
-            m_value = other.m_value; // TODO: can we have this? Not that other goes out of scope sooner than this!?
+            m_value = other.m_value;
         }
         return *this;
     }
